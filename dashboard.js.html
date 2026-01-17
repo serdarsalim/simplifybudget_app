@@ -1,0 +1,1209 @@
+<script>
+
+
+// Add this SaveQueue implementation at the beginning of BudgetDashboardJS.html
+// This creates a queue system to handle sequential save operations
+
+/**
+ * SaveQueue - Manages sequential saving of budget values
+ * Prevents race conditions when multiple values are changed quickly
+ */
+const SaveQueue = (function() {
+  // Private variables
+  let _queue = [];
+  let _isProcessing = false;
+  let _isReordering = false;
+
+  
+// Replace the category finding logic with this:
+
+function processNextItem() {
+  if (_queue.length === 0) {
+    _isProcessing = false;
+    return;
+  }
+  
+  _isProcessing = true;
+  const nextItem = _queue.shift();
+  
+  // Get current budget data from cache
+  let budgetData = window.CacheManager.getBudgetData();
+  
+  // Initialize if needed - NO categories array needed!
+  if (!budgetData || !budgetData.budgets) {
+    budgetData = {
+      budgets: {},
+      version: 1
+    };
+  }
+  
+  const monthKey = `${_currentYear}-${String(_currentMonth + 1).padStart(2, '0')}`;
+  
+  if (!budgetData.budgets[monthKey]) {
+    budgetData.budgets[monthKey] = {};
+  }
+  
+  // HANDLE SAVINGS SPECIALLY, EVERYTHING ELSE BY INDEX
+  if (nextItem.categoryName === 'Savings 💵') {
+    if (nextItem.value > 0) {
+      budgetData.budgets[monthKey]['savings'] = nextItem.value;
+    } else {
+      delete budgetData.budgets[monthKey]['savings'];
+    }
+  } else {
+    // Get current categories to find the category
+    const currentCategories = window.CacheManager.getCategoriesWithTimestamp();
+    if (!currentCategories || !currentCategories.categories) {
+      console.error('No categories available');
+      if (nextItem.onError) nextItem.onError('No categories available');
+      setTimeout(processNextItem, 50);
+      return;
+    }
+    
+    // Find the category by name (no sorting needed!)
+    const category = currentCategories.categories.find(c => 
+      (c.fullName === nextItem.categoryName || c.name === nextItem.categoryName) 
+    );
+    
+    if (!category) {
+      console.error('Category not found:', nextItem.categoryName);
+      if (nextItem.onError) {
+        nextItem.onError('Category not found: ' + nextItem.categoryName);
+      }
+      setTimeout(processNextItem, 50);
+      return;
+    }
+    
+    // Use the category's 'order' property as the index
+    const categoryIndex = category.order;
+    
+    // Validate that we have a valid order
+    if (typeof categoryIndex !== 'number' || categoryIndex < 0) {
+      console.error('Category has invalid order:', category);
+      if (nextItem.onError) {
+        nextItem.onError('Invalid category order for: ' + nextItem.categoryName);
+      }
+      setTimeout(processNextItem, 50);
+      return;
+    }
+    
+    // Save or delete the budget value
+    if (nextItem.value > 0) {
+      budgetData.budgets[monthKey][categoryIndex.toString()] = nextItem.value;
+    } else {
+      delete budgetData.budgets[monthKey][categoryIndex.toString()];
+    }
+  }
+  
+  // Save the budget JSON
+  API.saveBudgetData(
+    budgetData,
+    (result) => {
+      // Update cache
+      window.CacheManager.setBudgetData(budgetData);
+      
+      // Refresh dashboard to update progress bars and totals
+      if (typeof SimBudget !== 'undefined' && SimBudget.loadBudgetData) {
+        SimBudget.loadBudgetData();
+      }
+      
+      // Success callback
+      try {
+        if (nextItem.onSuccess) {
+          nextItem.onSuccess(result);
+        }
+      } finally {
+        setTimeout(processNextItem, 50);
+      }
+    },
+    (error) => {
+      // Error callback
+      try {
+        if (nextItem.onError) {
+          nextItem.onError(error);
+        }
+      } finally {
+        setTimeout(processNextItem, 50);
+      }
+    }
+  );
+}
+  
+
+
+
+  // Public methods
+  return {
+    /**
+     * Add a save operation to the queue
+     * @param {string} categoryName - Name of the budget category
+     * @param {number} value - New budget value
+     * @param {Function} onSuccess - Success callback
+     * @param {Function} onError - Error callback
+     */
+    add: function(categoryName, value, onSuccess, onError) {
+      // Add to the queue
+      _queue.push({
+        categoryName: categoryName,
+        value: value,
+        onSuccess: onSuccess,
+        onError: onError,
+        timestamp: Date.now()
+      });
+      
+      // Start processing if not already processing
+      if (!_isProcessing) {
+        processNextItem();
+      }
+    },
+    
+    /**
+     * Cancel pending operations for a category
+     * @param {string} categoryName - Name of the budget category to cancel
+     */
+    cancelCategory: function(categoryName) {
+      _queue = _queue.filter(item => item.categoryName !== categoryName);
+    },
+    
+    /**
+     * Check if there are pending saves
+     * @return {boolean} True if queue is not empty
+     */
+    hasPendingSaves: function() {
+      return _queue.length > 0;
+    }
+  };
+})();
+
+
+/**
+ * Budget Dashboard JavaScript - Render functions for the 3-column dashboard
+ */
+
+// Extend the SimBudget namespace with dashboard-specific functions
+(function() {
+
+  // Get emoji from category name
+  function getEmoji(categoryName) {
+    const match = categoryName.match(/\p{Emoji}/u);
+    return match ? match[0] : '📊';
+  }
+  
+  // Get color from category name
+    // Replace the getEmoji 
+    function getEmoji(categoryName) {
+      const emojiRegex = /^[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F700}-\u{1F77F}]|[\u{1F780}-\u{1F7FF}]|[\u{1F800}-\u{1F8FF}]|[\u{1F900}-\u{1F9FF}]|[\u{1FA00}-\u{1FA6F}]|[\u{1FA70}-\u{1FAFF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{2300}-\u{23FF}]|[\u{2B00}-\u{2BFF}]|[\u{25A0}-\u{25FF}]|[\u{2190}-\u{21FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{3030}]|[\u{303D}]|[\u{3297}]|[\u{3299}]|[\u{24C2}]|[\u{1F004}]|[\u{1F0CF}]|[\u{1F18E}]$/u;
+      
+      const match = categoryName.match(emojiRegex);
+      return match ? match[0] : '📊';
+    }
+  
+    // Render the budget dashboard
+  /**
+   * Render the budget dashboard with modular data
+   * @param {Object} data - Combined dashboard data from all modules
+   */
+  SimBudget.renderBudgetDashboard = function(data) {
+
+
+    
+  // Store categories for reference
+  if (data.categories) {
+    SimBudget._currentBudgetData = {
+      categories: data.categories,
+      income: data.summary ? data.summary.income : 0
+    };
+  }
+  
+  try {
+    // 1. RENDER HEADER (MONTH & YEAR)
+    if (data.header) {
+      const monthSelector = document.getElementById('monthSelector');
+      const yearSelector = document.getElementById('yearSelector');
+      
+      // Set values without triggering change events
+      // Values are updated directly - event handlers are already detached by loadBudgetData
+      if (monthSelector && data.header.month) {
+        monthSelector.value = data.header.month;
+      }
+      
+      if (yearSelector && data.header.year) {
+        yearSelector.value = data.header.year.toString();
+      }
+    }
+    
+    // 2. RENDER FINANCIAL SUMMARY
+    if (data.summary) {
+    const incomeElement = document.getElementById('income-value');
+    const spentElement = document.getElementById('spent-value');
+    const leftToSpendElement = document.getElementById('left-to-spend-value');
+    
+        // FIND this section around lines 215-225:
+    if (incomeElement) incomeElement.textContent = Utils.formatCurrency(data.summary.income || 0);
+    if (spentElement) spentElement.textContent = Utils.formatCurrency(data.summary.spent || 0);
+    if (leftToSpendElement) leftToSpendElement.textContent = Utils.formatCurrency(data.summary.leftToSpend || 0);
+    
+    // REPLACE with this dynamic logic:
+    if (incomeElement) incomeElement.textContent = Utils.formatCurrency(data.summary.income || 0);
+    if (spentElement) spentElement.textContent = Utils.formatCurrency(data.summary.spent || 0);
+    
+    // Dynamic left to spend/saved/overspent display
+    if (leftToSpendElement) {
+      const leftToSpendLabel = document.getElementById('left-to-spend-label');
+      
+      if (data.summary.displayType === 'leftToSpend') {
+        if (leftToSpendLabel) leftToSpendLabel.textContent = Utils.translateCategory('left_to_spend') || 'Left to Spend';
+        leftToSpendElement.textContent = Utils.formatCurrency(data.summary.leftToSpend || 0);
+      } else if (data.summary.displayType === 'saved') {
+        if (leftToSpendLabel) leftToSpendLabel.textContent = Utils.translateCategory('saved') || 'Saved';
+        leftToSpendElement.textContent = Utils.formatCurrency(data.summary.saved || 0);
+      } else if (data.summary.displayType === 'overspent') {
+        if (leftToSpendLabel) leftToSpendLabel.textContent = Utils.translateCategory('overspent') || 'Overspent';
+        leftToSpendElement.textContent = Utils.formatCurrency(data.summary.overspent || 0);
+      } else {
+        // Fallback to original behavior
+        if (leftToSpendLabel) leftToSpendLabel.textContent = Utils.translateCategory('left_to_spend') || 'Left to Spend';
+        leftToSpendElement.textContent = Utils.formatCurrency(data.summary.leftToSpend || 0);
+      }
+    }
+      
+      // Update budget alert
+     const budgetAlert = document.getElementById('budget-alert');
+if (budgetAlert) {
+  // Don't set textContent directly - let updateInfoMessage handle it
+  // Just call updateInfoMessage which will properly set data-translate
+  if (typeof SimBudget.updateInfoMessage === 'function') {
+    SimBudget.updateInfoMessage(true);
+        }
+       }
+     }   
+
+    
+    // 4. RENDER CATEGORIES
+    if (data.categories && data.categories.length > 0) {
+      const categoriesBody = document.getElementById('budget-categories-body');
+      if (categoriesBody) {
+        categoriesBody.innerHTML = '';
+        
+        data.categories.forEach((category, index) =>  {
+        const percentSpent = category.budgeted > 0 ? (category.actual / category.budgeted) * 100 : (category.actual > 0 ? 100 : 0);
+// Reverse logic for Savings (last category)
+let progressClass = '';
+if (index === data.categories.length - 1) {
+  // Savings: Higher % = Better
+  if (percentSpent < 30) {
+    progressClass = 'savings-poor';
+  } else if (percentSpent < 70) {
+    progressClass = 'savings-moderate'; 
+  }
+  // 70%+ stays green (no class)
+} else {
+  // Expenses: Existing logic
+  progressClass = percentSpent > 100 ? 'over-budget' : (percentSpent > 80 ? 'near-limit' : '');
+}        
+
+// Extract emoji and text separately
+const emojiRegex = /[\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}\u{2460}-\u{24FF}\u{2500}-\u{257F}\u{2580}-\u{259F}\u{25A0}-\u{25FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2B50}\u{2B55}\u{231A}\u{231B}\u{2328}\u{23CF}\u{23E9}-\u{23F3}\u{23F8}-\u{23FA}\u{24C2}\u{25AA}\u{25AB}\u{25B6}\u{25C0}\u{25FB}-\u{25FE}\u{2934}\u{2935}\u{3030}\u{303D}\u{3297}\u{3299}]|\u{FE0F}/gu;
+
+const allEmojis = category.name.match(emojiRegex);
+const categoryText = category.name.replace(emojiRegex, '').trim();
+const categoryEmoji = allEmojis ? allEmojis.join('') : '';
+
+// Helper function to check if we're viewing the current month
+function isCurrentMonth() {
+  const now = new Date();
+  const currentMonth = window._currentMonth !== undefined ? window._currentMonth : now.getMonth();
+  const currentYear = window._currentYear !== undefined ? window._currentYear : now.getFullYear();
+  return currentMonth === now.getMonth() && currentYear === now.getFullYear();
+}
+
+// Determine actual value display for savings in current month
+const actualValueDisplay = (category.name === 'Savings 💵' && isCurrentMonth()) 
+  ? '—' 
+  : Utils.formatCurrency(category.actual);
+
+// Determine progress bar display for savings in current month
+const progressBarDisplay = (category.name === 'Savings 💵' && isCurrentMonth())
+  ? ''
+  : `<div class="progress-bar-container">
+      <div class="progress-bar ${progressClass}" style="width: ${Math.min(percentSpent, 100)}%"></div>
+    </div>
+    <div class="progress-percentage">${Math.round(percentSpent)}%</div>`;
+
+// Create row
+const row = document.createElement('tr');
+row.innerHTML = `
+  <td class="category-name">
+    ${categoryEmoji ? `<span class="category-emoji">${categoryEmoji}</span>` : ''}
+    ${Utils.translateCategory(categoryText)}
+  </td>
+  <td class="budget-value" data-category="${category.name}" data-value="${category.budgeted}">${Utils.formatCurrency(category.budgeted)}</td>
+  <td class="actual-value">${actualValueDisplay}</td>
+  <td class="progress-cell">
+    ${progressBarDisplay}
+  </td>
+`;
+  
+  categoriesBody.appendChild(row);
+});
+        
+        // Make budget values editable in the next animation frame
+        window.requestAnimationFrame(function() {
+          if (typeof SimBudget.makeEditableBudgetValues === 'function') {
+            try {
+              SimBudget.makeEditableBudgetValues();
+            } catch (error) {
+              console.error("Error making budget values editable:", error);
+            }
+          }
+        });
+      }
+    }
+    
+    // 5. RENDER SUBSCRIPTIONS
+if (data.subscriptions) {
+  try {
+    // 5.1 Update subscription summary
+    const subscriptionInfo = document.querySelector('.subscription-info');
+if (subscriptionInfo) {
+  // Get subscription data
+  const count = data.subscriptions.count || 0;
+  const total = data.subscriptions.total || 0;
+  const income = data.summary ? data.summary.income : 0;
+  
+  // Calculate percentage of income (if income exists)
+  let percentText = '';
+    if (income > 0) {
+      const percentage = Math.round((total / income) * 100);
+      percentText = ` - ${percentage}% ${Utils.translateCategory('of Income')}`;
+    }
+  
+  // Build HTML with two separate divs
+ const formattedSummary = `
+  <div>${Utils.translateCategory('Fixed Expenses')}</div>
+`;
+  
+  // Update the element
+  subscriptionInfo.innerHTML = formattedSummary;
+}
+    
+    // 5.2 Render subscription list - ADD THIS SECTION
+    // 5.2 Render subscription list
+const subscriptionBody = document.getElementById('subscription-list-body');
+if (subscriptionBody) {
+  subscriptionBody.innerHTML = '';
+  
+  if (data.subscriptions.items && data.subscriptions.items.length > 0) {
+    // Find the next payment date (earliest upcoming)
+    let nextPaymentDate = null;
+    let earliestDaysDiff = Number.MAX_VALUE;
+    
+    // First pass: determine the next payment date
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    data.subscriptions.items.forEach(subscription => {
+      if (subscription.nextDate) {
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const [monthStr, dayStr] = subscription.nextDate.split(' ');
+        const month = monthNames.indexOf(monthStr);
+        const day = parseInt(dayStr);
+        
+        if (month !== -1 && !isNaN(day)) {
+          const nextDate = new Date(today.getFullYear(), month, day);
+          
+          // If date is in the past, assume it's next year
+          if (nextDate < today) {
+            nextDate.setFullYear(today.getFullYear() + 1);
+          }
+          
+          const daysDiff = Math.ceil((nextDate - today) / (1000 * 60 * 60 * 24));
+          
+          // Only consider future payments (daysDiff > 0) for "next payment"
+          if (daysDiff > 0 && daysDiff < earliestDaysDiff) {
+            earliestDaysDiff = daysDiff;
+            nextPaymentDate = nextDate;
+          }
+        }
+      }
+    });
+    
+    // Second pass: render with proper highlighting
+    data.subscriptions.items.forEach(subscription => {
+      const row = document.createElement('tr');
+      let indicatorContent = '';
+      
+      if (subscription.nextDate) {
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const [monthStr, dayStr] = subscription.nextDate.split(' ');
+        const month = monthNames.indexOf(monthStr);
+        const day = parseInt(dayStr);
+        
+        if (month !== -1 && !isNaN(day)) {
+  const nextDate = new Date(today.getFullYear(), month, day);
+  
+  // If date is in the past, assume it's next year
+  if (nextDate < today) {
+    nextDate.setFullYear(today.getFullYear() + 1);
+  }
+  
+  const daysDiff = Math.ceil((nextDate - today) / (1000 * 60 * 60 * 24));
+  
+  // NEW: Only apply highlighting if the date is in the current month
+  const isCurrentMonth = nextDate.getMonth() === today.getMonth() && 
+                         nextDate.getFullYear() === today.getFullYear();
+  
+  if (isCurrentMonth) {
+    // Add class for highlighting
+    if (daysDiff === 0) {
+      row.classList.add('due-today');
+    } else if (daysDiff > 0 && daysDiff <= 3) {
+      row.classList.add('due-soon');
+    }
+  }
+  
+  // Add next-payment class and arrow if this is the next upcoming payment
+  if (nextPaymentDate && nextDate.getTime() === nextPaymentDate.getTime()) {
+    row.classList.add('next-payment');
+    indicatorContent = '⟫';
+  }
+}
+      }
+      
+      row.innerHTML = `
+        <td class="indicator-column">${indicatorContent}</td>
+        <td>${subscription.name || ''}</td>
+        <td class="amount-column">${Utils.formatCurrency(subscription.amount)}</td>
+        <td>${subscription.nextDate || ''}</td>
+      `;
+      subscriptionBody.appendChild(row);
+    });
+  }
+}
+  } catch (subError) {
+    console.error("Error rendering subscriptions:", subError);
+  }
+}
+    
+    // 6. RENDER CHART (After small delay to ensure DOM is ready)
+setTimeout(function() {
+  try {
+    if (typeof SimBudget.renderExpenseChart === 'function' && data.categories) {
+      SimBudget.renderExpenseChart(data.categories);
+    }
+    
+    // Reorder elements for mobile view
+    SimBudget.reorderDashboardForMobile();
+    
+  } catch (chartError) {
+    console.error("Error rendering expense chart:", chartError);
+  }
+}, 500);
+    
+  } catch (error) {
+    console.error("Error rendering budget dashboard:", error);
+  }
+
+    if (window._eventManager && typeof _eventManager.attach === 'function') {
+    _eventManager.attach();
+  }
+};
+
+
+/**
+ * Updates the progress bar for a budget category immediately
+ * @param {string} categoryName - The category to update
+ * @param {number} newBudgetValue - The new budget value
+ */
+SimBudget.updateProgressBar = function(categoryName, newBudgetValue) {
+  // Find the row for this category
+  const rows = document.querySelectorAll('.budget-table tr');
+  rows.forEach(row => {
+    const categoryCell = row.querySelector('.category-name');
+    if (categoryCell && categoryCell.textContent === categoryName) {
+      // Get the actual value
+      const actualValue = parseFloat(row.querySelector('.actual-value').textContent.replace(/[^0-9.-]+/g, ''));
+      
+      // Calculate new percentage
+      const newPercentage = newBudgetValue > 0 ? (actualValue / newBudgetValue) * 100 : (actualValue > 0 ? 100 : 0);
+      const progressClass = newPercentage > 100 ? 'over-budget' : (newPercentage > 80 ? 'near-limit' : '');
+      
+      // Update progress bar
+      const progressBar = row.querySelector('.progress-bar');
+      if (progressBar) {
+        progressBar.style.width = Math.min(newPercentage, 100) + '%';
+        
+        // Update classes for color
+        progressBar.classList.remove('over-budget', 'near-limit');
+        if (progressClass) {
+          progressBar.classList.add(progressClass);
+        }
+      }
+      
+      // Update percentage text
+      const percentageText = row.querySelector('.progress-percentage');
+      if (percentageText) {
+        percentageText.textContent = Math.round(newPercentage) + '%';
+      }
+    }
+  });
+  
+  // After updating progress bars, also update the chart
+  if (SimBudget._currentBudgetData && SimBudget._currentBudgetData.categories) {
+    // Update the category data in memory
+    SimBudget._currentBudgetData.categories.forEach(cat => {
+      if (cat.name === categoryName) {
+        cat.budgeted = newBudgetValue;
+      }
+    });
+    
+    // Force redraw the chart
+    if (typeof SimBudget.renderExpenseChart === 'function') {
+      // Ensure any existing chart is destroyed first
+      if (SimBudget._expenseChart) {
+        SimBudget._expenseChart.destroy();
+        SimBudget._expenseChart = null;
+      }
+      // Render the chart with updated data
+      setTimeout(() => SimBudget.renderExpenseChart(SimBudget._currentBudgetData.categories), 50);
+    }
+  }
+};
+ 
+// Update SimBudget.makeEditableBudgetValues to use the SaveQueue
+SimBudget.makeEditableBudgetValues = function() {
+  // This function will contain the same code that currently makes budget values editable
+  document.querySelectorAll('.budget-value').forEach(cell => {
+    cell.setAttribute('contenteditable', 'true');
+    cell.setAttribute('title', 'Click to edit budget amount');
+    cell.setAttribute('inputmode', 'decimal');
+    cell.classList.add('editable');
+    
+    // Get the category name from data attribute
+    const categoryName = cell.dataset.category;
+    const originalValue = parseFloat(cell.dataset.value);
+    
+    // Variables for auto-save debounce
+    let saveTimeout = null;
+    let isSaving = false;
+    let currentEditValue = null;
+    
+    // Handle key presses
+    cell.addEventListener('keydown', function(e) {
+      // Prevent Enter from creating a new line - just blur the field instead
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        this.blur(); 
+      }
+      
+      // Cancel on Escape key press
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        // Reset to the original formatted value
+        this.textContent = Utils.formatCurrency(originalValue);
+        this.blur();
+        
+        // Cancel any pending save
+        if (saveTimeout) {
+          clearTimeout(saveTimeout);
+          saveTimeout = null;
+        }
+        
+        // Cancel any pending save in the queue
+        SaveQueue.cancelCategory(categoryName);
+      }
+    });
+    
+    // Validate input and handle auto-save
+    cell.addEventListener('input', function(e) {
+  // Cancel any pending save
+  if (saveTimeout) {
+    clearTimeout(saveTimeout);
+  }
+  
+  // Clean the value to show just numbers
+  const rawValue = this.textContent.replace(/[^0-9.-]+/g, '');
+  const numValue = parseFloat(rawValue);
+  
+  if (isNaN(numValue)) {
+    // Invalid input, will be corrected on blur
+    return;
+  }
+
+  // Apply the styling to indicate editing is in progress
+  this.classList.add('editing');
+  
+  // Store the current edit value
+  currentEditValue = numValue;
+
+  // Update progress bar immediately with the new value
+  SimBudget.updateProgressBar(categoryName, numValue);
+  
+
+      
+      // Schedule auto-save after 1 second of no typing
+      saveTimeout = setTimeout(() => {
+        // Get the final numeric value after timeout
+        const cleanValue = this.textContent.replace(/[^0-9.-]+/g, '');
+        const finalValue = parseFloat(cleanValue);
+        
+        // Don't save if invalid number
+        if (isNaN(finalValue)) {
+          this.classList.remove('editing');
+          return;
+        }
+        
+        // Don't save if the value hasn't changed significantly (within small rounding error)
+        const currentDisplayedValue = parseFloat(this.dataset.value);
+            if (Math.abs(finalValue - currentDisplayedValue) < 0.001) {
+            this.classList.remove('editing');
+            return;
+    }
+        
+        // Indicate saving
+        isSaving = true;
+        this.classList.add('saving');
+        
+        // Format with currency symbol for display
+        this.textContent = Utils.formatCurrency(finalValue);
+        
+        // KEY CHANGE: Use the SaveQueue instead of directly calling API
+        SaveQueue.add(
+          categoryName,
+          finalValue,
+          (result) => {
+            // Update was successful
+            isSaving = false;
+            cell.classList.remove('editing', 'saving');
+            cell.classList.add('saved');
+             cell.dataset.value = finalValue;
+             if (window.CacheManager) {
+                // Invalidate dashboard cache so it recalculates
+                  window.CacheManager.invalidate('dashboardData');
+                }
+              // Update our local data with the final value
+            let budgetChanged = false;
+            SimBudget._currentBudgetData.categories.forEach(cat => {
+              if (cat.name === categoryName) {
+                // Only mark changed if there's a significant difference
+                if (Math.abs(cat.budgeted - finalValue) > 0.001) {
+                  budgetChanged = true;
+                  cat.budgeted = finalValue;
+                }
+              }
+            });
+            
+            // Update cached data too
+            if (window._dataCache && window._dataCache.budget && window._dataCache.budget.budget) {
+              window._dataCache.budget.budget.categories.forEach(cat => {
+                if (cat.name === categoryName) {
+                  cat.budgeted = finalValue;
+                }
+              });
+            }
+            
+            // Always update the info message based on local calculations
+            SimBudget.updateInfoMessage(true); // Force update
+            
+            // Rerender the chart to reflect the changes
+            SimBudget.renderExpenseChart(SimBudget._currentBudgetData.categories);
+            
+            // Show a subtle success indicator
+            setTimeout(() => {
+              cell.classList.remove('saved');
+            }, 1500);
+          },
+          (error) => {
+            // Update failed
+            isSaving = false;
+            cell.classList.remove('editing', 'saving');
+            cell.classList.add('error');
+            
+            // Revert to original value
+            cell.textContent = Utils.formatCurrency(originalValue);
+            
+            // Show error toast
+            Utils.showToast('Error updating budget: ' + error, 'error');
+            
+            // Remove error indicator after a delay
+            setTimeout(() => {
+              cell.classList.remove('error');
+            }, 1500);
+          }
+        );
+      }, 1000); // Wait 1 second after typing stops
+    });
+    
+    // Format value on blur
+    cell.addEventListener('blur', function() {
+      // Get numeric value
+      const value = parseFloat(this.textContent.replace(/[^0-9.-]+/g, ''));
+      if (!isNaN(value)) {
+        // Format with currency symbol
+        this.textContent = Utils.formatCurrency(value);
+      } else {
+        // If not a valid number, revert to original
+        this.textContent = Utils.formatCurrency(originalValue);
+      }
+    });
+    
+    // Select all text when focused
+    cell.addEventListener('focus', function() {
+      const range = document.createRange();
+      range.selectNodeContents(this);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+    });
+  });
+};
+
+
+/**
+ * Minimal implementation of expense chart to prevent errors
+ * @param {Array} categories - Budget categories data
+ */
+SimBudget.renderExpenseChart = function(categories) {
+  const canvas = document.getElementById('expense-donut-chart');
+  if (!canvas) return;
+  
+  // Check if Chart.js is available
+  if (typeof Chart === 'undefined') {
+    console.log("Chart.js not available, skipping chart render");
+    return;
+  }
+  
+  // Clear any existing chart
+  if (SimBudget._expenseChart) {
+    SimBudget._expenseChart.destroy();
+  }
+  
+  // Predefined palette of 30 matte colors
+  const colorPalette = [
+    '#fd7f6f', '#7eb0d5', '#b2e061', '#bd7ebe', '#ffb55a', '#ffee65',
+    '#beb9db', '#fdcce5', '#8bd3c7', '#a5cfb5', '#89c7a3', '#6bbf91',
+    '#ffadad', '#ffd6a5', '#fdffb6', '#caffbf', '#9bf6ff', '#a0c4ff',
+    '#bdb2ff', '#ffc6ff', '#fffffc', '#d0f4de', '#fefae0', '#f1c0e8',
+    '#51a6f8', '#3a8ded', '#ff9f70', '#ffb685', '#ffd6a5', '#ffe8b3'
+  ];
+  
+  // Get data for chart and assign colors from palette
+  const chartData = categories
+    .filter(cat => cat.actual > 0)
+      .filter(cat => !cat.name.toLowerCase().includes('savings')) // ← ADD THIS LINE!
+
+    .map((cat, index) => {
+      // Extract emoji from category name
+      const emoji = getEmoji(cat.name);
+      
+      return {
+        label: cat.name,
+        value: cat.actual,
+        color: colorPalette[index % colorPalette.length],
+        emoji: emoji // Store the emoji for later use
+      };
+    });
+  
+  if (chartData.length === 0) return;
+  
+  // Calculate total budget for percentages
+  const totalBudget = chartData.reduce((sum, item) => sum + item.value, 0);
+  
+  // Create custom plugin to draw emojis on chart segments
+  // Create custom plugin to draw emojis on chart segments
+const emojiPlugin = {
+  id: 'emojiPlugin',
+  afterDraw: function(chart) {
+    const ctx = chart.ctx;
+    const meta = chart.getDatasetMeta(0);
+    
+    // For each segment
+    meta.data.forEach((element, index) => {
+      // Get the emoji for this segment
+      let emoji = chartData[index].emoji;
+      if (!emoji || emoji === '📊') return; // Skip if no emoji or default
+      
+      // FUTURE-PROOF FIX: Ensure emoji presentation for ALL emojis
+      // This adds the variation selector if it's not already there
+      if (!emoji.includes('\uFE0F')) {
+        emoji = emoji + '\uFE0F';
+      }
+      
+      // Calculate the percentage of this segment
+      const percentage = chartData[index].value / totalBudget;
+      
+      // Only draw emoji if segment is large enough (at least 8% of total)
+      if (percentage >= 0.08) {
+        // Get segment center and radius
+        const centerX = element.x;
+        const centerY = element.y;
+        const radius = element.outerRadius;
+        const innerRadius = element.innerRadius;
+        
+        // Calculate position to place emoji (middle of the segment)
+        const midRadius = innerRadius + (radius - innerRadius) * 0.5;
+        const startAngle = element.startAngle;
+        const endAngle = element.endAngle;
+        const midAngle = startAngle + (endAngle - startAngle) / 2;
+        
+        // Position emoji at midpoint of the segment
+        const x = centerX + Math.cos(midAngle) * midRadius;
+        const y = centerY + Math.sin(midAngle) * midRadius;
+        
+        // Set the font size proportional to the segment size - 20% SMALLER
+        const arcSize = radius * (endAngle - startAngle);
+        const fontSize = Math.min(Math.max(arcSize * 0.4, 12.8), 32); // Reduced by 20%
+        
+        // Draw the emoji with better font support
+        ctx.font = `${fontSize}px Arial, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji"`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(emoji, x, y);
+      }
+    });
+  }
+};
+  
+  // Create simple chart
+  const ctx = canvas.getContext('2d');
+  SimBudget._expenseChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: chartData.map(item => item.label),
+      datasets: [{
+        data: chartData.map(item => item.value),
+        backgroundColor: chartData.map(item => item.color),
+        borderWidth: 1,
+        borderColor: '#ffffff'
+      }]
+    },
+    options: {
+  responsive: true,
+  maintainAspectRatio: false,
+  cutout: '70%', // Slightly larger hole for better donut look
+  plugins: {
+    legend: {
+      display: false // Hide the legend completely as requested
+    },
+    tooltip: {
+      // Add this to ensure tooltip appears in front
+      position: 'nearest',
+      z: 100,
+      callbacks: {
+        // Customize tooltip - avoid duplicate emojis
+        label: function(context) {
+          const value = context.raw;
+          const percentage = ((value / totalBudget) * 100).toFixed(1);
+          const formattedValue = Utils.formatCurrency(value);
+          const emoji = chartData[context.dataIndex].emoji;
+          
+          // Get label without emoji (if it contains the emoji)
+          let label = context.label;
+          if (label.includes(emoji)) {
+            // Remove the emoji from the label
+            label = label.replace(emoji, '').trim();
+          }
+          
+          return `${emoji} ${label}: ${formattedValue} (${percentage}%)`;
+        }
+      },
+      backgroundColor: 'rgba(0,0,0,0.8)',
+      padding: 12,
+      titleFont: {
+        size: 14,
+        weight: 'bold'
+      },
+      bodyFont: {
+        size: 13
+      },
+      cornerRadius: 4,
+      displayColors: true,
+      boxWidth: 12,
+      boxHeight: 12,
+      boxPadding: 3
+    }
+  },
+  // Add hover effect to make segments pop out slightly
+  hover: {
+    mode: 'nearest',
+    intersect: true
+  },
+  animation: false,
+  // Add this to ensure tooltip is visible
+  layout: {
+    padding: {
+      top: 10,
+      bottom: 10,
+      left: 10,
+      right: 10
+    }
+  }
+},
+    plugins: [emojiPlugin] // Add our custom emoji plugin
+  });
+};
+
+
+// Add this flag at the top of your IIFE
+let _hasReorderedMobile = false;
+
+/**
+ * Reorder dashboard elements on mobile devices - fixed non-looping version
+ */
+SimBudget.reorderDashboardForMobile = function() {
+  // Only apply on mobile devices and if not already reordered
+  if (window.innerWidth <= 768 && !_hasReorderedMobile) {
+    // Set flag to prevent repeated execution
+    _hasReorderedMobile = true;
+    
+    const container = document.querySelector('.dashboard-container') || 
+                     document.querySelector('.view-content');
+    
+    if (!container) return;
+    
+    // Get all elements (keep your existing selectors)
+    const incomeBox = container.querySelector('.income-spent-box, .budget-summary-card');
+    const budgetCard = container.querySelector('.dashboard-card.budget-data-card');
+    const subscriptionText = container.querySelector('.subscription-header, .subscription-text');
+    const subscriptionSummary = container.querySelector('.subscription-summary');
+    const chartCard = container.querySelector('.donut-chart-card, .dashboard-card.chart-card');
+    
+    // Use document fragment for batch DOM operations
+    const fragment = document.createDocumentFragment();
+    
+    // Add elements to fragment in desired order
+    if (incomeBox) fragment.appendChild(incomeBox);
+    if (budgetCard) fragment.appendChild(budgetCard);
+    if (subscriptionText) fragment.appendChild(subscriptionText);
+    if (subscriptionSummary) fragment.appendChild(subscriptionSummary);
+    if (chartCard) fragment.appendChild(chartCard);
+    
+    // Append all at once
+    container.appendChild(fragment);
+    
+    if (typeof SimBudget.fixMobileDisplay === 'function') {
+      const originalFn = SimBudget.fixMobileDisplay;
+      SimBudget.fixMobileDisplay = function() {
+        if (window.innerWidth <= 768) {
+          document.querySelectorAll('.budget-data-card td, .budget-value, .actual-value, [id$="-value"], .amount, .amount-column')
+            .forEach(el => {
+              // Existing decimal removal logic
+              // ...
+            });
+        }
+      };
+      SimBudget.fixMobileDisplay();
+      SimBudget.fixMobileDisplay = originalFn; // Restore original
+    }
+  }
+};
+
+// Add this to your window resize handler to reset the flag when needed
+window.addEventListener('resize', function() {
+  if (window.innerWidth > 768) {
+    _hasReorderedMobile = false;
+  }
+});
+
+
+
+
+/**
+ * Clean up mobile display - remove decimals and fix layout
+ */
+SimBudget.fixMobileDisplay = function() {
+  if (window.innerWidth <= 768) {
+    
+    // 1. Remove decimals from ALL amount values - more aggressive approach
+    document.querySelectorAll('.budget-data-card td, .budget-value, .actual-value, [id$="-value"], .amount, .amount-column')
+      .forEach(el => {
+        // Only process text nodes (not child elements)
+        if (el.childNodes && el.childNodes.length) {
+          for (let i = 0; i < el.childNodes.length; i++) {
+            if (el.childNodes[i].nodeType === 3) { // Text node
+              const text = el.childNodes[i].textContent;
+              // Remove everything after decimal point
+              if (text.includes('.') || text.includes(',')) {
+                const parts = text.match(/([^\d]*)([\d,]+)([.,]\d+)?(\D*)/);
+                if (parts) {
+                  el.childNodes[i].textContent = parts[1] + parts[2] + parts[4];
+                }
+              }
+            }
+          }
+        }
+      });
+  }
+};
+
+
+
+
+// Keep both the server-save event and add immediate updates
+document.addEventListener('transaction-batch-saved', handleTransactionUpdate);
+
+
+
+// Monkey patch TransactionManager for immediate updates
+if (window.TransactionManager) {
+  const originalAdd = TransactionManager.addTransaction;
+  const originalUpdate = TransactionManager.updateTransaction;
+  
+  TransactionManager.addTransaction = function(tx) {
+    const result = originalAdd.apply(this, arguments);
+    updateBudgetFromSingleTx(tx, true);
+    return result;
+  };
+  
+  TransactionManager.updateTransaction = function(tx) {
+    const result = originalUpdate.apply(this, arguments);
+    updateBudgetFromSingleTx(tx, true);
+    return result;
+  };
+}
+
+// Handle either single transaction or batch from event
+function handleTransactionUpdate(event) {
+  const transactions = event.detail?.transactions;
+  if (!transactions || !Array.isArray(transactions) || transactions.length === 0) return;
+  
+  // Process each transaction
+  transactions.forEach(tx => {
+    updateBudgetFromSingleTx(tx);
+    
+    // ADD THIS: Update CacheManager
+    if (window.CacheManager && tx.amount > 0) {
+      const month = tx.date ? new Date(tx.date).getMonth() : _currentMonth;
+      const year = tx.date ? new Date(tx.date).getFullYear() : _currentYear;
+      
+      // Update the expense in cache
+      CacheManager.updateExpense(tx, month, year);
+      
+      // Force dashboard recalculation
+      CacheManager.invalidate('dashboardData');
+    }
+  });
+}
+// Core function to update budget from a transaction
+function updateBudgetFromSingleTx(tx, immediate = false) {
+  if (!tx || tx.amount <= 0 || tx.deleted) return;
+  
+  const categoryWithEmoji = tx.emoji ? `${tx.category} ${tx.emoji}` : tx.category;
+  
+  // SAFE UPDATE: Use cache fix to prevent race conditions
+  const updateSuccess = CacheFix.safeUpdate('budget', () => {
+    // Update both in-memory data and cache
+    updateBudgetData(SimBudget._currentBudgetData, categoryWithEmoji, tx.amount);
+    
+    // Update the cache safely
+    if (window._dataCache?.budget?.budget) {
+      updateBudgetData(window._dataCache.budget.budget, categoryWithEmoji, tx.amount);
+    }
+    
+    return true;
+  });
+  
+  if (!updateSuccess) {
+    console.warn('Budget update blocked due to concurrent operation');
+    return;
+  }
+  
+  // Update UI if needed and we're on budget view
+  if (immediate && SimBudget.Views.getCurrent() === 'budget') {
+    updateBudgetUI(categoryWithEmoji);
+  }
+}
+
+// Update budget data structure
+function updateBudgetData(budgetData, category, amount) {
+  if (!budgetData?.categories) return;
+  
+  let updated = false;
+  
+  // Update category actual values
+  budgetData.categories.forEach(cat => {
+    if (cat.name === category) {
+      cat.actual = (cat.actual || 0) + amount;
+      updated = true;
+    }
+  });
+  
+  // Update summary if needed
+  if (updated && budgetData.summary) {
+    // Calculate new totals
+    const totalSpent = budgetData.categories.reduce((sum, cat) => sum + (cat.actual || 0), 0);
+    
+    budgetData.summary.spent = totalSpent;
+    
+    if (budgetData.summary.income !== undefined) {
+      budgetData.summary.leftToSpend = budgetData.summary.income - totalSpent;
+    }
+  }
+}
+
+// Update the budget UI
+function updateBudgetUI(categoryWithEmoji) {
+  if (!SimBudget._currentBudgetData?.categories) return;
+  
+  // Find the category
+  const category = SimBudget._currentBudgetData.categories.find(c => c.name === categoryWithEmoji);
+  if (!category) return;
+  
+  // Update category row
+  document.querySelectorAll('.budget-table tr').forEach(row => {
+    const categoryCell = row.querySelector('.category-name');
+    if (categoryCell?.textContent === categoryWithEmoji) {
+      // Update actual value
+      const actualCell = row.querySelector('.actual-value');
+      if (actualCell) actualCell.textContent = Utils.formatCurrency(category.actual);
+      
+      // Update progress bar
+      const budgetCell = row.querySelector('.budget-value');
+      if (budgetCell) {
+        const budgetValue = parseFloat(budgetCell.dataset.value || '0');
+        const percentage = budgetValue > 0 ? (category.actual / budgetValue) * 100 : (category.actual > 0 ? 100 : 0);
+        const progressClass = percentage > 100 ? 'over-budget' : (percentage > 80 ? 'near-limit' : '');
+        
+        const progressBar = row.querySelector('.progress-bar');
+        if (progressBar) {
+          progressBar.style.width = Math.min(percentage, 100) + '%';
+          progressBar.classList.remove('over-budget', 'near-limit');
+          if (progressClass) progressBar.classList.add(progressClass);
+        }
+        
+        const percentageText = row.querySelector('.progress-percentage');
+        if (percentageText) percentageText.textContent = Math.round(percentage) + '%';
+      }
+    }
+  });
+  
+  // Update summary values
+  if (SimBudget._currentBudgetData.summary) {
+    const spentEl = document.getElementById('spent-value');
+    if (spentEl) spentEl.textContent = Utils.formatCurrency(SimBudget._currentBudgetData.summary.spent);
+    
+    const leftEl = document.getElementById('left-to-spend-value');
+    if (leftEl) leftEl.textContent = Utils.formatCurrency(SimBudget._currentBudgetData.summary.leftToSpend);
+  }
+}
+
+
+
+function notifyDashboardOfCategoryChange() {
+  if (SimBudget.Views.getCurrent() !== 'budget') {
+    return;
+  }
+  
+  // Just re-run the same load process that happens when navigating to budget
+  SimBudget.loadBudgetData(true); // Don't force refresh, just reload normally
+}
+
+window.notifyDashboardOfCategoryChange = notifyDashboardOfCategoryChange;
+
+
+
+
+})();
+
+</script>
+

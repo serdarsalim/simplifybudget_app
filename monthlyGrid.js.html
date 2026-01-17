@@ -1,0 +1,4777 @@
+
+<script>
+
+  /**
+   * monthlyGrid.js.html - Expense script for Simplify Budget
+   * Handles application expenses, CRUD system for all normal expenses, shows recurring expenses
+   */
+
+
+var MonthlyGrid = (function() {
+  // Private variables
+  let _initialized = false;
+  let _currentMonth = new Date().getMonth();
+  let _currentYear = new Date().getFullYear();
+  let _categories = [];
+  let _transactions = [];
+  let _isLoading = false;
+  let _currencySymbol = '$';
+  let _isSettingExpenseData = false;
+  
+  // DOM element cache for performance
+  const _elements = {};
+  
+    
+/**
+ * Show day details popup with all transactions
+ */
+function showDayDetailsPopup(day) {
+  // Get all transactions for this day
+  const dayTransactions = _transactions.filter(tx => {
+    if (!tx.date) return false;
+    const txDay = tx.date.getDate();
+    const txMonth = tx.date.getMonth();
+    const txYear = tx.date.getFullYear();
+    return txDay === day && txMonth === _currentMonth && txYear === _currentYear;
+  });
+  
+  if (dayTransactions.length === 0) {
+    return; // No transactions to show
+  }
+  
+  // Format the date for header
+  const dateObj = new Date(_currentYear, _currentMonth, day);
+  const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+  const monthDay = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  
+  // Calculate daily total (same as we do for the grid)
+  const dailyTotal = dayTransactions.reduce((sum, tx) => sum + tx.amount, 0);
+  
+  // Create popup
+  const popup = document.createElement('div');
+  popup.className = 'day-details-popup';
+  popup.innerHTML = `
+    <div class="popup-backdrop"></div>
+    <div class="popup-content">
+      <div class="popup-header">
+      <h3>Spending on ${dayName}, ${monthDay} &nbsp;&nbsp;&nbsp; | &nbsp;&nbsp;&nbsp; Total: ${formatCurrency(dailyTotal)}</h3>
+        <button class="popup-close">×</button>
+      </div>
+      <div class="popup-body">
+        ${dayTransactions.map(tx => {
+          const category = _categories.find(c => c.id === tx.category);
+          let categoryDisplay;
+          if (category) {
+            // Extract emoji and text separately for translation
+            const emojiRegex = /[\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}\u{2460}-\u{24FF}\u{2500}-\u{257F}\u{2580}-\u{259F}\u{25A0}-\u{25FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2B50}\u{2B55}\u{231A}\u{231B}\u{2328}\u{23CF}\u{23E9}-\u{23F3}\u{23F8}-\u{23FA}\u{24C2}\u{25AA}\u{25AB}\u{25B6}\u{25C0}\u{25FB}-\u{25FE}\u{2934}\u{2935}\u{3030}\u{303D}\u{3297}\u{3299}]|\u{FE0F}/gu;
+            const allEmojis = category.name.match(emojiRegex);
+            const categoryText = category.name.replace(emojiRegex, '').trim();
+            const categoryEmoji = allEmojis ? allEmojis.join('') : '';
+            const translatedText = Utils.translateCategory ? Utils.translateCategory(categoryText) : categoryText;
+            categoryDisplay = categoryEmoji ? `${categoryEmoji} ${translatedText}` : translatedText;
+          } else {
+            categoryDisplay = tx.category;
+          }
+          
+          return `
+            <div class="transaction-detail">
+              <div class="detail-name">${tx.description || 'Expense'}</div>
+              <div class="detail-category">${categoryDisplay}</div>
+              <div class="detail-amount">${formatCurrency(tx.amount)}</div>
+              <div class="detail-account">${tx.account || 'Other'}</div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
+
+  
+  // Add to page
+  document.body.appendChild(popup);
+  
+  // Close handlers
+  const closeBtn = popup.querySelector('.popup-close');
+  const backdrop = popup.querySelector('.popup-backdrop');
+  
+  function closePopup() {
+    popup.remove();
+  }
+  
+  closeBtn.addEventListener('click', closePopup);
+  backdrop.addEventListener('click', closePopup);
+  
+  // Show popup
+  setTimeout(() => popup.classList.add('visible'), 10);
+}
+
+   /**
+   * Generate cache key for a specific month/year
+   */
+  function getCacheKey(month, year) {
+    return `${year}-${String(month).padStart(2, '0')}`;
+  }
+  
+
+  
+  /**
+   * Get expense data from cache (memory first, then localStorage)
+   */
+  function getCachedExpenses(month, year) {
+  if (!window.CacheManager) return null;
+  return CacheManager.getExpenses(month, year);
+}
+  
+  /**
+   * Store expense data in cache (both memory and localStorage)
+   */
+  function setCachedExpenses(month, year, expenses) {
+  if (!window.CacheManager) return;
+  CacheManager.setExpenses(expenses, month, year);
+}
+  
+
+  
+
+  
+
+  
+  /**
+   * Get an element by ID with caching
+   */
+  function getElement(id) {
+    if (!_elements[id]) {
+      _elements[id] = document.getElementById(id);
+    }
+    return _elements[id];
+  }
+
+
+
+/**
+ * Get previous month/year
+ */
+function getPreviousMonth(month, year) {
+  let prevMonth = month - 1;
+  let prevYear = year;
+  
+  if (prevMonth < 0) {
+    prevMonth = 11;
+    prevYear = year - 1;
+  }
+  
+  return { month: prevMonth, year: prevYear };
+}
+
+/**
+ * Get next month/year
+ */
+function getNextMonth(month, year) {
+  let nextMonth = month + 1;
+  let nextYear = year;
+  
+  if (nextMonth > 11) {
+    nextMonth = 0;
+    nextYear = year + 1;
+  }
+  
+  return { month: nextMonth, year: nextYear };
+}
+
+
+
+function loadCurrencyFromSettings() {
+  // Just get it once - no polling needed
+  if (window.SimBudget && SimBudget.Settings) {
+    _currencySymbol = SimBudget.Settings.getSetting('currencySymbol') || '$';
+  } else {
+    _currencySymbol = '$'; // Default
+  }
+}
+
+/**
+ * Get the showCategoryTotals setting
+ * @return {boolean} Whether to show category totals in headers (default: true)
+ */
+function getShowCategoryTotalsSetting() {
+  if (window.SimBudget && SimBudget.Settings) {
+    const settings = SimBudget.Settings.getAll();
+    return settings.showCategoryTotals !== undefined ? settings.showCategoryTotals : true;
+  }
+  return true; // Default to showing totals
+}
+
+      
+  /**
+   * Format currency amount consistently with conversion support
+   * @param {number} amount - Amount to format (in base currency)
+   * @param {number} decimals - Number of decimal places (default: 0)
+   * @param {boolean} showSymbol - Whether to show currency symbol (default: checks settings)
+   * @return {string} Formatted currency string in display currency
+   */
+  function formatCurrency(amount, decimals = 0, showSymbol = null) {
+    // Check if currency symbol should be shown (from settings or parameter)
+    let includeCurrencySymbol = true;
+
+    if (showSymbol !== null) {
+      // Use explicit parameter if provided
+      includeCurrencySymbol = showSymbol;
+    } else {
+      // Otherwise check settings
+      if (window.SimBudget && SimBudget.Settings) {
+        const settings = SimBudget.Settings.getAll();
+        includeCurrencySymbol = settings.showCurrencySymbolGrid !== undefined ?
+          settings.showCurrencySymbolGrid : true;
+      }
+    }
+
+    // Use Utils.CurrencyConverter if available
+    if (window.Utils && Utils.CurrencyConverter) {
+      const convertedAmount = Utils.CurrencyConverter.convert(amount);
+      const displaySymbol = includeCurrencySymbol ? Utils.CurrencyConverter.getDisplaySymbol() : '';
+      return `${displaySymbol}${convertedAmount.toFixed(decimals)}`;
+    }
+
+    // Fallback to basic formatting
+    const symbol = includeCurrencySymbol ? _currencySymbol : '';
+    return `${symbol}${amount.toFixed(decimals)}`;
+  }
+
+  /**
+   * Initialize the Monthly Grid
+   */
+  function init(containerId) {
+  if (_initialized && !containerId) {
+    return;
+  }
+   _transactions = [];
+  
+  // Initialize system month tracking
+  _systemCurrentMonth = new Date().getMonth();
+  _systemCurrentYear = new Date().getFullYear();
+  
+  // Only set current month/year if not already set (prevents overwriting when reinitializing)
+  if (!_initialized) {
+    _currentMonth = _systemCurrentMonth;
+    _currentYear = _systemCurrentYear;
+  }
+  
+
+  // Use the app's current month/year from CacheManager if available
+if (window.CacheManager) {
+  // Use the app's current month/year instead of system date
+  const appMonth = window.SimBudget?._currentMonth;
+  const appYear = window.SimBudget?._currentYear;
+  
+  if (typeof appMonth !== 'undefined' && typeof appYear !== 'undefined') {
+    _currentMonth = appMonth;
+    _currentYear = appYear;
+  }
+}
+
+  // Load currency symbol from user settings
+  loadCurrencyFromSettings();
+  
+  // Clean up any existing event handlers first
+  if (_initialized) {
+    unbindEvents();
+  }
+  
+  // Remove any existing currency change listener first
+  document.removeEventListener('currency-changed', handleCurrencyChange);
+  // Add the currency change listener
+  document.addEventListener('currency-changed', handleCurrencyChange);
+
+  // Add display currency change listener
+  document.removeEventListener('display-currency-changed', handleDisplayCurrencyChange);
+  document.addEventListener('display-currency-changed', handleDisplayCurrencyChange);
+
+  // Add category totals toggle listener
+  document.removeEventListener('category-totals-toggled', handleCategoryTotalsToggled);
+  document.addEventListener('category-totals-toggled', handleCategoryTotalsToggled);
+
+  // Add currency symbol toggle listener
+  document.removeEventListener('currency-symbol-toggled', handleCurrencySymbolToggled);
+  document.addEventListener('currency-symbol-toggled', handleCurrencySymbolToggled);
+
+  // Find and store container element
+  if (containerId) {
+    const container = document.getElementById(containerId);
+    if (container) {
+      _elements['monthly-grid-container'] = container;
+    } else {
+      console.error("Container not found:", containerId);
+      return;
+    }
+  } else {
+    // Try to find the default container
+    const defaultContainer = document.getElementById("monthly-grid-container");
+    if (!defaultContainer) {
+      console.error("Default grid container not found");
+      return;
+    }
+    _elements['monthly-grid-container'] = defaultContainer;
+  }
+  
+  // Set up event handlers
+  bindEvents();
+  
+  // Set up periodic check for current month change (every 10 minutes)
+  if (!window._monthCheckInterval) {
+    window._monthCheckInterval = setInterval(checkCurrentMonth, 10 * 60 * 1000);
+    // Also check on visibility change (when user returns to tab)
+    document.addEventListener('visibilitychange', function() {
+      if (document.visibilityState === 'visible') {
+        checkCurrentMonth();
+      }
+    });
+  }
+  
+
+  
+  // Load real data from spreadsheet (with smart caching) - only if no data exists
+  if (_transactions.length === 0) {
+    loadRealExpenseData();
+  }
+  
+  // After 4 seconds, reload from cache to pick up any fresh data - only if no data exists
+  setTimeout(() => {
+    if (_transactions.length === 0) {
+      loadRealExpenseData();
+    }
+  }, 4000);
+  
+  // Prevent body scrolling on mobile
+  if (window.innerWidth <= 768) {
+    document.body.style.overflow = 'hidden';
+    
+    // Allow the grid container to scroll
+    const container = getElement('monthly-grid-container');
+    if (container) {
+      container.style.overflow = 'auto';
+    }
+  }
+  
+  _initialized = true;
+}
+
+/**
+ * ADDED: Handle currency change events
+ * @param {Event} event - The currency-changed event
+ */
+function handleCurrencyChange(event) {
+  // Update the currency symbol
+  _currencySymbol = event.detail.symbol;
+
+  // Re-render the grid with new currency
+  renderGrid();
+}
+
+/**
+ * Handle display currency change event
+ */
+function handleDisplayCurrencyChange(event) {
+  // Re-render the grid with new display currency
+  renderGrid();
+}
+
+/**
+ * Handle category totals toggle event
+ */
+function handleCategoryTotalsToggled(event) {
+  // Re-render the grid to show/hide category totals
+  renderGrid();
+}
+
+/**
+ * Handle currency symbol toggle event
+ */
+function handleCurrencySymbolToggled(event) {
+  // Re-render the grid to show/hide currency symbols
+  renderGrid();
+}
+
+// In monthlyGrid.js.html, REPLACE the timestamp check with this smooth version:
+
+// COMPLETE WORKING CODE for loadRealExpenseData:
+
+function loadRealExpenseData(month = _currentMonth, year = _currentYear) {
+  if (_isLoading) {
+    return Promise.resolve();
+  }
+  
+  if (window.CacheManager && typeof CacheManager.isTransactionDataStale === 'function') {
+    CacheManager.isTransactionDataStale((isStale) => {
+      if (isStale) {
+
+        // Note: Background refresh removed - use manual refresh button instead
+      }
+    });
+  }
+
+  const monthExpenses = getCachedExpenses(month, year);
+  
+  // If we have cached data, show it immediately
+  if (monthExpenses && monthExpenses.length > 0) {
+    
+    // Only process cached data if we don't already have data for this month
+    if (_transactions.length === 0) {
+      processRealExpenseData(monthExpenses);
+    }
+    
+    // Load categories for cached data
+    loadAndRenderCategories()
+      .then(() => {
+        
+        // Check if we need to refresh in background
+        if (window.CacheManager && typeof CacheManager.isTransactionDataStale === 'function') {
+          CacheManager.isTransactionDataStale((isStale) => {
+            if (isStale) {
+              // Show subtle loading indicator
+              showLoadingIndicator();
+              
+              // Fetch fresh data without disrupting current view
+              fetchFreshExpenseData(month, year, true); // background = true
+            } else {
+            }
+          });
+        } else {
+        }
+      })
+      .catch(error => {
+        console.error('Error loading categories for cached data:', error);
+      });
+    
+    return Promise.resolve();
+  }
+  
+  // No cache - fetch fresh data (but don't clear _transactions here)
+  return fetchFreshExpenseData(month, year, false).then(() => {
+    // Update master timestamp after fresh fetch
+    const masterTimestamp = CacheManager.getTimestamp('masterData');
+    if (masterTimestamp) {
+      CacheManager.setMasterDataTimestamp(masterTimestamp);
+    }
+  });
+}
+
+// Note: Background refresh function removed - using unified refresh system
+
+/**
+ * Failsafe mechanism to ensure current month is always accurate
+ */
+function checkCurrentMonth() {
+  const now = new Date();
+  const realCurrentMonth = now.getMonth();
+  const realCurrentYear = now.getFullYear();
+  
+  // Compare with our stored current month/year
+  if (realCurrentMonth !== _currentMonth || realCurrentYear !== _currentYear) {
+    // Only update if we're viewing what we think is the current month
+    const viewingCurrentMonth = (_systemCurrentMonth === _currentMonth && 
+                                 _systemCurrentYear === _currentYear);
+    
+    // Update system tracking
+    _systemCurrentMonth = realCurrentMonth;
+    _systemCurrentYear = realCurrentYear;
+    
+    // If we were viewing the "current" month, update to the new current month
+    if (viewingCurrentMonth) {
+      _currentMonth = realCurrentMonth;
+      _currentYear = realCurrentYear;
+      updateMonthYearDisplay();
+      loadRealExpenseData(_currentMonth, _currentYear);
+    }
+    
+  }
+}
+  
+ 
+
+
+
+  /**
+   * Parse category string to extract name and emoji
+   * Format: "Business 💼" -> {name: "Business", emoji: "💼"}
+   */
+  function parseCategoryNameAndEmoji(categoryString) {
+    // Split by space and check if last part is an emoji
+    const parts = categoryString.trim().split(' ');
+    
+    if (parts.length >= 2) {
+      // Check if the last part contains emoji characters
+      const lastPart = parts[parts.length - 1];
+      const emojiRegex = /[\u{1F600}-\u{1F6FF}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu;
+      
+      if (emojiRegex.test(lastPart)) {
+        // Last part contains emoji, split name and emoji
+        const name = parts.slice(0, -1).join(' ');
+        const emoji = lastPart;
+        return { name, emoji };
+      }
+    }
+    
+    // No emoji found, return the whole string as name
+    return { name: categoryString, emoji: '' };
+  }
+  
+
+/**
+ * Add inactive categories that have spending in the current month
+ * Excludes income categories
+ */
+async function addInactiveCategoriesWithSpending() {
+  // Get all unique category names used in transactions for current month
+  const usedCategories = new Set();
+  
+  _transactions.forEach(tx => {
+    if (tx.date && tx.date.getMonth() === _currentMonth && 
+        tx.date.getFullYear() === _currentYear && tx.category) {
+      // Skip income categories completely
+      const lowerCaseCat = tx.category.toLowerCase();
+      if (lowerCaseCat === "income" || 
+          lowerCaseCat === "income 💵" || 
+          lowerCaseCat.includes("income")) {
+        return; // Skip this transaction
+      }
+      usedCategories.add(tx.category);
+    }
+  });
+  
+  // Build list of active category IDs for quick lookup
+  const activeCategoryIds = new Set(_categories.map(c => c.id));
+  
+  // Find categories with spending that aren't in active list
+  const inactiveCategoriesWithSpending = [];
+  usedCategories.forEach(categoryId => {
+    if (!activeCategoryIds.has(categoryId)) {
+      inactiveCategoriesWithSpending.push(categoryId);
+    }
+  });
+  
+  // No inactive categories to add
+  if (inactiveCategoriesWithSpending.length === 0) {
+    return Promise.resolve();
+  }
+  
+  // Get ALL categories from cache
+// Get ALL categories with timestamp system
+return new Promise((resolve, reject) => {
+  API.getCategoriesWithTimestamp(
+    function(result) {
+      if (result && result.success && Array.isArray(result.categories)) {
+        // Create map of category name -> category data
+        const allCategoriesMap = new Map();
+        result.categories.forEach(cat => {
+          allCategoriesMap.set(cat.name, cat);
+        });
+        
+        // Add inactive categories with spending
+        const inactiveToAdd = [];
+        
+        inactiveCategoriesWithSpending.forEach(categoryId => {
+          // Check if already exists to prevent duplicates
+          const alreadyExists = _categories.find(existingCat => existingCat.id === categoryId);
+          if (alreadyExists) return; // Skip existing
+          
+          // Get category data if available
+          const categoryData = allCategoriesMap.get(categoryId);
+          
+          if (categoryData) {
+            inactiveToAdd.push({
+              id: categoryData.name,
+              name: categoryData.name,
+              emoji: categoryData.emoji || '',
+              active: false,
+              hasTransactions: true,
+              fullName: categoryData.fullName || categoryData.name,
+              order: categoryData.order || 999,
+              originalIndex: 999
+            });
+          } else {
+            // Handle unknown categories
+            inactiveToAdd.push({
+              id: categoryId,
+              name: categoryId,
+              emoji: '🛸',
+              active: false,
+              hasTransactions: true,
+              fullName: categoryId,
+              order: 999,
+              originalIndex: 999
+            });
+          }
+        });
+        
+        // Add to categories if we have any
+        if (inactiveToAdd.length > 0) {
+          // Sort by order
+          inactiveToAdd.sort((a, b) => (a.order || 999) - (b.order || 999));
+          // Add to categories array
+          _categories = [..._categories, ...inactiveToAdd];
+        }
+        
+        resolve();
+      } else {
+        resolve(); // Continue even if categories lookup fails
+      }
+    },
+    function(error) {
+      console.error('Error getting categories for inactive lookup:', error);
+      resolve(); // Continue even if error
+    }
+  );
+});
+}
+
+/**
+ * Update MonthlyGrid when categories are toggled
+ */
+function notifyMonthlyGridOfCategoryChange() {
+  API.getCategoriesWithTimestamp(
+    function(result) {
+      if (result && result.success && result.categories) {
+        window._allCategories = result.categories;
+        
+        if (window.SimBudget && SimBudget.Views.getCurrent() === 'expense') {
+          loadAndRenderCategories();
+        }
+      }
+    },
+    function(error) {
+      console.error('Could not refresh categories:', error);
+    }
+  );
+}
+
+// REPLACE loadAndRenderCategories function around line 1440:
+
+function loadAndRenderCategories() {
+  window._addingInactiveCategories = false;
+  
+  return new Promise((resolve, reject) => {
+    // STEP 1: Try cache first
+    const cachedData = window.CacheManager ? CacheManager.getCategoriesWithTimestamp() : null;
+    
+    if (cachedData && cachedData.categories) {
+      processCategoriesData(cachedData.categories);
+      resolve(_categories);
+      return;
+    }
+  
+    if (!window.API || typeof API.getCategoriesWithTimestamp !== 'function') {
+      reject('API.getCategoriesWithTimestamp not available');
+      return;
+    }
+    
+    API.getCategoriesWithTimestamp(
+      function(result) {
+        if (result && result.success && Array.isArray(result.categories)) {
+          
+          // Cache the fresh data
+          if (window.CacheManager) {
+            CacheManager.setCategoriesWithTimestamp(result.categories, result.timestamp);
+          }
+          
+          processCategoriesData(result.categories);
+          resolve(_categories);
+        } else {
+          reject('Invalid categories response from API');
+        }
+      },
+      function(error) {
+        console.error('MonthlyGrid: API call failed:', error);
+        reject('Failed to load categories: ' + error);
+      }
+    );
+  });
+}
+
+// ✅ NEW HELPER FUNCTION - Extract categories processing logic:
+// ✅ NEW HELPER FUNCTION - Extract categories processing logic:
+function processCategoriesData(categories) {
+  
+  // Store all categories for reference
+  window._allCategories = categories;
+  
+  // Sort by display order FIRST
+  const sortedCategories = categories
+    .sort((a, b) => (a.displayOrder || a.order || 0) - (b.displayOrder || b.order || 0));
+  
+  // Start with active categories (already sorted by display order)
+  _categories = sortedCategories
+    .filter(cat => cat.active)
+    .map(cat => ({
+      id: cat.name,
+      name: cat.name,
+      emoji: cat.emoji || '',
+      active: true,
+      fullName: cat.fullName || cat.name,
+      order: cat.displayOrder || cat.order || 999,
+      originalIndex: cat.displayOrder || cat.order || 999
+    }));
+  
+  // Find inactive categories with spending in current month
+  const categoryIdsWithTransactions = new Set();
+  _transactions.forEach(tx => {
+    if (tx.date && 
+        tx.date.getMonth() === _currentMonth && 
+        tx.date.getFullYear() === _currentYear && 
+        tx.category) {
+      const lowerCaseCat = tx.category.toLowerCase();
+      if (!lowerCaseCat.includes("income")) {
+        categoryIdsWithTransactions.add(tx.category);
+      }
+    }
+  });
+  
+  // Get inactive categories with transactions (use sorted categories)
+  const inactiveWithSpending = sortedCategories
+    .filter(cat => !cat.active && categoryIdsWithTransactions.has(cat.name))
+    .map(cat => ({
+      id: cat.name,
+      name: cat.name,
+      emoji: cat.emoji || '🛸',
+      active: false,
+      hasTransactions: true,
+      fullName: cat.fullName || cat.name,
+      order: cat.displayOrder || cat.order || 999,
+      originalIndex: cat.displayOrder || cat.order || 999
+    }));
+  
+  // Combine active and inactive categories
+  _categories = [..._categories, ...inactiveWithSpending];
+  
+
+  
+  // Render immediately
+  renderGrid();
+}
+
+/**
+ * Parse category string to extract name and emoji
+ * (Fallback helper function)
+ */
+function parseCategoryNameAndEmoji(categoryString) {
+  const parts = categoryString.trim().split(' ');
+  
+  if (parts.length >= 2) {
+    const lastPart = parts[parts.length - 1];
+    const emojiRegex = /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F700}-\u{1F77F}]|[\u{1F780}-\u{1F7FF}]|[\u{1F800}-\u{1F8FF}]|[\u{1F900}-\u{1F9FF}]|[\u{1FA00}-\u{1FA6F}]|[\u{1FA70}-\u{1FAFF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{2300}-\u{23FF}]|[\u{2B00}-\u{2BFF}]|[\u{25A0}-\u{25FF}]|[\u{2190}-\u{21FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{3030}]|[\u{303D}]|[\u{3297}]|[\u{3299}]|[\u{24C2}]|[\u{1F004}]|[\u{1F0CF}]|[\u{1F18E}]/gu;    
+    if (emojiRegex.test(lastPart)) {
+      const name = parts.slice(0, -1).join(' ');
+      const emoji = lastPart;
+      return { name, emoji };
+    }
+  }
+  
+  return { name: categoryString, emoji: '' };
+}
+
+
+
+/**
+ * Load active categories from cache ONLY
+ * FIXED: Preserves exact spreadsheet order without messing it up
+ */
+function loadActiveCategories() {
+  
+  return new Promise((resolve, reject) => {
+    // Check if API is available
+    if (!window.API || typeof API.getCategoriesWithTimestamp !== 'function') {
+      console.error('MonthlyGrid: API.getCategoriesWithTimestamp not available');
+      reject('Timestamp API not available');
+      return;
+    }
+    
+    API.getCategoriesWithTimestamp(
+      function(result) {
+        
+        if (result && result.success && Array.isArray(result.categories)) {
+           
+          const sortedCategories = result.categories
+            .sort((a, b) => (a.displayOrder || a.order || 0) - (b.displayOrder || b.order || 0)); // Sort by display order FIRST
+          
+          // Then filter for active categories while preserving order
+          const activeCategories = sortedCategories.filter(cat => cat.active === true);
+                    
+          // Convert to MonthlyGrid format - DON'T re-sort, preserve exact order
+          const processedCategories = activeCategories.map((cat, index) => {
+            return {
+              id: cat.name,           // Clean name as ID for matching transactions
+              name: cat.name,         // Clean name for display
+              emoji: cat.emoji || '', // Emoji for display
+              active: true,           // All are active
+              fullName: cat.fullName || cat.name, // Original name with emoji
+              order: cat.displayOrder || cat.order || index, // ✅ USE display order
+              originalIndex: cat.displayOrder || cat.order || index    // ✅ Use display order
+            };
+          });
+        
+          // Store in MonthlyGrid's _categories array
+          _categories = processedCategories;
+        
+          resolve(processedCategories);
+          
+        } else {
+          reject(result?.error || 'No categories found in cache');
+        }
+      },
+      function(error) {
+        console.error('MonthlyGrid: Error getting categories from cache:', error);
+        reject(error);
+      }
+    );
+  });
+}
+
+
+
+
+  /**
+   * Generate transaction summary for a specific day
+   * @param {number} day - Day of the month
+   * @return {string} Summary string like "Netflix €5, Groceries €45 ..."
+   */
+  function generateDayTransactionSummary(day) {
+  // Get all transactions for this day across all categories
+  const dayTransactions = _transactions.filter(tx => {
+    if (!tx.date) return false;
+    
+    const txDay = tx.date.getDate();
+    const txMonth = tx.date.getMonth();
+    const txYear = tx.date.getFullYear();
+    
+    const dateMatches = txDay === day && txMonth === _currentMonth && txYear === _currentYear;
+    
+    if (!dateMatches) return false;
+    
+    // EXCLUDE INCOME from summaries
+    if (tx.category && tx.category.toLowerCase().includes("income")) {
+      return false;
+    }
+    
+    // NEW: Check if this is an expired subscription/recurring payment
+    if (tx.label && (
+      tx.label.toLowerCase().includes('subscription') || 
+      tx.label.toLowerCase().includes('fixed payment')
+    )) {
+      // For recurring transactions, check if they're still active
+      if (window._recurringData && Array.isArray(window._recurringData)) {
+        const recurringItem = window._recurringData.find(item => 
+          item.name === tx.description || 
+          item.name === tx.name ||
+          (item.transactionId && item.transactionId === tx.transactionId)
+        );
+        
+        if (recurringItem) {
+          // Only show if status is Active or Expires (not Ended)
+          const status = recurringItem.status ? recurringItem.status.toLowerCase() : 'active';
+          if (status === 'ended') {
+            return false; // Don't show ended subscriptions
+          }
+        }
+      }
+    }
+    
+    return true;
+  });
+  
+  if (dayTransactions.length === 0) {
+    return '';
+  }
+    
+    // Create summary items with name and amount
+    const summaryItems = dayTransactions.map(tx => {
+      const name = tx.description || tx.name || 'Expense';
+      const amount = formatCurrency(tx.amount);
+      return `${name} ${amount}`;
+    });
+    
+    // Join with commas
+    const fullSummary = summaryItems.join(', ');
+    
+    // Truncate if too long (keep around 50 characters)
+    const maxLength = 50;
+    if (fullSummary.length > maxLength) {
+      // Find the last complete item that fits within the limit
+      let truncated = '';
+      let totalLength = 0;
+      
+      for (let i = 0; i < summaryItems.length; i++) {
+        const testLength = truncated ? 
+          truncated.length + 2 + summaryItems[i].length : // +2 for ", "
+          summaryItems[i].length;
+          
+        if (testLength <= maxLength - 4) { // -4 for " ..."
+          truncated = truncated ? truncated + ', ' + summaryItems[i] : summaryItems[i];
+        } else {
+          break;
+        }
+      }
+      
+      return truncated + ' ...';
+    }
+    
+    return fullSummary;
+  }
+
+  /**
+   * Parse date string - handles both ISO strings and "DD MMM YYYY" format
+   * Returns a Date object or null if parsing fails
+   */
+  function parseSpreadsheetDate(dateString) {
+    if (!dateString) {
+      return null;
+    }
+    
+    // If it's already a Date object, return it
+    if (dateString instanceof Date) {
+      return dateString;
+    }
+    
+    // Convert to string if not already
+    const dateStr = dateString.toString().trim();
+    
+    // Check if it's an ISO string (from server API)
+    if (dateStr.includes('T') && (dateStr.includes('Z') || dateStr.includes('+'))) {
+      const date = new Date(dateStr);
+      if (!isNaN(date.getTime())) {
+        return date;
+      }
+    }
+    
+    // Try "DD MMM YYYY" format
+    const parts = dateStr.split(/\s+/);
+    if (parts.length === 3) {
+      const [dayStr, monthStr, yearStr] = parts;
+      
+      // Parse day
+      const day = parseInt(dayStr);
+      if (isNaN(day) || day < 1 || day > 31) {
+        console.warn('Invalid day in date:', dateStr);
+        return null;
+      }
+      
+      // Parse year
+      const year = parseInt(yearStr);
+      if (isNaN(year) || year < 1900 || year > 2100) {
+        console.warn('Invalid year in date:', dateStr);
+        return null;
+      }
+      
+      // Parse month (convert month abbreviation to 0-based index)
+      const monthMap = {
+        'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
+        'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
+      };
+      
+      const month = monthMap[monthStr];
+      if (month === undefined) {
+        console.warn('Invalid month in date:', dateStr);
+        return null;
+      }
+      
+      // Create date using local timezone to avoid timezone shifts
+      const date = new Date(year, month, day, 12, 0, 0, 0); // Set to noon to avoid DST issues
+      
+      // Verify the date is valid (handles cases like Feb 30)
+      if (date.getDate() !== day || date.getMonth() !== month || date.getFullYear() !== year) {
+        console.warn('Date components changed during creation, invalid date:', dateStr);
+        return null;
+      }
+      
+      return date;
+    }
+    
+    const fallbackDate = new Date(dateStr);
+    if (!isNaN(fallbackDate.getTime())) {
+      return fallbackDate;
+    }
+    
+    console.warn('All parsing methods failed for:', dateStr);
+    return null;
+  }
+
+
+/**
+ * Process real expense data from spreadsheet (expenses only, no categories)
+ * FIXED: Now properly async and waits for inactive categories
+ */
+async function processRealExpenseData(expenses, preserveExisting = false) {
+  const processedTransactions = [];
+  
+  // Always clear transactions to prevent duplicates - we'll handle preservation at call site
+  _transactions = []; // Reset transactions array to prevent duplicates
+  
+  // Process each expense
+  expenses.forEach((expense, index) => {
+    // Skip empty rows
+    if (!expense.category || !expense.amount) {
+      return;
+    }
+    
+  // Let expenses without IDs through, but don't create fake IDs
+if (!expense.transactionId || expense.transactionId.trim() === '') {
+  expense.transactionId = ''; // Empty string, no fake ID bullshit
+}
+    
+    // Parse date - ENHANCED with robust parsing
+    let expenseDate;
+    
+    if (expense.date instanceof Date) {
+      expenseDate = expense.date;
+    } else if (expense.date) {
+      // Try our custom parser first
+      expenseDate = parseSpreadsheetDate(expense.date);
+      
+      if (!expenseDate) {
+        // Fallback to standard Date parsing
+        expenseDate = new Date(expense.date);
+        
+        if (isNaN(expenseDate.getTime())) {
+          console.warn(`Expense ${index}: Both parsing methods failed for date:`, expense.date);
+          return;
+        }
+      }
+      
+    } else {
+      console.warn('No date for expense', index, ':', expense);
+      return;
+    }
+    
+    // Parse amount
+    const amount = parseFloat(expense.amount);
+    if (isNaN(amount) || amount <= 0) {
+      console.warn('Invalid amount for expense', index, ':', expense);
+      return;
+    }
+    
+    // Parse category to get clean name (remove emoji)
+    const parsed = parseCategoryNameAndEmoji(expense.category.trim());
+    const cleanCategory = parsed.name; // Use only the name part for matching
+    
+    const formattedId = expense.transactionId || `tx-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+    
+    // Create transaction object, now including the label field and preserving transaction ID
+      const transaction = {
+      transactionId: formattedId, // CLEAN: Use transactionId ONLY
+      date: expenseDate,
+      category: cleanCategory,  // Store clean category name for matching with active categories
+      amount: amount,
+      description: expense.name || expense.description || '',
+      account: expense.account || 'Other',
+      notes: expense.notes || '',
+      label: expense.label || '' // Store the label field to identify subscriptions/fixed payments
+    };
+    
+    processedTransactions.push(transaction);
+  });
+  
+  // Store processed transactions (categories are loaded separately)
+  _transactions = processedTransactions;
+  
+  
+  try {
+    await addInactiveCategoriesWithSpending();
+  } catch (error) {
+    console.error('MonthlyGrid: ❌ Error processing inactive categories:', error);
+    // Continue anyway - don't break the grid if inactive categories fail
+  }
+  
+
+}
+
+/**
+ * Fetch fresh expense data from the server
+ * FIXED: Properly waits for processRealExpenseData to complete
+ * UPDATED: Uses unified loadAndRenderCategories instead of loadActiveCategories
+ */
+function fetchFreshExpenseData(month, year, isBackground = false) {
+  if (!isBackground) {
+    _isLoading = true;
+  }
+  
+  // Debug logging
+  const currentDate = new Date(year, month, 1);
+  const monthName = currentDate.toLocaleString('default', { month: 'long' });
+  
+  // Show loading indicator
+  showLoadingIndicator();
+  
+  // Only clear data if this is a foreground load with no existing data
+  if (!isBackground && _transactions.length === 0) {
+    _transactions = [];
+    _categories = [];
+  }
+  
+  // STEP 1: Use loadAndRenderCategories instead of loadActiveCategories
+  return loadAndRenderCategories()
+    .then(categories => {
+      
+      // STEP 2: Load expenses for the specified month
+      if (!window.API || typeof API.getExpenseData !== 'function') {
+        throw new Error('API.getExpenseData function not found. Check API.html file.');
+      }
+              
+      return new Promise((resolve, reject) => {
+        API.getExpenseData(
+          function(result) {
+            
+            if (!result) {
+              reject('Server returned null result');
+              return;
+            }
+            
+            if (!result.success) {
+              reject('Server returned failure: ' + (result.error || 'No error message'));
+              return;
+            }
+            
+            if (!result.expenses || !Array.isArray(result.expenses)) {
+              reject('Server returned invalid expenses data. Type: ' + typeof result.expenses);
+              return;
+            }
+            
+            resolve(result.expenses);
+          },
+          function(error) {
+            reject('Server function call failed: ' + error);
+          }
+        );
+      });
+    })
+    .then(async expenses => { 
+      
+      // Cache the fresh data
+      // Always replace entire cache, don't merge
+      if (window.CacheManager && typeof CacheManager.setExpenses === 'function') {
+        CacheManager.setExpenses(expenses, null, null);
+      }
+      
+      // For background loads, always update since we only get here if data is stale
+      if (isBackground) {
+        
+        // Show updating indicator on banner
+        const banner = document.querySelector('.banner-refresh-time');
+        if (banner) {
+          banner.textContent = 'Updating...';
+          banner.style.color = '#007bff';
+        }
+        
+        await processRealExpenseData(expenses);
+        renderGrid();
+        
+        // Update banner with fresh timestamp
+        if (banner) {
+          const now = new Date();
+          banner.textContent = `Updated ${now.toLocaleTimeString()}`;
+          banner.style.color = '#28a745';
+          
+          // Reset color after 3 seconds
+          setTimeout(() => {
+            banner.style.color = '';
+          }, 3000);
+        }
+        
+        // SAFE: Notify YearlyGrid to re-render with fresh data (no cache manipulation)
+        if (window.YearlyGrid && window.YearlyGrid.renderGrid) {
+          window.YearlyGrid.renderGrid();
+        }
+      } else {
+        // Foreground load: always process and render
+        await processRealExpenseData(expenses);
+        renderGrid();
+      }
+      
+      // Update last refresh time
+      if (typeof MonthlyGrid.updateLastRefreshTime === 'function') {
+        MonthlyGrid.updateLastRefreshTime();
+      }
+      
+      // Remove loading state from refresh button
+      const refreshBtn = document.getElementById('refreshExpenses');
+      if (refreshBtn) {
+        refreshBtn.classList.remove('loading');
+      }
+      
+      hideLoadingIndicator();
+      if (!isBackground) {
+        _isLoading = false;
+      }
+
+      // No prefetching needed - unified cache has all data
+      
+      return Promise.resolve();
+    })
+    .catch(error => {
+      console.error('FAILED: Error loading expense data:', error);
+      
+      // Only show error message for foreground loads
+      if (!isBackground) {
+        showErrorMessage('Failed to load data: ' + error);
+      } else {
+        console.warn('Background refresh failed, keeping cached data');
+      }
+      
+      // Remove loading state from refresh button on error
+      const refreshBtn = document.getElementById('refreshExpenses');
+      if (refreshBtn) {
+        refreshBtn.classList.remove('loading');
+      }
+      
+      hideLoadingIndicator();
+      if (!isBackground) {
+        _isLoading = false;
+      }
+      return Promise.reject(error);
+    });
+}
+
+/**
+ * Load all expense data from server and cache everything
+ */
+function loadAllExpenseData() {
+  
+  // Prevent multiple simultaneous calls
+  if (_isLoading) {
+    return Promise.resolve();
+  }
+  
+  _isLoading = true;
+  
+  // Show loading indicator
+  showLoadingIndicator();
+  
+  // Don't clear existing data - keep showing it while loading new data
+  // The 4-second reload will update with fresh data automatically
+  
+  // STEP 1: Load categories first
+  return loadAndRenderCategories()
+    .then(categories => {
+      
+      // STEP 2: Load ALL expenses (no month/year parameters)
+      if (!window.API || typeof API.getExpenseData !== 'function') {
+        throw new Error('API.getExpenseData function not found. Check API.html file.');
+      }
+              
+      return new Promise((resolve, reject) => {
+        API.getExpenseData(
+          function(result) {
+    
+            
+            if (!result) {
+              reject('Server returned null result');
+              return;
+            }
+            
+            if (!result.success) {
+              reject('Server returned failure: ' + (result.error || 'No error message'));
+              return;
+            }
+            
+            if (!result.expenses || !Array.isArray(result.expenses)) {
+              reject('Server returned invalid expenses data. Type: ' + typeof result.expenses);
+              return;
+            }
+            
+            resolve(result.expenses);
+          },
+          function(error) {
+            reject('Server function call failed: ' + error);
+          }
+        );
+      });
+    })
+    .then(async expenses => { 
+      
+      // Cache ALL the data in unified cache - REPLACE entire cache
+      if (window.CacheManager && typeof CacheManager.setExpenses === 'function') {
+        CacheManager.setExpenses(expenses, null, null);
+      } else {
+        console.error('🔄 ERROR: CacheManager.setExpenses not available!');
+      }
+      
+      await processRealExpenseData(expenses);  
+      
+      renderGrid();
+      
+      // Update last refresh time
+      if (typeof MonthlyGrid.updateLastRefreshTime === 'function') {
+        MonthlyGrid.updateLastRefreshTime();
+      }
+      
+      // Remove loading state from refresh button
+      const refreshBtn = document.getElementById('refreshExpenses');
+      if (refreshBtn) {
+        refreshBtn.classList.remove('loading');
+      }
+      
+      hideLoadingIndicator();
+      _isLoading = false;
+      
+      return Promise.resolve();
+    })
+    .catch(error => {
+      console.error('FAILED: Error loading all expense data:', error);
+      showErrorMessage('Failed to load data: ' + error);
+      
+      // Remove loading state from refresh button on error
+      const refreshBtn = document.getElementById('refreshExpenses');
+      if (refreshBtn) {
+        refreshBtn.classList.remove('loading');
+      }
+      
+      hideLoadingIndicator();
+      _isLoading = false;
+      return Promise.reject(error);
+    });
+}
+
+
+  /**
+   * Show loading indicator with current month info
+   */
+  function showLoadingIndicator() {
+    // Don't replace the grid content - just update the refresh message
+    const refreshElement = document.getElementById('lastRefreshTime');
+    const refreshBtn = document.getElementById('refreshExpenses');
+    
+    if (refreshElement) {
+      refreshElement.textContent = 'Loading...';
+      refreshElement.style.color = '#f39c12'; // Orange/yellow color
+      refreshElement.style.fontWeight = 'bold';
+    }
+    
+    if (refreshBtn) {
+      refreshBtn.classList.add('loading');
+    }
+  }
+  
+  /**
+   * Hide loading indicator
+   */
+  function hideLoadingIndicator() {
+    // Reset the refresh message and button
+    const refreshElement = document.getElementById('lastRefreshTime');
+    const refreshBtn = document.getElementById('refreshExpenses');
+    
+    if (refreshBtn) {
+      refreshBtn.classList.remove('loading');
+    }
+    
+    // Reset refresh element styling
+    if (refreshElement) {
+      refreshElement.style.color = '';
+      refreshElement.style.fontWeight = '';
+    }
+    
+    // Update last refresh time (this will reset text)
+    if (typeof MonthlyGrid.updateLastRefreshTime === 'function') {
+      MonthlyGrid.updateLastRefreshTime();
+    }
+  }
+  
+/**
+ * Show error message
+ */
+function showErrorMessage(message) {
+  // Check if this is a first-time user error (no spreadsheet ID)
+  if (message && message.includes && message.includes('No spreadsheet ID found')) {
+    console.log('First-time user detected in MonthlyGrid - showing welcome message');
+    
+    // Auto-detect user's language
+    let detectedLang = 'en';
+    let langName = 'English';
+    
+    if (typeof detectBrowserLanguage === 'function') {
+      detectedLang = detectBrowserLanguage();
+      const langNames = {
+        'en': 'English',
+        'es': 'Español',
+        'fr': 'Français', 
+        'de': 'Deutsch',
+        'tr': 'Türkçe',
+        'ms': 'Bahasa Melayu'
+      };
+      langName = langNames[detectedLang] || 'English';
+    }
+    
+    // Show welcome message with language confirmation
+    const container = getElement('monthly-grid-container');
+    if (container) {
+      container.innerHTML = `
+        <div
+          class="grid-welcome"
+          style="
+            text-align: center;
+            padding: 80px 20px 40px;
+            max-width: 800px;
+            margin: 0 auto;
+          "
+        >
+          <h3 style="margin-bottom: 20px;">👋 Welcome to Simplify Budget!</h3>
+          
+          <p style="margin-bottom: 20px;">
+            Ready to track your spending? We'll create a budget spreadsheet in your Google Drive. All your transactions will be saved in this spreadsheet.
+          </p>
+          
+          
+          <div style="margin: 30px 0;">
+            <button 
+              onclick="createNewBudgetSheet()" 
+              style="
+                background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+                color: white;
+                border: none;
+                padding: 15px 30px;
+                font-size: 18px;
+                border-radius: 8px;
+                cursor: pointer;
+                box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+                transition: transform 0.2s, box-shadow 0.2s;
+                margin-bottom: 20px;
+              "
+              onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 12px rgba(0,0,0,0.3)';"
+              onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.2)';"
+            >
+              🚀 Create My Budget Spreadsheet
+            </button>
+          </div>
+          </p>
+          
+          <p style="margin-bottom: 0;">
+            📺 <a href="https://youtu.be/ziE2S8SgEo8?t=26" target="_blank" rel="noopener">
+              Watch the YouTube tutorial: How to use the app
+            </a>
+          </p>
+        </div>
+      `;
+      
+      // Auto-save the detected language to user settings
+      if (detectedLang !== 'en') {
+        // Set the detected language as default for new users
+        if (window.SimBudget && SimBudget.Settings) {
+          const autoSettings = {
+            language: detectedLang,
+            currencySymbol: '$',
+            dateFormat: 'MM/DD/YYYY',
+            darkMode: false,
+            showRemaining: true,
+            enableAlerts: true,
+            showDecimals: true
+          };
+          SimBudget.Settings.saveAll(autoSettings);
+        }
+      }
+    }
+    return;
+  }
+    
+    // Regular error handling for existing users
+    const container = getElement('monthly-grid-container');
+    if (container) {
+      container.innerHTML = `
+        <div style="
+          text-align: center;
+          padding: 60px 20px;
+          max-width: 600px;
+          margin: 0 auto;
+          background: #fafafa;
+          border-radius: 12px;
+          border: 1px solid #e0e0e0;
+        ">
+          <div style="margin-bottom: 20px;">
+            <i class="material-icons" style="font-size: 48px; color: #9e9e9e;">cloud_off</i>
+          </div>
+          <h3 style="color: #666; font-weight: 500; margin-bottom: 16px;">Oops, your data didn't quite load</h3>
+          <p style="color: #888; margin-bottom: 24px; line-height: 1.5;">
+            Something went wrong while fetching your budget data. This happens sometimes!
+          </p>
+          <button 
+            onclick="MonthlyGrid.refresh()" 
+            style="
+              background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+              color: white;
+              border: none;
+              padding: 12px 24px;
+              font-size: 16px;
+              border-radius: 8px;
+              cursor: pointer;
+              margin-bottom: 20px;
+              box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+              transition: transform 0.2s;
+            "
+            onmouseover="this.style.transform='scale(1.02)'"
+            onmouseout="this.style.transform='scale(1)'"
+          >
+            🔄 Try Again
+          </button>
+          <details style="margin-top: 20px; text-align: left; max-width: 500px; margin-left: auto; margin-right: auto;">
+            <summary style="cursor: pointer; color: #666; font-size: 14px; margin-bottom: 10px;">
+              🔧 Technical details (for troubleshooting)
+            </summary>
+            <div style="background: #f5f5f5; padding: 15px; border-radius: 6px; font-size: 13px; color: #666; line-height: 1.4;">
+              <p style="margin: 0 0 8px;"><strong>Error message:</strong> ${message}</p>
+              <p style="margin: 0 0 8px;"><strong>What we expected:</strong> Data from your connected spreadsheet</p>
+              <p style="margin: 0;"><strong>Quick fixes:</strong> Check your internet connection, verify your spreadsheet is accessible, or try refreshing the page</p>
+            </div>
+          </details>
+        </div>
+      `;
+    }
+  }
+  
+
+
+/**
+ * Update currency symbol and refresh display
+ */
+function updateCurrency() {
+  loadCurrencyFromSettings();
+  if (_initialized) {
+    renderGrid(); // Re-render to show new currency
+  }
+}
+
+  // Track modal states to prevent accidental popups
+  let _isOpeningModal = false;
+  let _isClosingModal = false;
+  
+  function bindEvents() {
+    // Month navigation - DON'T replace elements, just remove/add listeners properly
+    const prevMonth = document.getElementById('prevMonth');
+    const nextMonth = document.getElementById('nextMonth');
+    
+    if (prevMonth) {
+      // Remove existing MonthlyGrid listeners (if any)
+      prevMonth.removeEventListener('click', prevMonth._monthlyGridHandler);
+      
+      // Add our handler and store reference for future removal
+      prevMonth._monthlyGridHandler = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        navigateMonth(-1);
+      };
+      
+      prevMonth.addEventListener('click', prevMonth._monthlyGridHandler);
+    } else {
+      console.error('prevMonth button not found in DOM');
+    }
+    
+    if (nextMonth) {
+      // Remove existing MonthlyGrid listeners (if any)
+      nextMonth.removeEventListener('click', nextMonth._monthlyGridHandler);
+      
+      // Add our handler and store reference for future removal
+      nextMonth._monthlyGridHandler = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        navigateMonth(1);
+      };
+      
+      nextMonth.addEventListener('click', nextMonth._monthlyGridHandler);
+    } else {
+      console.error('nextMonth button not found in DOM');
+    }
+    
+
+    const refreshExpenses = document.getElementById('refreshExpenses');
+if (refreshExpenses) {
+  // Remove ALL existing listeners by cloning the element
+  const newRefreshBtn = refreshExpenses.cloneNode(true);
+  refreshExpenses.parentNode.replaceChild(newRefreshBtn, refreshExpenses);
+  
+  // Get reference to the new clean button
+  const cleanRefreshExpenses = document.getElementById('refreshExpenses');
+  
+  // Create a new handler that does aggressive cache clearing
+  cleanRefreshExpenses._monthlyGridHandler = function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Debounce to prevent multiple rapid clicks
+    if (cleanRefreshExpenses._isProcessing) {
+      return;
+    }
+    cleanRefreshExpenses._isProcessing = true;
+    
+    
+    // Add loading state to refresh button
+    const refreshBtn = document.getElementById('refreshExpenses');
+    if (refreshBtn) {
+      refreshBtn.classList.add('loading');
+    }
+    
+    // Reset session tracking (from your index.html)
+    sessionStorage.removeItem('monthlyGrid_sessionActive');
+    
+    // Signal fresh data needed (from your index.html)
+    window.FORCE_FRESH_DATA = true;
+    
+    // Clear ONLY expense-related cache
+if (window.CacheManager) {
+  // Clear current month's expenses
+  CacheManager.invalidate(`expenses_with_timestamp`);
+  
+  // Clear master timestamp to force freshness check
+  CacheManager.invalidate('master_data_timestamp');
+  
+  // Clear any local MonthlyGrid cache
+  _transactions = [];
+}
+        
+    // Check which view is active and refresh accordingly
+    const currentView = window.SimBudget?.Views?.getCurrent();
+    if (currentView === 'yearly' && window.YearlyGrid) {
+      // Show YearlyGrid loading indicator
+      const yearlyContainer = document.getElementById('yearly-grid-container');
+      if (yearlyContainer) {
+        yearlyContainer.innerHTML = `
+          <div class="loading-indicator">
+            <div class="loading-spinner"></div>
+            <p>Refreshing yearly data...</p>
+            <small>Loading all expense data from server</small>
+          </div>
+        `;
+      }
+      
+      // Refresh data and update YearlyGrid
+      refresh(true).then(() => {
+        if (window.YearlyGrid && typeof YearlyGrid.setExpenseData === 'function') {
+          // Get fresh data from cache and update YearlyGrid
+          const freshExpenses = getCachedExpenses(null, null); // Get all expenses
+          if (freshExpenses) {
+            YearlyGrid.setExpenseData(freshExpenses);
+          }
+        }
+      }).catch(error => {
+        // Show error in YearlyGrid container
+        if (yearlyContainer) {
+          yearlyContainer.innerHTML = `
+            <div class="grid-error">
+              <p>Failed to refresh yearly data</p>
+              <button class="retry-btn" onclick="location.reload()">Retry</button>
+            </div>
+          `;
+        }
+      });
+    } else {
+      // Standard MonthlyGrid refresh
+      refresh(true);
+    }
+    
+    // Reset processing flag after a delay
+    setTimeout(() => {
+      cleanRefreshExpenses._isProcessing = false;
+    }, 2000);
+  };
+  
+  // Add the new handler to the clean button
+  cleanRefreshExpenses.addEventListener('click', cleanRefreshExpenses._monthlyGridHandler);
+} else {
+  console.warn('Refresh expenses button not found in DOM - make sure to add it to Index.html');
+}
+    
+    // Cell click handlers (using event delegation)
+    const gridContainer = getElement('monthly-grid-container');
+    if (gridContainer) {
+      gridContainer.addEventListener('click', function(e) {
+        if (_isClosingModal) return;
+        
+        const cell = e.target.closest('.grid-cell[data-day][data-category]');
+        if (cell) {
+          e.stopPropagation();
+          
+          const day = cell.getAttribute('data-day');
+          const category = cell.getAttribute('data-category');
+          
+          _isOpeningModal = true;
+          openTransactionModal(day, category);
+          
+          setTimeout(() => {
+            _isOpeningModal = false;
+          }, 300);
+        }
+      });
+    }
+    
+    // Remove existing event listeners first to prevent duplicates
+    document.removeEventListener('click', handleDocumentClick);
+    document.removeEventListener('touchend', handleTouchEnd);
+    
+    // Add event listeners
+    document.addEventListener('click', handleDocumentClick);
+    document.addEventListener('touchend', handleTouchEnd);
+    
+    // Add click-to-edit functionality for month/year display
+    const monthYearDisplay = document.getElementById('monthYearDisplay');
+    if (monthYearDisplay) {
+      monthYearDisplay.removeEventListener('click', monthYearDisplay._editHandler);
+      
+      monthYearDisplay._editHandler = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        showMonthYearEditor('monthYearDisplay');
+      };
+      
+      monthYearDisplay.addEventListener('click', monthYearDisplay._editHandler);
+    }
+  }
+  
+  /**
+   * Clean up event listeners when MonthlyGrid is destroyed/reinitialized
+   */
+  function unbindEvents() {
+    const prevMonth = document.getElementById('prevMonth');
+    const nextMonth = document.getElementById('nextMonth');
+    const refreshExpenses = document.getElementById('refreshExpenses');
+    
+    if (prevMonth && prevMonth._monthlyGridHandler) {
+      prevMonth.removeEventListener('click', prevMonth._monthlyGridHandler);
+      prevMonth._monthlyGridHandler = null;
+    }
+    
+    if (nextMonth && nextMonth._monthlyGridHandler) {
+      nextMonth.removeEventListener('click', nextMonth._monthlyGridHandler);
+      nextMonth._monthlyGridHandler = null;
+    }
+    
+    if (refreshExpenses && refreshExpenses._monthlyGridHandler) {
+      refreshExpenses.removeEventListener('click', refreshExpenses._monthlyGridHandler);
+      refreshExpenses._monthlyGridHandler = null;
+    }
+  }
+  
+  function handleDocumentClick(e) {
+    if (_isOpeningModal || _isClosingModal) return;
+    
+    const modal = getElement('transaction-modal');
+    if (!modal) return;
+    
+    const modalCard = modal.querySelector('.modal-card');
+    const addBtn = getElement('add-transaction-btn');
+    
+    if (addBtn && (e.target === addBtn || addBtn.contains(e.target))) {
+      e.preventDefault();
+      e.stopPropagation();
+      addTransactionRow();
+      return;
+    }
+    
+    if (modal.classList.contains('visible')) {
+      if (e.target === modal || 
+          (e.target !== modalCard && !modalCard.contains(e.target))) {
+        e.preventDefault();
+        e.stopPropagation();
+        closeTransactionModal();
+        return;
+      }
+    }
+  }
+  
+  function handleTouchEnd(e) {
+    if (_isOpeningModal || _isClosingModal) return;
+    
+    const modal = getElement('transaction-modal');
+    if (!modal || !modal.classList.contains('visible')) return;
+    
+    const modalCard = modal.querySelector('.modal-card');
+    if (modalCard && !modalCard.contains(e.target) && e.target !== modalCard) {
+      e.preventDefault();
+      e.stopPropagation();
+      closeTransactionModal();
+    }
+  }
+  
+
+  /**
+ * Get next month/year
+ */
+function getNextMonth(month, year) {
+  let nextMonth = month + 1;
+  let nextYear = year;
+  
+  if (nextMonth > 11) {
+    nextMonth = 0;
+    nextYear = year + 1;
+  }
+  
+  return { month: nextMonth, year: nextYear };
+}
+
+
+ function navigateMonth(change) {
+  if (_isLoading) return;
+  
+  let newMonth = _currentMonth + change;
+  let newYear = _currentYear;
+  
+  if (newMonth > 11) {
+    newMonth = 0;
+    newYear++;
+  } else if (newMonth < 0) {
+    newMonth = 11;
+    newYear--;
+  }
+  
+  // Update internal state
+  _currentMonth = newMonth;
+  _currentYear = newYear;
+  
+  // Update display
+  updateMonthYearDisplay();
+  
+  // Check cache only, don't auto-fetch
+  const monthExpenses = getCachedExpenses(newMonth, newYear);
+  if (monthExpenses && monthExpenses.length > 0) {
+    console.log('🔄 Month navigation: found cached data');
+    processRealExpenseData(monthExpenses);
+    loadAndRenderCategories();
+  } else {
+    console.log('🔄 Month navigation: no data, showing empty grid');
+    _transactions = [];
+    renderGrid();
+  }
+  
+  // Also sync with SimBudget system
+  SimBudget.updateMonthYear(newMonth, newYear);
+}
+
+
+   function updateMonthYearDisplay() {
+    const monthYearDisplay = getElement('monthYearDisplay');
+    if (monthYearDisplay) {
+      // Get month number (0-11)
+      const monthIndex = _currentMonth;
+      
+      // Array of translation keys for months
+      const monthKeys = [
+        "january", "february", "march", "april", "may", "june", 
+        "july", "august", "september", "october", "november", "december"
+      ];
+      
+      // Get the key for current month
+      const monthKey = monthKeys[monthIndex];
+      
+      // Use translation if available, fallback to default month name
+      let translatedMonth;
+      if (window.SimBudget && SimBudget.translations && SimBudget.translations[monthKey]) {
+        translatedMonth = SimBudget.translations[monthKey];
+      } else {
+        // Fallback to locale string if translations not available
+        translatedMonth = new Date(_currentYear, _currentMonth, 1)
+          .toLocaleString('default', { month: 'long' });
+      }
+      
+      // Update the display with translated month
+      monthYearDisplay.textContent = `${translatedMonth} ${_currentYear}`;
+      
+      // Add data attributes for future translations
+      monthYearDisplay.setAttribute('data-translate-month', monthKey);
+      monthYearDisplay.setAttribute('data-year', _currentYear);
+    }
+  }
+  
+  function renderGrid() {
+    const container = getElement('monthly-grid-container');
+    if (!container) {
+      console.error("Grid container not found for rendering");
+      return;
+    }
+    
+    // Clear existing content
+    container.innerHTML = '';
+    
+    // Get days in month
+    const daysInMonth = new Date(_currentYear, _currentMonth + 1, 0).getDate();
+    
+    // Update month/year display
+    updateMonthYearDisplay();
+    
+    // Categories are already parsed in _categories, just use them directly
+    const categoriesToDisplay = _categories;
+    
+  if (categoriesToDisplay.length === 0) {
+  container.innerHTML = `
+    <div class="loading-indicator">
+      <div class="loading-spinner"></div>
+      <p>Loading expense categories...</p>
+    </div>
+  `;
+  return;
+}
+    
+    // Create table for grid
+    const table = document.createElement('table');
+    table.className = 'monthly-grid';
+    
+    // Add header with categories
+    const thead = createTableHeader(categoriesToDisplay, daysInMonth);
+    table.appendChild(thead);
+    
+    // Create rows for each day
+    const tbody = createTableBody(categoriesToDisplay, daysInMonth);
+    table.appendChild(tbody);
+    
+    // Add table to container
+    container.appendChild(table);
+    
+    // Add the modal HTML after rendering the grid
+    ensureModalExists();
+  }
+  
+  function getTransactionsForDayAndCategory(day, categoryId) {
+    // Convert categoryId to match the actual category names from data
+    const transactions = _transactions.filter(tx => {
+      if (!tx.date || !tx.category) return false;
+      
+      // Check if the day matches
+      const txDay = tx.date.getDate();
+      const txMonth = tx.date.getMonth();
+      const txYear = tx.date.getFullYear();
+      
+      // Must be same day, month, and year
+      const dayMatches = (txDay === day);
+      const monthMatches = (txMonth === _currentMonth);
+      const yearMatches = (txYear === _currentYear);
+      
+      // Fix category matching - categoryId might be slugified, but tx.category is the full name
+      const categoryMatches = (
+        tx.category === categoryId || 
+        tx.category.toLowerCase().replace(/[^a-z0-9]/g, '') === categoryId ||
+        categoryId === tx.category.toLowerCase().replace(/[^a-z0-9]/g, '')
+      );
+      
+      const matches = dayMatches && monthMatches && yearMatches && categoryMatches;
+      
+ 
+      
+      return matches;
+    });
+    
+    return transactions;
+  }
+  
+  function getMonthTotalForCategory(categoryId) {
+    return _transactions
+      .filter(tx => 
+        tx.category === categoryId && 
+        tx.date.getMonth() === _currentMonth &&
+        tx.date.getFullYear() === _currentYear
+      )
+      .reduce((sum, tx) => sum + tx.amount, 0);
+  }
+  
+  function getMonthGrandTotal() {
+  return _transactions
+    .filter(tx => 
+      tx.date.getMonth() === _currentMonth &&
+      tx.date.getFullYear() === _currentYear &&
+      // EXCLUDE INCOME from totals
+      !tx.category.toLowerCase().includes("income")
+    )
+    .reduce((sum, tx) => sum + tx.amount, 0);
+}
+
+    function ensureModalExists() {
+    let modal = getElement('transaction-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'transaction-modal';
+      modal.className = 'transaction-modal';
+      modal.innerHTML = `
+        <div class="modal-backdrop"></div>
+        <div class="modal-card">
+          <div class="modal-header">
+            <h3 id="modal-title" class="modal-title" data-translate="transactions">Transactions</h3>
+          </div>
+          
+          <div class="modal-content">
+            <div id="transactions-list" class="transactions-list">
+              <!-- Transactions will be populated here -->
+            </div>
+            
+            <div class="modal-actions">
+              <button id="add-transaction-btn" class="add-transaction-btn">
+                <i class="material-icons">add</i> <span data-translate="add_more">Add More</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      
+      _elements['transaction-modal'] = modal;
+      _elements['modal-title'] = modal.querySelector('#modal-title');
+      _elements['transactions-list'] = modal.querySelector('#transactions-list');
+      _elements['add-transaction-btn'] = modal.querySelector('#add-transaction-btn');
+    }
+  }
+
+ function createTableHeader(categories, daysInMonth) {
+  const thead = document.createElement('thead');
+  const headerRow = document.createElement('tr');
+  
+  // Date column header - ADD DATA-TRANSLATE
+  const dateHeader = document.createElement('th');
+  dateHeader.className = 'date-header';
+  dateHeader.textContent = '📖';
+  dateHeader.style.cursor = 'pointer';
+  dateHeader.title = 'View monthly summary';
+  dateHeader.addEventListener('click', function(e) {
+    e.stopPropagation();
+    // Use the global showMonthDetailsPopup function
+    if (window.showMonthDetailsPopup) {
+      window.showMonthDetailsPopup(_currentMonth, _currentYear);
+    }
+  });
+  dateHeader.setAttribute('data-translate', 'nottranslatedate');
+  headerRow.appendChild(dateHeader);
+  
+  // Category headers with monthly totals
+  categories.forEach(category => {
+    const categoryHeader = document.createElement('th');
+    categoryHeader.className = 'category-header';
+    categoryHeader.setAttribute('data-category', category.id);
+    
+    // Extract emoji and text for translation
+    const emojiRegex = /[\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}\u{2460}-\u{24FF}\u{2500}-\u{257F}\u{2580}-\u{259F}\u{25A0}-\u{25FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2B50}\u{2B55}\u{231A}\u{231B}\u{2328}\u{23CF}\u{23E9}-\u{23F3}\u{23F8}-\u{23FA}\u{24C2}\u{25AA}\u{25AB}\u{25B6}\u{25C0}\u{25FB}-\u{25FE}\u{2934}\u{2935}\u{3030}\u{303D}\u{3297}\u{3299}]|\u{FE0F}/gu;
+    const categoryText = category.name.replace(emojiRegex, '').trim();
+    const translatedText = Utils.translateCategory ? Utils.translateCategory(categoryText) : categoryText;
+    categoryHeader.title = category.emoji ? `${category.emoji} ${translatedText}` : translatedText;
+    
+    // Calculate monthly total for this category
+    const monthlyTotal = getMonthTotalForCategory(category.id);
+    
+    // Create header content with emoji and name
+    const headerContent = document.createElement('div');
+    headerContent.className = 'category-header-content';
+    
+    const categoryEmojiDiv = document.createElement('div');
+    categoryEmojiDiv.className = 'category-emoji';
+    categoryEmojiDiv.textContent = category.emoji;
+    
+    const categoryName = document.createElement('div');
+    categoryName.className = 'category-name';
+    categoryName.textContent = translatedText;
+
+    headerContent.appendChild(categoryEmojiDiv);
+    headerContent.appendChild(categoryName);
+
+    // Conditionally add category total based on settings
+    const showCategoryTotals = getShowCategoryTotalsSetting();
+    if (showCategoryTotals) {
+      const categoryTotal = document.createElement('div');
+      categoryTotal.className = 'category-total';
+      categoryTotal.textContent = formatCurrency(monthlyTotal);
+      headerContent.appendChild(categoryTotal);
+    }
+
+    categoryHeader.appendChild(headerContent);
+    
+    headerRow.appendChild(categoryHeader);
+  });
+  
+  // Daily total header - ADD DATA-TRANSLATE
+  const totalHeader = document.createElement('th');
+  totalHeader.className = 'total-header';
+  totalHeader.title = 'Daily Total';
+  totalHeader.setAttribute('data-translate-title', 'Daily Total');
+  
+  // Calculate monthly grand total
+  const grandTotal = getMonthGrandTotal();
+  
+  const totalHeaderContent = document.createElement('div');
+  totalHeaderContent.className = 'category-header-content';
+  
+  // Determine if current month or previous month
+  const currentDate = new Date();
+  const isCurrentMonth = (_currentMonth === currentDate.getMonth() && _currentYear === currentDate.getFullYear());
+  const isFutureMonth = (_currentYear > currentDate.getFullYear() || 
+                        (_currentYear === currentDate.getFullYear() && _currentMonth > currentDate.getMonth()));
+  
+  // Get income and expenses for this month to calculate savings
+  const monthlyIncome = getMonthlyIncome(_currentMonth, _currentYear);
+  const monthlyExpenses = grandTotal; // This is already the total expenses
+  
+  // Helper function to get monthly income
+  function getMonthlyIncome(month, year) {
+    return _transactions
+      .filter(tx => 
+        tx.date.getMonth() === month &&
+        tx.date.getFullYear() === year &&
+        tx.category.toLowerCase().includes("income")
+      )
+      .reduce((sum, tx) => sum + tx.amount, 0);
+  }
+  
+  const totalEmoji = document.createElement('div');
+  totalEmoji.className = 'category-emoji';
+  
+  const totalName = document.createElement('div');
+  totalName.className = 'category-name total-label';
+  
+  const totalValue = document.createElement('div');
+  totalValue.className = 'category-total';
+  
+  // Calculate savings = income - expenses
+  const savings = monthlyIncome - monthlyExpenses;
+  
+
+
+  // Create spent amount element
+  const spentAmount = document.createElement('div');
+  spentAmount.className = 'spent-amount';
+  spentAmount.textContent = formatCurrency(monthlyExpenses);
+  spentAmount.style.fontSize = '14px';
+  spentAmount.style.fontWeight = '600';
+  spentAmount.style.lineHeight = '1.2';
+  spentAmount.style.textAlign = 'center';
+  
+  // Create remaining budget element
+  const remainingBudget = document.createElement('div');
+  remainingBudget.className = 'remaining-budget';
+  remainingBudget.textContent = formatCurrency(savings) + ' ▲';
+  remainingBudget.style.fontSize = '12px';
+  remainingBudget.style.fontWeight = 'normal';
+  remainingBudget.style.lineHeight = '1.2';
+  remainingBudget.style.marginTop = '2px';
+  remainingBudget.style.textAlign = 'center';
+  
+  // Set color based on savings
+  if (savings >= 0) {
+    remainingBudget.style.color = '#2e7d32'; // Green
+  } else {
+    remainingBudget.style.color = '#d32f2f'; // Red
+  }
+
+  // Remove emoji and set the name to "Spent:"
+  totalEmoji.textContent = '';
+  totalName.textContent = 'Spent:';
+  totalName.style.fontSize = '12px';
+  totalName.style.fontWeight = 'normal';
+  totalName.style.marginBottom = '2px';
+  
+  // Apply dark mode styles if needed
+  const isDarkMode = document.body.classList.contains('dark-mode');
+  if (isDarkMode) {
+    spentAmount.style.color = 'rgba(255, 255, 255, 0.87)'; // Dark mode text
+    totalName.style.color = 'rgba(255, 255, 255, 0.6)'; // Dark mode secondary text
+  } else {
+    spentAmount.style.color = '#333'; // Light mode text
+    totalName.style.color = '#666'; // Light mode secondary text
+  }
+  
+  // Clear totalValue and add our custom elements
+  totalValue.textContent = '';
+  totalValue.appendChild(spentAmount);
+  totalValue.appendChild(remainingBudget);
+  
+  totalHeaderContent.appendChild(totalEmoji);
+  totalHeaderContent.appendChild(totalName);
+  totalHeaderContent.appendChild(totalValue);
+  totalHeader.appendChild(totalHeaderContent);
+  
+  headerRow.appendChild(totalHeader);
+  
+  
+  thead.appendChild(headerRow);
+  return thead;
+}
+  
+  function createTableBody(categories, daysInMonth) {
+    const tbody = document.createElement('tbody');
+    
+    // Get today's date for highlighting
+    const today = new Date();
+    const isCurrentMonth = today.getMonth() === _currentMonth && today.getFullYear() === _currentYear;
+    const currentDay = today.getDate();
+    
+    // Create a row for each day
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateObj = new Date(_currentYear, _currentMonth, day);
+      const dayOfWeek = dateObj.getDay();
+      
+      const isWeekend = (dayOfWeek === 0);
+      const isToday = isCurrentMonth && day === currentDay;
+        
+      const row = document.createElement('tr');
+      row.className = 'day-row';
+      
+      if (isWeekend) {
+        row.classList.add('weekend-row');
+      }
+      
+      if (isToday) {
+        row.classList.add('today-row');
+      }
+      
+      // Date cell
+      const dateCell = document.createElement('td');
+      dateCell.className = 'date-cell';
+      if (isWeekend) dateCell.classList.add('weekend-cell');
+      if (isToday) dateCell.classList.add('today-cell');
+      
+      const dayName = dateObj.toLocaleString('en-US', { weekday: 'short' });
+      
+      dateCell.innerHTML = `<div class="date-container">
+                              <span class="day-name">${dayName}</span>
+                              <span class="day-number">${day}</span>
+                            </div>`;
+      row.appendChild(dateCell);
+      
+      // Daily total for calculating at the end
+      let dayTotal = 0;
+      
+      // Category cells
+      categories.forEach(category => {
+        const cell = document.createElement('td');
+        cell.className = 'grid-cell';
+        if (isWeekend) cell.classList.add('weekend-cell');
+        if (isToday) cell.classList.add('today-cell');
+        cell.setAttribute('data-day', day);
+        cell.setAttribute('data-category', category.id);
+        
+        // Get transactions for this day and category
+        const dayTransactions = getTransactionsForDayAndCategory(day, category.id);
+        
+        // If there are transactions, show amount and count
+        if (dayTransactions.length > 0) {
+          const amount = dayTransactions.reduce((sum, tx) => sum + tx.amount, 0);
+          dayTotal += amount;
+          
+          // Check if any transaction is recurring/subscription
+          const hasRecurring = dayTransactions.some(tx => 
+            tx.label && (
+              tx.label.toLowerCase().includes('subscription') || 
+              tx.label.toLowerCase().includes('fixed payment')
+            )
+          );
+          
+          // Determine color based on amount ranges
+                    // Replace the existing color class logic in createTableBody:
+          let colorClass = 'amount-0';
+          if (amount > 0) {
+            const bracket = Math.min(Math.floor(amount / 10) * 10, 110);
+            colorClass = bracket === 0 ? 'amount-10' : `amount-${bracket}`;
+            if (amount > 110) colorClass = 'amount-max';
+          }
+          
+          cell.innerHTML = `<div class="cell-content ${colorClass}${hasRecurring ? ' recurring-cell' : ''}">
+          <div class="amount-row">
+            <span class="amount">${formatCurrency(amount)}</span>
+            ${hasRecurring ? `<i class="material-icons recurring-icon">repeat</i>` : ''}
+          </div>
+          ${dayTransactions.length > 1 ? `<span class="transaction-count">${dayTransactions.length}</span>` : ''}
+        </div>`;
+        }
+        
+        row.appendChild(cell);
+      });
+      
+      // Daily total cell
+      const totalCell = document.createElement('td');
+      totalCell.className = 'total-cell';
+      if (isWeekend) totalCell.classList.add('weekend-cell');
+      if (isToday) totalCell.classList.add('today-cell');
+      
+      if (dayTotal > 0) {
+        totalCell.innerHTML = `<div class="total-amount">${formatCurrency(dayTotal)}</div>`;
+      }
+      
+      row.appendChild(totalCell);
+      
+      
+      tbody.appendChild(row);
+    }
+    
+    return tbody;
+  }
+
+  /**
+   * ENHANCED: Open transaction modal with blazing fast entry
+   * Always shows an empty transaction row for quick entry
+   */
+  function openTransactionModal(day, categoryId) {
+    if (_isClosingModal) return;
+    
+    
+    ensureModalExists();
+    
+    const modal = getElement('transaction-modal');
+    if (!modal) {
+      console.error('Modal element not found in DOM');
+      return;
+    }
+    
+    // FIXED: Now _categories contains parsed categories with id property
+    const category = _categories.find(c => c.id === categoryId);
+    if (!category) {
+      console.error('Category not found:', categoryId);
+      return;
+    }
+    
+    // Extract text for translation (keep category.emoji separate)
+    const emojiRegex = /[\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}\u{2460}-\u{24FF}\u{2500}-\u{257F}\u{2580}-\u{259F}\u{25A0}-\u{25FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2B50}\u{2B55}\u{231A}\u{231B}\u{2328}\u{23CF}\u{23E9}-\u{23F3}\u{23F8}-\u{23FA}\u{24C2}\u{25AA}\u{25AB}\u{25B6}\u{25C0}\u{25FB}-\u{25FE}\u{2934}\u{2935}\u{3030}\u{303D}\u{3297}\u{3299}]|\u{FE0F}/gu;
+    const categoryText = category.name.replace(emojiRegex, '').trim();
+    const translatedCategoryText = Utils.translateCategory ? Utils.translateCategory(categoryText) : categoryText;
+    
+    const transactions = getTransactionsForDayAndCategory(parseInt(day), categoryId);
+    
+    const dateObj = new Date(_currentYear, _currentMonth, parseInt(day));
+    const formattedDate = dateObj.toLocaleDateString('en-US', { 
+      weekday: 'short', 
+      month: 'short', 
+      day: 'numeric'
+    });
+    
+    const total = transactions.reduce((sum, tx) => sum + tx.amount, 0);
+    
+    const modalTitle = getElement('modal-title');
+    if (modalTitle) {
+      modalTitle.innerHTML = `
+        <div class="integrated-title">
+          <span class="title-category">${category.emoji ? `${category.emoji} ${translatedCategoryText}` : translatedCategoryText}</span>
+          <span class="title-divider">|</span>
+          <span class="title-date">${formattedDate}</span>
+          ${total > 0 ? `<span class="title-divider">|</span><span class="title-total">Total: ${formatCurrency(total, 2)}</span>` : ''}
+        </div>
+      `;
+    }
+    
+    const transactionsList = getElement('transactions-list');
+    if (transactionsList) {
+      transactionsList.innerHTML = '';
+      
+      // First, add existing transactions if any
+      if (transactions.length > 0) {
+        transactions.forEach(tx => {
+          const item = createTransactionItem(tx);
+          transactionsList.appendChild(item);
+        });
+      }
+      
+      // ALWAYS add an empty transaction row for quick entry
+      const emptyTransaction = createEmptyTransaction(day, categoryId);
+      const emptyItem = createTransactionItem(emptyTransaction);
+      emptyItem.classList.add('new-transaction', 'ready-for-input');
+      transactionsList.appendChild(emptyItem);
+      
+      // Auto-focus the description field for natural workflow
+      setTimeout(() => {
+        const descriptionField = emptyItem.querySelector('.transaction-description');
+        if (descriptionField) {
+          descriptionField.focus();
+          descriptionField.select();
+        }
+      }, 100);
+    }
+    
+    modal.setAttribute('data-day', day);
+    modal.setAttribute('data-category', categoryId);
+    
+    document.addEventListener('keydown', handleEscKey);
+    
+    setTimeout(() => {
+      modal.classList.add('visible');
+    }, 10);
+  }
+  
+/**
+ * Create an empty transaction object for quick entry
+ */
+function createEmptyTransaction(day, categoryId) {
+  // Generate a unique ID
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substr(2, 9);
+  const newId = `tx-${timestamp}-${random}`;  
+  
+  
+  return {
+    transactionId: newId,
+    date: new Date(_currentYear, _currentMonth, parseInt(day)),
+    category: categoryId,
+    amount: 0,
+    description: '',
+    account: 'Other',
+    notes: '',
+    isNew: true  // Mark as new
+  };
+}
+  
+  /**
+ * Create a transaction item in the modal - REORDERED FIELDS: description, amount, account
+ */
+function createTransactionItem(tx) {
+  const item = document.createElement('div');
+  item.className = 'transaction-item';
+  item.setAttribute('data-id', tx.transactionId);
+  
+  // Check if this is a subscription or fixed payment
+  const isSpecialTransaction = tx.label && 
+    (tx.label.toLowerCase().includes('subscription') || 
+     tx.label.toLowerCase().includes('fixed payment'));
+  
+  if (isSpecialTransaction) {
+    item.classList.add('fixed-transaction');
+  }
+  
+  // Use placeholders instead of default values for better UX
+  const amountValue = tx.amount && tx.amount > 0 ? tx.amount : '';
+  const amountPlaceholder = _currencySymbol;
+  const descriptionValue = tx.description || '';
+  const descriptionPlaceholder = 'Expense name';
+  
+  const row = document.createElement('div');
+  row.className = 'transaction-row';
+  
+  // 1. Description field FIRST (most natural to enter)
+  const descriptionInput = document.createElement('input');
+  descriptionInput.type = 'text';
+  descriptionInput.className = 'transaction-description';
+  descriptionInput.value = descriptionValue;
+  descriptionInput.placeholder = descriptionPlaceholder;
+  
+  if (isSpecialTransaction) {
+    descriptionInput.setAttribute('readonly', 'readonly');
+  }
+  
+  // 2. Amount field SECOND
+  const amountInput = document.createElement('input');
+  amountInput.type = 'number';
+  amountInput.className = 'transaction-amount';
+  amountInput.value = amountValue;
+  amountInput.placeholder = amountPlaceholder;
+  amountInput.min = '0';
+  amountInput.step = '1';
+  amountInput.inputMode = 'decimal';
+  
+  if (isSpecialTransaction) {
+    amountInput.setAttribute('readonly', 'readonly');
+  }
+  
+  // Add description and amount to the row
+  row.appendChild(descriptionInput);
+  row.appendChild(amountInput);
+  
+  // 3. Account dropdown for ALL transactions (including recurring)
+  // Account dropdown - GET FROM CACHE FIRST, NO API CALLS
+  const accountSelect = document.createElement('select');
+  accountSelect.className = 'transaction-account';
+  
+  // Make readonly for recurring transactions
+  if (isSpecialTransaction) {
+    accountSelect.setAttribute('disabled', 'disabled');
+  }
+  
+  // STEP 1: Get from cache IMMEDIATELY - no API calls
+  const cachedNetWorth = window.CacheManager ? CacheManager.getNetWorthWithTimestamp() : null;
+  
+  if (cachedNetWorth && cachedNetWorth.entries) {
+    // Filter for liquid assets from current month only
+    const currentMonth = _currentMonth;
+    const currentYear = _currentYear;
+    
+    const liquidAssets = cachedNetWorth.entries.filter(entry => {
+      // Check if it's this month/year
+      if (!entry.date) return false;
+      // Parse "MMM YYYY" format (e.g., "Jan 2024")
+      const dateParts = entry.date.split(' ');
+      const entryYear = parseInt(dateParts[1]);
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const entryMonth = monthNames.indexOf(dateParts[0]); // Already 0-based
+      
+      return entryMonth === currentMonth && 
+             entryYear === currentYear &&
+             entry.asset === 'Liquid Assets' &&
+             entry.name && 
+             entry.name.trim() !== '' &&
+             parseFloat(entry.amount) > 0;
+    });
+    
+    if (liquidAssets.length > 0) {
+      // Create dropdown with REAL accounts INSTANTLY
+      const uniqueNames = [...new Set(liquidAssets.map(asset => asset.name.trim()))].sort();
+      
+      uniqueNames.forEach(accountName => {
+        const optionEl = document.createElement('option');
+        optionEl.value = accountName;
+        optionEl.textContent = accountName;
+        if (accountName === tx.account) {
+          optionEl.selected = true;
+        }
+        accountSelect.appendChild(optionEl);
+      });
+    } else {
+      // NO LIQUID ASSETS FOUND - SHOW MESSAGE
+      const emptyOption = document.createElement('option');
+      emptyOption.value = '';
+      emptyOption.textContent = 'No accounts for this month';
+      emptyOption.disabled = true;
+      accountSelect.appendChild(emptyOption);
+    }
+  } else {
+    // NO CACHE - SHOW MESSAGE
+    const noCacheOption = document.createElement('option');
+    noCacheOption.value = '';
+    noCacheOption.textContent = 'Loading accounts...';
+    noCacheOption.disabled = true;
+    accountSelect.appendChild(noCacheOption);
+  }
+  
+  row.appendChild(accountSelect);
+  
+  // 4. Actions column (delete button or recurring icon)
+  const actions = document.createElement('div');
+  actions.className = 'transaction-actions';
+  
+  if (isSpecialTransaction) {
+    // Show recurring icon for recurring transactions
+    const recurringIcon = document.createElement('span');
+    recurringIcon.className = 'recurring-icon';
+    recurringIcon.innerHTML = '<i class="material-icons">repeat</i>';
+    actions.appendChild(recurringIcon);
+  } else {
+    // Show delete button for regular transactions
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'transaction-delete';
+    deleteBtn.innerHTML = '<i class="material-icons">close</i>';
+    actions.appendChild(deleteBtn);
+  }
+  
+  row.appendChild(actions);
+  
+  // Add the row to the item
+  item.appendChild(row);
+  
+  // Only set up event handlers for non-special transactions
+  if (!isSpecialTransaction) {
+    setupTransactionItemEvents(item, tx);
+  }
+  
+  return item;
+}
+
+
+/**
+ * Setup event handlers for transaction items with modification tracking
+ * MODIFIED: Removed auto-save triggers but kept the save function for modal close
+ */
+function setupTransactionItemEvents(item, tx) {
+  const deleteBtn = item.querySelector('.transaction-delete');
+  if (deleteBtn) {
+    deleteBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      
+      // Remove from UI immediately for better UX
+      item.remove();
+      
+      // Only try to delete if there's actually a real transactionId
+      if (tx.transactionId && tx.transactionId.trim() !== '') {
+        clearTransactionById(tx.transactionId, true);
+      } 
+      
+      // Update transaction total in modal
+      updateTransactionTotal();
+    });
+  }
+    
+  const amountInput = item.querySelector('.transaction-amount');
+  const descriptionInput = item.querySelector('.transaction-description');
+  const accountSelect = item.querySelector('.transaction-account');
+  
+  // Add a modified flag to track changes
+  item.setAttribute('data-modified', 'false');
+  
+
+        /**
+         * Update transaction queue - CLEAN VERSION: transactionId ONLY!
+         **/
+          function updateTransactionQueue() {
+          // Only queue transactions with valid amounts
+          if (parseFloat(amountInput.value) > 0) {
+            // Mark as modified
+            item.setAttribute('data-modified', 'true');
+            
+            // Get the category emoji
+            let categoryEmoji = '';
+            if (window.getCategoryEmoji) {
+              categoryEmoji = getCategoryEmoji(tx.category);
+            } else {
+              // Fallback: Try to find the category in the categories array
+              const category = _categories.find(c => c.id === tx.category);
+              if (category && category.emoji) {
+                categoryEmoji = category.emoji;
+              }
+            }
+
+            // Create transaction for queue - transactionId ONLY
+            const transaction = {
+              transactionId: tx.transactionId,
+              date: tx.date,
+              amount: parseFloat(amountInput.value) || 0,
+              category: tx.category,
+              description: descriptionInput.value,
+              account: accountSelect ? accountSelect.value : 'Other',
+              notes: tx.notes || '',
+              emoji: categoryEmoji
+            };
+            
+            // ✅ Update local UI state for immediate feedback
+            tx.amount = transaction.amount;
+            tx.description = transaction.description;
+            if (accountSelect) {
+              tx.account = transaction.account;
+            }
+            
+            // ✅ Update local _transactions array for immediate UI updates
+            const existingIndex = _transactions.findIndex(t => String(t.transactionId) === String(transaction.transactionId));
+
+            if (existingIndex === -1) {
+              _transactions.push(tx);
+            } else {
+              _transactions[existingIndex] = tx;
+            }
+            
+            // ✅ Use TransactionManager
+            if (window.TransactionManager) {
+              const existingTx = TransactionManager.getQueue().find(qTx => String(qTx.transactionId) === String(transaction.transactionId));
+
+              
+              if (existingTx) {
+                TransactionManager.updateTransaction(transaction);
+              } else {
+                TransactionManager.addTransaction(transaction);
+              }
+              
+              // 🎯 DIRECT CACHE UPDATE
+              if (window.CacheManager) {
+                const expenseForCache = {
+                  ...transaction,
+                  name: transaction.description,
+                  category: transaction.category
+                };
+                
+                const month = transaction.date ? new Date(transaction.date).getMonth() : _currentMonth;
+                const year = transaction.date ? new Date(transaction.date).getFullYear() : _currentYear;
+                
+                CacheManager.updateExpense(expenseForCache, month, year);
+                
+              }
+            }
+          }
+        }
+
+  
+  // CRITICAL: Store the function reference so closeTransactionModal can call it
+  item._updateTransactionQueue = updateTransactionQueue;
+
+  if (amountInput) {
+    // Update when amount changes
+    amountInput.addEventListener('input', function() {
+      item.setAttribute('data-modified', 'true');
+      tx.amount = parseFloat(this.value) || 0;
+      updateTransactionTotal();
+    });
+    
+    // Move to account field when Enter is pressed on amount
+    amountInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (accountSelect) {
+          accountSelect.focus();
+        }
+      }
+    });
+    
+    // REMOVED: Auto-save on blur
+  }
+  
+  if (descriptionInput) {
+    // Update transaction when description changes - mark as modified
+    descriptionInput.addEventListener('input', function() {
+      item.setAttribute('data-modified', 'true');
+      tx.description = this.value;
+    });
+    
+    // Move to amount field when Enter is pressed on description
+    descriptionInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (amountInput) {
+          amountInput.focus();
+          amountInput.select();
+        }
+      }
+    });
+    
+    // REMOVED: Auto-save on blur
+  }
+  
+  if (accountSelect) {
+    // Update transaction data when account changes - mark as modified
+    accountSelect.addEventListener('change', function() {
+      item.setAttribute('data-modified', 'true');
+      tx.account = this.value;
+      // REMOVED: Auto-save on change
+    });
+  }
+  
+  // Add a listener for the forceSave event (used in addTransactionRow)
+  // KEEP THIS but we'll remove the forceSave dispatch from addTransactionRow
+  item.addEventListener('forceSave', function() {
+    if (parseFloat(amountInput.value) > 0 && descriptionInput.value.trim()) {
+      updateTransactionQueue();
+    }
+  });
+}
+
+
+
+  
+        function updateTransactionTotal() {
+          const transactionsList = getElement('transactions-list');
+          const modalTitle = getElement('modal-title');
+          if (!transactionsList || !modalTitle) return;
+          
+          const amounts = Array.from(transactionsList.querySelectorAll('.transaction-amount'))
+            .map(input => parseFloat(input.value) || 0);
+          
+          const total = amounts.reduce((sum, amount) => sum + amount, 0);
+          
+          const titleTotal = modalTitle.querySelector('.title-total');
+          if (titleTotal) {
+            titleTotal.textContent = `Total: ${formatCurrency(total, 2)}`;
+          } else if (total > 0) {
+            const titleContent = modalTitle.querySelector('.integrated-title');
+            if (titleContent) {
+              const divider = document.createElement('span');
+              divider.className = 'title-divider';
+              divider.textContent = '|';
+              
+              const newTotal = document.createElement('span');
+              newTotal.className = 'title-total';
+              newTotal.textContent = `Total: ${formatCurrency(total, 2)}`;
+              
+              titleContent.appendChild(divider);
+              titleContent.appendChild(newTotal);
+            }
+          }
+        }
+  
+  function handleEscKey(e) {
+    if (e.key === 'Escape') {
+      closeTransactionModal();
+    }
+  }
+  
+
+
+  
+
+
+/**
+ * Close the transaction modal - with saving only for modified transactions
+ */
+function closeTransactionModal() {
+  _isClosingModal = true;
+  
+  const modal = getElement('transaction-modal');
+  
+  if (modal) {
+    // Save ONLY MODIFIED transactions before closing
+    const transactionsList = getElement('transactions-list');
+    
+    if (transactionsList) {
+      const items = transactionsList.querySelectorAll('.transaction-item');
+      
+      // Process each transaction - ONLY if it was modified
+      items.forEach((item, index) => {
+        const amountInput = item.querySelector('.transaction-amount');
+        const descriptionInput = item.querySelector('.transaction-description');
+        const wasModified = item.getAttribute('data-modified') === 'true';
+        
+        // Only save transactions that were modified AND have valid data
+        if (wasModified && amountInput && descriptionInput && 
+            parseFloat(amountInput.value) > 0 && 
+            descriptionInput.value.trim()) {
+          // We need to trigger the save in the item's context
+          if (item._updateTransactionQueue) {
+            try {
+              item._updateTransactionQueue();
+            } catch (error) {
+              console.error('Error updating transaction:', error);
+            }
+          } else {
+            console.warn(`Item ${index} missing _updateTransactionQueue function`);
+          }
+        }
+      });
+    }
+    
+    // Hide modal
+    modal.classList.remove('visible');
+    document.removeEventListener('keydown', handleEscKey);
+    
+    // Process queue
+    if (window.TransactionManager) {
+      setTimeout(function() {
+        TransactionManager.forceProcessing();
+      }, 200);
+    }
+    
+    renderGrid();
+    
+    setTimeout(() => {
+      _isClosingModal = false;
+    }, 300);
+  } else {
+    console.error('closeTransactionModal: Modal element not found!');
+  }
+}
+
+
+  
+/**
+ * Add a new transaction row and force-save any existing transactions
+ */
+function addTransactionRow() {
+  const transactionsList = getElement('transactions-list');
+  const modal = getElement('transaction-modal');
+   
+  if (!transactionsList || !modal) {
+    console.error('Required elements not found');
+    return;
+  }
+  
+  // REMOVED: Force save logic for existing transactions
+  
+  const day = modal.getAttribute('data-day');
+  const categoryId = modal.getAttribute('data-category');
+  
+  if (!day || !categoryId) {
+    console.error('Missing day or category information');
+    return;
+  }
+  
+  // Create another empty transaction
+  const newTx = createEmptyTransaction(day, categoryId);
+  const item = createTransactionItem(newTx);
+  item.classList.add('new-transaction');
+  
+  // Add to DOM
+  transactionsList.appendChild(item);
+  
+  // Auto-focus the description field (new workflow)
+  setTimeout(() => {
+    const descriptionField = item.querySelector('.transaction-description');
+    if (descriptionField) {
+      descriptionField.focus();
+    }
+  }, 100);
+  
+  updateTransactionTotal();
+}
+
+
+
+
+/**
+ * Clear a transaction by directly clearing the row in the spreadsheet
+ */
+function clearTransactionById(transactionId, skipRender) {
+  if (!transactionId) return false;
+
+  // Find transaction using transactionId ONLY
+  const txIndex = _transactions.findIndex(tx => String(tx.transactionId) === String(transactionId));
+  
+  if (txIndex === -1) {
+    console.warn('Transaction not found locally:', transactionId);
+    return false;
+  }
+  
+  // Get the transaction before removing
+  const transaction = _transactions[txIndex];
+  
+  // Remove from local array
+  _transactions.splice(txIndex, 1);
+  
+  // Call API to delete from server
+  API.clearTransactionRow(transactionId, function(result) {
+    // SUCCESS - Update cache after server deletion
+    if (window.CacheManager) {
+      // Use the fixed removeExpense method that preserves full cache
+      CacheManager.removeExpense(transactionId, _currentMonth, _currentYear);
+    }
+  }, function(error) {
+    console.error("Failed to clear transaction row:", error);
+    // Could re-add to _transactions array here if you want to rollback on failure
+  });
+  
+  // Re-render unless specified not to
+  if (!skipRender) {
+    renderGrid();
+  }
+  
+  return true;
+}
+
+
+/**
+ * Refresh the grid with optional force reload from server
+ */
+function refresh(forceServerRefresh) {
+  
+  // Prevent multiple simultaneous refresh calls
+  if (_isLoading) {
+    return;
+  }
+  
+  if (forceServerRefresh) {
+    // Clear all expense cache to force fresh fetch of everything
+    if (window.CacheManager) {
+      CacheManager.invalidate(`expenses_with_timestamp`);
+      CacheManager.invalidate('master_data_timestamp');
+    }
+    
+    // Force processing of any pending transactions first
+    if (window.TransactionManager) {
+      TransactionManager.forceProcessing();
+      
+      // Wait for processing to complete before refreshing
+      setTimeout(function() {
+        if (!_isLoading) { // Double-check before calling
+          loadAllExpenseData();
+        }
+      }, 500);
+    } else {
+      loadAllExpenseData();
+    }
+  } else {
+    // For non-forced refresh, just read from cache
+    const cachedExpenses = getCachedExpenses(_currentMonth, _currentYear);
+    if (cachedExpenses && cachedExpenses.length > 0) {
+      processRealExpenseData(cachedExpenses);
+      renderGrid();
+    } else {
+      // No cache, load from server
+      loadRealExpenseData();
+    }
+  }
+}
+
+  
+  /**
+   * Set expense data from external source (enhanced)
+   */
+  function setExpenseData(expenses) {
+    if (!expenses || !Array.isArray(expenses)) {
+      console.error('Invalid expense data provided:', expenses);
+      return;
+    }
+    
+    // Prevent multiple simultaneous calls with same data
+    if (_isSettingExpenseData) {
+      return;
+    }
+    
+    _isSettingExpenseData = true;
+        
+    // Process the new data
+    processRealExpenseData(expenses);
+    
+    // Render with the new data
+    renderGrid();
+    
+    // Reset flag after a short delay
+    setTimeout(() => {
+      _isSettingExpenseData = false;
+    }, 50);
+  }
+
+  /**
+   * Clear cache for testing or troubleshooting
+   */
+  function clearCache() {
+  if (window.CacheManager) {
+    CacheManager.clear();
+  }
+}
+
+  /**
+   * Show month/year editor popup
+   */
+  function showMonthYearEditor(displayElementId) {
+    const displayElement = document.getElementById(displayElementId);
+    if (!displayElement) return;
+    
+    // Create modal
+    const modal = document.createElement('div');
+    modal.className = 'month-year-editor-modal';
+    
+    // Generate month options
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    
+    const monthOptions = months.map((month, index) => 
+      `<option value="${index}" ${index === _currentMonth ? 'selected' : ''}>${month}</option>`
+    ).join('');
+    
+    // Generate year options (current year ± 5 years)
+    const currentYear = new Date().getFullYear();
+    const yearOptions = [];
+    for (let year = currentYear - 5; year <= currentYear + 5; year++) {
+      yearOptions.push(`<option value="${year}" ${year === _currentYear ? 'selected' : ''}>${year}</option>`);
+    }
+    
+    modal.innerHTML = `
+      <div class="modal-backdrop"></div>
+      <div class="modal-content">
+        <h3>Go to Month/Year</h3>
+        <div class="editor-inputs">
+          <div class="select-group">
+            <label>Month</label>
+            <select id="monthSelect" class="month-year-select">
+              ${monthOptions}
+            </select>
+          </div>
+          <div class="select-group">
+            <label>Year</label>
+            <select id="yearSelect" class="month-year-select">
+              ${yearOptions.join('')}
+            </select>
+          </div>
+        </div>
+        <div class="editor-buttons">
+          <button class="btn editor-cancel">Cancel</button>
+          <button class="btn editor-save">Go</button>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Focus on month select (but not on mobile to prevent auto-opening dropdown)
+    const monthSelect = modal.querySelector('#monthSelect');
+    if (!window.matchMedia('(max-width: 768px)').matches) {
+      monthSelect.focus();
+    }
+    
+    // Event listeners
+    modal.querySelector('.editor-cancel').addEventListener('click', () => {
+      modal.remove();
+    });
+    
+    modal.querySelector('.modal-backdrop').addEventListener('click', () => {
+      modal.remove();
+    });
+    
+    modal.querySelector('.editor-save').addEventListener('click', () => {
+      const month = parseInt(monthSelect.value); // Already 0-based
+      const year = parseInt(modal.querySelector('#yearSelect').value);
+      
+      // Use navigateMonth function to change to selected month/year
+      if (month !== _currentMonth || year !== _currentYear) {
+        _currentMonth = month;
+        _currentYear = year;
+        updateMonthYearDisplay();
+        loadRealExpenseData(month, year);
+      }
+      modal.remove();
+    });
+    
+    // Enter key to save
+    modal.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        modal.querySelector('.editor-save').click();
+      } else if (e.key === 'Escape') {
+        modal.remove();
+      }
+    });
+    
+    // Show modal
+    setTimeout(() => modal.classList.add('visible'), 10);
+  }
+
+  
+
+  // Public methods
+  return {
+    init: init,
+    renderGrid: renderGrid,
+    setExpenseData: setExpenseData,
+    refresh: refresh,
+    updateCurrency: updateCurrency,
+    formatCurrency: formatCurrency,
+    openTransactionModal: openTransactionModal,
+    unbindEvents: unbindEvents,
+    clearCache: clearCache,
+    notifyCategoryChange: notifyMonthlyGridOfCategoryChange,
+    getTransactions: function() { return _transactions; },
+    updateCategories: function(categories) {
+  // Store all categories for later reference
+  window._allCategories = categories;
+  
+  if (SimBudget?.Views?.getCurrent() === 'expense') {
+    loadAndRenderCategories();
+  }
+},
+
+    
+   setMonthYear: function(month, year) {
+    _currentMonth = month;
+    _currentYear = year;
+    updateMonthYearDisplay();
+    // Don't reload - just update the display
+  },
+
+  
+  navigateToMonth: function(month, year) {
+  if (_currentMonth === month && _currentYear === year) return;
+  
+  // Use SimBudget's sync system  
+  SimBudget.updateMonthYear(month, year);
+},
+
+  /**
+   * Update last refresh time display
+   */
+  updateLastRefreshTime: function() {
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit',
+      hour12: true 
+    });
+    
+    const refreshElement = document.getElementById('lastRefreshTime');
+    if (refreshElement) {
+      const updatedAtText = window.getTranslation ? window.getTranslation('updated_at', getLanguageFromSettings()) : 'Updated at';
+      refreshElement.textContent = `${updatedAtText} ${timeStr}`;
+    }
+  },
+
+  /**
+   * Show month/year editor for quick navigation
+   */
+  showMonthYearEditor: showMonthYearEditor
+
+
+  };
+})();
+
+
+    // Expose globally  
+  window.MonthlyGrid = MonthlyGrid;
+  window.notifyMonthlyGridOfCategoryChange = MonthlyGrid.notifyCategoryChange;
+  window._addingInactiveCategories = false;
+
+
+</script>
+
+<style>
+/* ======================================================
+   MONTHLY GRID VIEW STYLES - IMPROVED UX VERSION
+   ======================================================
+   Enhanced mobile-first design with better touch targets
+   and visual hierarchy
+*/
+
+/* ============= MAIN CONTAINER ============= */
+.monthly-grid-container {
+  width: 100%;
+  height: 100%;
+  min-height: 400px;
+  position: relative;
+  overflow: auto;
+  padding: 8px 16px 16px 16px;
+  max-height: calc(100vh - 90px);
+  max-width: 1200px;
+  margin: 0 auto;
+  background-color: #ffffff;
+  border-radius: 0px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+/* ============= GRID HEADER ============= */
+.grid-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background-color: #e3f2fd;
+  border-radius: 0px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.month-nav-btn {
+  background: none;
+  border: none;
+  color: #2c3e50;
+  cursor: pointer;
+  width: 36px;
+  height: 36px;
+  border-radius: 0px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.month-nav-btn:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.month-year-display {
+  font-size: 18px;
+  font-weight: 700;
+  color: #2c3e50;
+  font-family: 'Lato', sans-serif;
+}
+
+/* ============= GRID TABLE ============= */
+.monthly-grid {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  min-width: 720px;
+}
+
+/* Headers - Sticky positioning with dashboard style */
+.monthly-grid thead {
+  position: sticky;
+  top: 0px;
+  z-index: 200;
+}
+
+.monthly-grid th {
+  background-color: #d6f1f5 !important;
+  padding: 6px 4px;
+  text-align: left;
+  font-weight: 500;
+  color: #2c3e50;
+  border-bottom: 1px solid #e2e8f0;
+  position: sticky;
+  top: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  z-index: 210;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+.monthly-grid th.total-header {
+  background-color: #d6f1f5 !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  z-index: 220;
+}
+
+.monthly-grid th.date-header {
+  width: 60px !important;
+  min-width: 60px !important;
+  max-width: 60px !important;
+  text-align: center !important;
+  padding: 6px 4px !important;
+  position: sticky !important;
+  left: 0 !important;
+  top: 0 !important;
+  z-index: 1000 !important;
+  background-color: #d6f1f5 !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
+}
+
+.category-header {
+  min-width: 69px;
+  width: 69px;
+}
+
+.total-header {
+  width: 50px;
+  text-align: center;
+}
+
+.notes-header {
+  width: 117px;
+}
+
+/* Category header content layout */
+.category-header-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Emoji styling - centered on top */
+.category-emoji {
+  font-size: 18px;
+  line-height: 1;
+  margin: 0;
+  padding: 2px 0;
+  text-align: center;
+}
+
+/* Category name styling - below emoji, centered */
+.category-name {
+  font-size: 10px;
+  text-align: center;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  font-weight: 500;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+/* Category total styling */
+.category-total {
+  font-size: 13px;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+/* Day rows and cells */
+.day-row {
+  background-color: #ffffff;
+}
+
+.day-row:hover {
+  background-color: rgba(214, 241, 245, 0.65);
+}
+
+
+.weekend-row .date-cell {
+  background-color: #deeaf6 !important;
+}
+.weekend-row {
+  background-color: rgba(211, 236, 243, 0.3) !important;
+}
+
+.weekend-row:hover {
+  background-color: rgba(211, 236, 243, 0.55) !important;
+}
+
+/* Apply highlighting only to the cell */
+.today-cell {
+  font-weight: 500;
+}
+
+/* Only apply the blue background to the date cell */
+.today-row.today-row .date-cell {
+  font-weight: 600;
+  background-color: rgb(32, 183, 221) !important;
+  color: #04546a;
+}
+
+.today-row.today-row .date-cell .day-number,
+.today-row.today-row .date-cell .day-name {
+  color: white !important;
+}
+
+.today-row  {
+  background-color: rgba(80, 205, 172, 0.18) !important;
+}
+
+.monthly-grid td {
+  padding: 2px;
+  border-bottom: 1px solid #f1f5f9;
+  border-right: 1px solid #f1f5f9;
+  height: 20px;
+  vertical-align: middle;
+}
+
+.date-cell {
+  position: sticky !important;
+  left: 0 !important;
+  z-index: 100 !important;
+  background-color: #e9f9fb !important;
+}
+
+.date-container {
+    display: flex
+;
+    height: 100%;
+    padding: 2px 2px 2px 6px;
+    gap: 4px;
+    flex-wrap: wrap;
+    align-content: space-around;
+    align-items: baseline;
+    justify-content: space-evenly;
+}
+
+.day-number,
+.day-name {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  margin: 0;
+  font-family: 'Lato', sans-serif;
+  color: #838b96;
+}
+
+.grid-cell {
+  cursor: pointer;
+  transition: background-color 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Removed hover effect - was causing sticky background issue */
+
+/* Cell content with improved color coding */
+.cell-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 3px 2px;
+  color: black;
+  font-weight: 500;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  border-radius: 6px;
+}
+
+/* Color coding */
+.amount-small {
+  background-color: rgb(170 255 222 / 15%) /* Light blue */
+}
+
+.amount-medium {
+  background-color: rgba(255, 193, 7, 0.15); /* Light amber */
+}
+
+.amount-large {
+  background-color: rgba(244, 67, 54, 0.15); /* Light red */
+}
+
+
+/* SPENDING HEAT MAP - Reversed: Light cream to deep pink */
+/* Replace lines 3565-3577 with this improved gradient: */
+
+/* SPENDING HEAT MAP - Better contrast for low spending */
+.amount-0 { background-color: #ffffff; } /* No spending - white */
+.amount-10 { background-color: #fff8f2; } /* $0-10 - Very light cream */
+.amount-20 { background-color: #fff5ed; } /* $10-20 - Light cream */
+.amount-30 { background-color: #ffefe0; } /* $20-30 - Slightly warmer cream */
+.amount-40 { background-color: #ffe8d4; } /* $30-40 - Warmer peach transition */
+.amount-50 { background-color: #ffd5a7; } /* $40-50 - Peach */
+.amount-60 { background-color: #ffcc9f; } /* $50-60 */
+.amount-70 { background-color: #ffbf94; } /* $60-70 */
+.amount-80 { background-color: #ffb18e; } /* $70-80 */
+.amount-90 { background-color: #ffa790; } /* $80-90 */
+.amount-100 { background-color: #ffa095; } /* $90-100 */
+.amount-110 { background-color: #ff9c99; } /* $100-110 */
+.amount-max { background-color: #fe9a9c; } /* $110+ - Deep pink */
+
+/* DARK MODE: Spending heat map - Darker versions of the gradient */
+body.dark-mode .amount-0 { background-color: #1e1e1e !important; }
+body.dark-mode .amount-10 { background-color: #2d2520 !important; }
+body.dark-mode .amount-20 { background-color: #332418 !important; }
+body.dark-mode .amount-30 { background-color: #3a2512 !important; }
+body.dark-mode .amount-40 { background-color: #42260f !important; }
+body.dark-mode .amount-50 { background-color: #4a280c !important; }
+body.dark-mode .amount-60 { background-color: #52290a !important; }
+body.dark-mode .amount-70 { background-color: #5a2a08 !important; }
+body.dark-mode .amount-80 { background-color: #622c06 !important; }
+body.dark-mode .amount-90 { background-color: #6a2d04 !important; }
+body.dark-mode .amount-100 { background-color: #722e02 !important; }
+body.dark-mode .amount-110 { background-color: #7a3000 !important; }
+body.dark-mode .amount-max { background-color: #823200 !important; }
+
+.recurring-icon {
+  font-size: 14px !important;
+  line-height: 1;
+  color: #0891b2;
+  opacity: 0.9;
+  font-weight: 700 !important;
+}
+
+.amount {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  margin: 0;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+.amount-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.amount-row .recurring-icon {
+  margin-left: 2px;
+}
+
+.transaction-count {
+  font-size: 9px;
+  color: #fff !important;
+  line-height: 1;
+  margin: 0;
+  font-style: normal;
+  background-color: rgb(79 170 187 / 51%);
+  padding: 2px 7px;
+  border-radius: 12px;
+  font-weight: 600;
+}
+
+.total-cell {
+  font-weight: 600;
+  color: #2c3e50;
+  text-align: center;
+  background-color: rgba(244, 67, 54, 0.06);
+}
+
+.total-amount {
+  font-size: 13px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  line-height: 1;
+  font-weight: 700;
+  font-family: 'Lato', sans-serif;
+}
+
+.notes-cell {
+  position: relative;
+}
+
+.notes-content {
+  min-height: 20px;
+  padding: 3px;
+  border: 1px solid transparent;
+  border-radius: 0px;
+  transition: border-color 0.2s, background-color 0.2s;
+  outline: none;
+  font-size: 10px;
+  background-color: rgba(241, 241, 241, 0.5);
+  line-height: 1.2;
+  width: 100%;
+  height:50%;
+  box-sizing: border-box;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.notes-content:hover, .notes-content:focus {
+  border-color: #ddd;
+  background-color: rgba(241, 241, 241, 0.8);
+}
+
+.notes-content:focus {
+  background-color: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 2px rgba(44, 62, 80, 0.2);
+}
+
+/* Error states */
+.grid-error {
+  padding: 30px 20px;
+  text-align: center;
+  color: #d32f2f;
+  background-color: #ffebee;
+  border-radius: 0px;
+  margin: 20px 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.5);
+  border-left: 1px solid rgba(0, 0, 0, 0.5);
+  border-right: 4px solid #334a60;
+  border-bottom: 4px solid #334a60;
+}
+
+.grid-error h3 {
+  margin: 0 0 16px 0;
+  font-size: 18px;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+.grid-error p {
+  margin: 8px 0;
+  line-height: 1.5;
+}
+
+.retry-btn {
+  margin-top: 16px;
+  padding: 10px 20px;
+  background-color: #d32f2f;
+  color: white;
+  border: none;
+  border-radius: 0px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.retry-btn:hover {
+  background-color: #b71c1c;
+}
+
+/* Loading indicator */
+.loading-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: #666;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #e0e0e0;
+  border-top: 4px solid #2c3e50;
+  border-radius: 50%;
+  animation: loading-spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes loading-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-indicator p {
+  margin: 8px 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.loading-indicator small {
+  font-size: 12px;
+  color: #666;
+  opacity: 0.7;
+}
+
+/* ============= TRANSACTION MODAL - REWRITTEN FROM SCRATCH ============= */
+.transaction-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1000;
+  display: none;
+  opacity: 0;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.3s ease;
+}
+
+.transaction-modal.visible {
+  display: flex;
+  opacity: 1;
+}
+
+.modal-backdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(3px);
+}
+
+.modal-card {
+  position: relative;
+  width: 90%;
+  max-width: 800px;
+  max-height: 85vh;
+  background-color: #ffffff;
+  border-radius: 0px;
+  border-top: 1px solid rgba(0, 0, 0, 0.5);
+  border-left: 1px solid rgba(0, 0, 0, 0.5);
+  border-right: 4px solid #334a60;
+  border-bottom: 4px solid #334a60;
+  display: flex;
+  flex-direction: column;
+  transform: translateY(20px);
+  transition: transform 0.3s ease;
+}
+
+.transaction-modal.visible .modal-card {
+  transform: translateY(0);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #ddd;
+  background-color: #fafafa;
+  border-radius: 0px;
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+.modal-content {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.transactions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.transaction-item {
+  background-color: #ffffff;
+  padding: 10px 16px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.transaction-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* ==> DESKTOP LAYOUT: Description(40%) | Amount(120px) | Account(200px) | Delete(40px) */
+.transaction-row {
+  display: grid;
+  grid-template-columns: 1fr 120px 200px 40px;
+  gap: 12px;
+  align-items: center;
+}
+
+/* ==> ALL INPUT FIELDS: Same basic styling */
+.transaction-description, 
+.transaction-amount, 
+.transaction-account {
+  padding: 10px 8px;
+  border: 1px solid #ddd;
+  border-radius: 0px;
+  font-size: 14px;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.transaction-description:focus, 
+.transaction-amount:focus, 
+.transaction-account:focus {
+  border-color: #2c3e50;
+  box-shadow: 0 0 0 3px rgba(44, 62, 80, 0.1);
+  outline: none;
+}
+
+/* ==> ACCOUNT DROPDOWN: Wide, single arrow, shows content */
+.transaction-account {
+  background-color: #ffffff;
+  color: #333;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 8px center;
+  background-repeat: no-repeat;
+  background-size: 16px;
+  padding-right: 32px;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+.transaction-account:hover {
+  border-color: #2c3e50;
+}
+
+/* ==> DELETE BUTTON */
+.transaction-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.transaction-delete {
+  background: none;
+  border: none;
+  color: #f44336;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.2s, background-color 0.2s;
+  width: 36px;
+  height: 36px;
+  border-radius: 0px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.transaction-delete:hover {
+  opacity: 1;
+  background-color: rgba(244, 67, 54, 0.1);
+}
+
+/* ==> MOBILE LAYOUT: Complete rewrite */
+@media (max-width: 768px) {
+  /* MOBILE: Description | Amount | Account | Delete */
+  .transaction-row {
+    grid-template-columns: 1fr 100px 70px 30px !important;
+    gap: 6px !important;
+  }
+  
+  /* MOBILE: Account dropdown shows text */
+  .transaction-account {
+    padding: 8px !important;
+    background-size: 12px !important;
+    background-position: right 4px center !important;
+    padding-right: 20px !important;
+  }
+
+    .transaction-description, .transaction-amount, .transaction-account {
+    font-size: 16px !important;
+    }
+  
+  /* MOBILE: Delete button and recurring icon */
+  .transaction-delete, .recurring-icon {
+    width: 24px !important;
+    min-width: 24px !important;
+    padding: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  
+  .recurring-cell .recurring-icon {
+    display: none !important;
+  }
+
+  .recurring-cell {
+    border-left: 3px solid #0891b2;
+    padding-left: 4px;
+  }
+  
+  /* MOBILE: Actions container */
+  .transaction-actions {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 30px !important;
+  }
+  
+  /* MOBILE: Smaller modal */
+  .modal-card {
+    max-width: 95%;
+  }
+  
+  .modal-header, .modal-content {
+    padding: 12px !important;
+  }
+  
+  .transaction-item {
+    padding: 12px 8px !important;
+  }
+}
+
+.new-transaction {
+  animation: fade-in 0.3s ease-out;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.empty-transactions {
+  text-align: center;
+  color: #666;
+  padding: 40px 20px;
+  font-style: italic;
+  font-size: 15px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.add-transaction-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background-color: #2c3e50;
+  color: white;
+  border: none;
+  border-radius: 0px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.2s;
+  font-size: 14px;
+}
+
+.add-transaction-btn:hover {
+  background-color: #1e2b37;
+}
+
+/* Modal title layout */
+.integrated-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+}
+
+.title-category {
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+.title-divider {
+  color: rgba(0, 0, 0, 0.3);
+  font-weight: 300;
+}
+
+.title-date {
+  color: rgba(0, 0, 0, 0.7);
+  font-weight: 400;
+  font-size: 0.9em;
+}
+
+.title-total {
+  color: #2c3e50;
+  font-weight: 600;
+  margin-left: auto;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+/* ============= DAY DETAILS POPUP ============= */
+
+
+
+.day-details-popup {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.day-details-popup.visible {
+  opacity: 1;
+}
+
+.popup-backdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+}
+
+.popup-content {
+  position: relative;
+  width: 90%;
+  max-width: 750px;
+  max-height: 70vh;
+  background-color: #ffffff;
+  border-radius: 0px;
+  border-top: 1px solid rgba(0, 0, 0, 0.5);
+  border-left: 1px solid rgba(0, 0, 0, 0.5);
+  border-right: 4px solid #334a60;
+  border-bottom: 4px solid #334a60;
+  display: flex;
+  flex-direction: column;
+}
+
+.popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #ddd;
+  background-color: #fafafa;
+}
+
+.popup-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+.popup-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #666;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0px;
+  transition: background-color 0.2s;
+}
+
+.popup-close:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.popup-body {
+  flex: 1;
+  padding: 16px 20px;
+  overflow-y: auto;
+}
+
+.transaction-detail {
+  display: grid;
+  grid-template-columns: 1fr 0.5fr 80px 0.5fr;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid #eee;
+  align-items: center;
+  text-align: left;
+}
+
+.transaction-detail:last-child {
+  border-bottom: none;
+}
+
+.detail-category {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.detail-name {
+  font-size: 13px;
+  color: #333;
+}
+
+body.dark-mode .detail-name {
+  color: #ddd;
+}
+
+.detail-amount {
+  font-size: 13px;
+  font-weight: 600;
+  text-align: right;
+  color: #2c3e50;
+  font-family: 'Lato', sans-serif;
+}
+
+.detail-account {
+  font-size: 12px;
+  color: #666;
+  text-align: right;
+}
+
+/* Dark mode for popup */
+body.dark-mode .popup-content {
+  background-color: var(--dark-surface, #1e1e1e);
+  color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
+}
+
+body.dark-mode .popup-header {
+  background-color: rgba(255, 255, 255, 0.05);
+  border-color: var(--dark-border, rgba(255, 255, 255, 0.1));
+}
+
+body.dark-mode .transaction-detail {
+  border-color: var(--dark-border, rgba(255, 255, 255, 0.1));
+}
+
+body.dark-mode .detail-amount {
+  color: #DDA15E;
+}
+
+body.dark-mode .popup-close {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* ============= RESPONSIVE DESIGN - MOBILE FIRST ============= */
+@media (max-width: 768px) {
+  /* Mobile popup adjustments */
+  .popup-content {
+    width: 95%;
+    max-height: 80vh;
+  }
+  
+  .transaction-detail {
+    grid-template-columns: 1fr 0.4fr 70px 0.4fr;
+    gap: 8px;
+  }
+  
+  /* Mobile adjustments for grid items */
+  .detail-category,
+  .detail-name,
+  .detail-account {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
+  /* Main mobile layout styles */
+  /* Ensure parent elements don't constrain height */
+  .view, #expenseView, #expenseContent {
+    height: 100% !important;
+    max-height: none !important;
+  }
+  
+  .monthly-grid-container {
+    padding: 0px 16px 180px 0px !important;
+    max-height: none !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    overflow: auto !important;
+    z-index: 1 !important;
+    box-sizing: border-box !important;
+    /* STICKY SCROLLING - Allow scroll but prevent bounce/momentum */
+    touch-action: pan-x pan-y !important;
+    -webkit-overflow-scrolling: auto !important;
+    overscroll-behavior: none !important;
+    margin-top: 10px !important;
+  }
+  
+  .monthly-grid {
+    /* PREVENT TABLE DRAGGING - but allow container scrolling */
+    touch-action: pan-x pan-y !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    margin-right: 16px !important;
+  }
+  
+  .monthly-grid td, .monthly-grid th {
+    /* PREVENT CELL DRAGGING */
+    user-select: none !important;
+    -webkit-user-select: none !important;
+  }
+  
+  /* Ensure floating buttons stay above the grid */
+  .quick-expense-btn {
+    z-index: 9999 !important;
+  }
+  
+  /* Ensure sidebar toggle stays above the grid */
+  #mobileSidebarToggle, .sidebar-toggle {
+    z-index: 9999 !important;
+  }
+  
+  /* MOBILE: Improved touch targets */
+  .month-nav-btn {
+    width: 48px !important;
+    height: 48px !important;
+  }
+  
+  /* MOBILE: Hide category names, show only emojis */
+  .category-name {
+    display: none !important;
+  }
+  
+  .category-emoji {
+    font-size: 16px;
+    padding: 2px 0;
+  }
+  
+  .category-header {
+    min-width: 35px !important;
+    width: 35px !important;
+    padding: 2px 1px !important;
+  }
+  
+  .monthly-grid th.date-header, 
+  .monthly-grid td.date-cell {
+    width: 40px !important;
+    min-width: 40px !important;
+    max-width: 40px !important;
+  }
+  
+  .day-name,
+  .day-number {
+    font-size: 9px;
+    font-weight: 600;
+  }
+  
+  .total-header {
+    width: 45px !important;
+  }
+  
+  /* MOBILE: Hide transaction count */
+  .transaction-count {
+    display: none !important;
+  }
+  
+  /* MOBILE: Ultra compact cells */
+  .monthly-grid td {
+    height: 15px !important;
+    padding: 0px !important;
+  }
+  
+  .monthly-grid th {
+    padding: 2px 1px !important;
+  }
+  
+  .cell-content {
+    padding: 1px !important;
+    gap: 0px !important;
+    min-height: 15px;
+  }
+  
+  .amount {
+    font-size: 9px;
+    line-height: 1;
+  }
+
+  .recurring-cell {
+    border-left: 3px solid #0891b2;
+    padding-left: 4px;
+  }
+
+  .recurring-cell .recurring-icon {
+    display: none !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .monthly-grid td, .monthly-grid th {
+    padding: 2px !important;
+  }
+  
+  .category-header, .total-header {
+    min-width: 44px !important;
+    width: 44px !important;
+  }
+  
+  .amount {
+    font-size: 11px;
+  }
+  
+  .integrated-title {
+    font-size: 15px;
+  }
+  
+  /* MOBILE: Further optimize transaction modal */
+  .transaction-row {
+        grid-template-columns:  1fr 90px 70px 24px !important;
+        gap: 4px !important;
+    }
+
+  .recurring-cell {
+    border-left: 3px solid #0891b2;
+    padding-left: 4px;
+  }
+
+  .recurring-cell .recurring-icon {
+    display: none !important;
+  }
+}
+
+/* ============= DARK MODE STYLES ============= */
+/* Main container becomes dark */
+body.dark-mode .monthly-grid-container {
+  background-color: #37393b !important;
+  color: var(--dark-text-primary, rgba(255, 255, 255, 0.87)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Header becomes dark with bluish tone */
+body.dark-mode .grid-header {
+  background-color: #1e3a5f !important;
+  border: 1px solid rgba(100, 150, 200, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+body.dark-mode .month-nav-btn {
+  color: white !important;
+}
+
+body.dark-mode .month-nav-btn:hover {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+body.dark-mode .month-year-display {
+  color: white !important;
+}
+
+/* Table headers */
+body.dark-mode .monthly-grid th {
+  background-color: #334960 !important;
+  color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
+  border-bottom: 1px solid var(--dark-border, rgba(255, 255, 255, 0.1));
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+body.dark-mode .monthly-grid th.date-header {
+  background-color: #344960 !important;
+  border-bottom: 1px solid var(--dark-border, rgba(255, 255, 255, 0.12)) !important;
+  border-right: 1px solid var(--dark-border, rgba(255, 255, 255, 0.12)) !important;
+}
+
+body.dark-mode .monthly-grid th.total-header {
+  background-color: #2c5282 !important;
+  box-shadow: 0 3px 4px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Spent amount and remaining budget styles */
+.spent-amount {
+  text-align: center !important;
+}
+
+.remaining-budget {
+  text-align: center !important;
+}
+
+/* Dark mode styles for spent amount and remaining budget */
+body.dark-mode .spent-amount {
+  color: rgba(255, 255, 255, 0.87) !important;
+}
+
+body.dark-mode .remaining-budget {
+  color: #66b26a !important; /* Keep green for positive */
+}
+
+body.dark-mode .remaining-budget[style*="color: #d32f2f"] {
+  color: #f44336 !important; /* Red for negative in dark mode */
+}
+
+body.dark-mode .total-label {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+body.dark-mode .cell-content {
+  background-color: var(--dark-surface, #1e1e1e);
+  color: #e6e6e6;
+}
+
+body.dark-mode .date-cell {
+  background-color: #182f46 !important;
+}
+
+body.dark-mode .weekend-row .date-cell {
+  background-color: #184e77 !important;
+}
+
+body.dark-mode .today-row.today-row .date-cell {
+  background-color: rgb(32, 183, 221) !important;
+  color: #a3ecff;
+}
+
+body.dark-mode .today-row.today-row .date-cell .day-number,
+body.dark-mode .today-row.today-row .date-cell .day-name {
+  color: white !important;
+}
+
+body.dark-mode .today-row.today-row {
+  background-color: rgba(8, 145, 178, 0.12) !important;
+}
+
+body.dark-mode .day-name,
+body.dark-mode .day-number {
+  color: #1f2a39 !important;
+}
+
+body.dark-mode .day-row {
+  background-color: #252525;
+}
+
+body.dark-mode .day-row:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+body.dark-mode .weekend-row {
+  background-color: #0a2c47 !important;
+}
+
+body.dark-mode .weekend-row:hover {
+  background-color: rgba(255, 249, 219, 0.1) !important;
+}
+
+body.dark-mode .total-cell {
+  background-color: rgba(244, 67, 54, 0.1);
+}
+
+/* Values get golden color */
+body.dark-mode .amount,
+body.dark-mode .total-amount,
+body.dark-mode .category-total {
+  color: #DDA15E !important;
+}
+
+/* Removed hover effect - was causing sticky background issue */
+
+body.dark-mode .notes-content {
+  background-color: rgba(58, 58, 58, 0.5);
+  color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
+}
+
+body.dark-mode .notes-content:hover,
+body.dark-mode .notes-content:focus {
+  background-color: rgba(58, 58, 58, 0.8);
+  border-color: var(--dark-border, rgba(255, 255, 255, 0.12));
+}
+
+/* Table cell borders in dark mode - subtle to blend with cell backgrounds */
+body.dark-mode .monthly-grid td {
+  border-bottom: 1px solid rgba(30, 30, 30, 0.5);
+  border-right: 1px solid rgba(30, 30, 30, 0.5);
+}
+
+body.dark-mode .notes-content:focus {
+  background-color: rgba(40, 40, 40, 0.9);
+}
+
+/* Enhanced color coding in dark mode */
+body.dark-mode .amount-small {
+  background-color: rgba(76, 175, 80, 0.2);
+  border-left-color: #4CAF50;
+}
+
+body.dark-mode .amount-medium {
+  background-color: rgba(255, 193, 7, 0.2);
+  border-left-color: #FFC107;
+}
+
+body.dark-mode .amount-large {
+  background-color: rgba(244, 67, 54, 0.2);
+  border-left-color: #F44336;
+}
+
+body.dark-mode .transaction-count {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Modal dark mode */
+body.dark-mode .modal-card {
+  background-color: var(--dark-surface, #1e1e1e);
+  color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
+}
+
+body.dark-mode .modal-header {
+  border-color: var(--dark-border, rgba(255, 255, 255, 0.12));
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+body.dark-mode .transaction-item {
+  background-color: var(--dark-surface, #1e1e1e);
+  border-color: var(--dark-border, rgba(255, 255, 255, 0.12));
+}
+
+body.dark-mode .transaction-amount,
+body.dark-mode .transaction-description,
+body.dark-mode .transaction-account {
+  background-color: var(--dark-surface, #1e1e1e);
+  color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
+  border-color: var(--dark-border, rgba(255, 255, 255, 0.12));
+}
+
+body.dark-mode .transaction-account:hover,
+body.dark-mode .transaction-account:focus {
+  border-color: #DDA15E;
+}
+
+/* Keep mobile account dropdown invisible in dark mode */
+@media (max-width: 768px) {
+}
+
+body.dark-mode .title-divider {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+body.dark-mode .title-date {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+body.dark-mode .title-total {
+  color: #DDA15E !important;
+}
+
+body.dark-mode .empty-transactions {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+body.dark-mode .add-transaction-btn {
+  background-color: #DDA15E;
+  color: #1e1e1e;
+}
+
+body.dark-mode .add-transaction-btn:hover {
+  background-color: #c9955a;
+}
+
+/* Error states dark mode */
+body.dark-mode .grid-error {
+  background-color: var(--dark-surface, #1e1e1e);
+  color: #ef5350;
+}
+
+body.dark-mode .loading-indicator {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+body.dark-mode .loading-spinner {
+  border-color: #666;
+  border-top-color: #DDA15E;
+}
+
+/* ============= MACBOOK 13" OPTIMIZATION ============= */
+@media (min-width: 1280px) and (max-width: 1680px) {
+  /* Horizontal layout for transaction count to save vertical space */
+  .cell-content {
+    flex-direction: row;
+    gap: 4px;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  .transaction-count {
+    font-size: 8px;
+    margin-left: 2px;
+  }
+  
+  /* Reduce cell height for more days on MacBook */
+  .monthly-grid td {
+    height: 21px;
+    padding: 1px;
+  }
+  
+  .cell-content {
+    padding: 2px 1px;
+  }
+  
+  /* DESKTOP: Larger modal for MacBook */
+  .modal-card {
+    max-width: 900px !important;
+  }
+}
+
+@media (min-width: 1400px) {
+  .monthly-grid-container {
+    max-width: 1300px;
+    min-height: 730px;
+    padding: 0;
+    margin-top: 20px;
+  }
+  
+  .category-header {
+    min-width: 95px;
+    width: 95px;
+  }
+  
+  .total-header {
+    width: 50px;
+  }
+  
+  .notes-header {
+    width: 160px;
+  }
+  
+  /* Large screen: Show category names alongside emojis */
+  .category-emoji {
+    font-size: 18px;
+  }
+  
+  .category-name {
+    font-size: 12px !important;
+  }
+  
+  /* DESKTOP: Even larger modal for big screens */
+  .modal-card {
+    max-width: 800px !important;
+  }
+}
+
+/* ============= MEDIUM-LARGE SCREEN OPTIMIZATION ============= */
+@media (min-width: 1400px) {
+  .category-header {
+    min-width: 80px;
+    width: 80px;
+  }
+}
+
+/* ============= LARGE SCREEN OPTIMIZATION ============= */
+@media (min-width: 1681px) {
+  .monthly-grid-container {
+    max-width: 1600px;
+    padding: 0;
+    min-height:1100px;
+  }
+  
+  .category-header {
+    min-width: 95px;
+    width: 85px;
+  }
+  
+  .total-header {
+    width: 50px;
+  }
+  
+  .notes-header {
+    width: 160px;
+  }
+  
+  /* Large screen: Show category names alongside emojis */
+  .category-emoji {
+    font-size: 18px;
+  }
+  
+  .category-name {
+    font-size: 12px !important;
+  }
+  
+  /* Increase cell height for very large screens */
+  .monthly-grid td {
+    height: 32px;
+    padding: 4px;
+  }
+  
+  .cell-content {
+    padding: 4px 3px;
+  }
+}
+
+/* Utility classes */
+.hidden {
+  display: none !important;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Enhanced styling for fixed/subscription transactions */
+.transaction-item.fixed-transaction {
+  background-color: rgba(8, 145, 178, 0.05);
+  border-left: 4px solid #0891b2;
+}
+
+.transaction-item.fixed-transaction .transaction-row {
+  opacity: 0.8;
+}
+
+/* Style readonly inputs to look clean */
+.transaction-item.fixed-transaction input,
+.transaction-item.fixed-transaction select {
+  background-color: #f9f5fa;
+  cursor: not-allowed;
+  border-color: #d6c7dc;
+  color: #555;
+  pointer-events: none;
+}
+
+/* Create styling for the recurring icon */
+.recurring-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #0891b2;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.recurring-icon i {
+  font-size: 18px;
+}
+
+/* Dark mode adjustments */
+body.dark-mode .transaction-item.fixed-transaction {
+  background-color: rgba(8, 145, 178, 0.1);
+  border-left-color: #0891b2;
+}
+
+body.dark-mode .transaction-item.fixed-transaction input,
+body.dark-mode .transaction-item.fixed-transaction select {
+  background-color: #2a2a2a;
+  border-color: #444;
+  color: #bbb;
+}
+
+body.dark-mode .recurring-icon {
+  color: #0891b2;
+}
+
+/* Dark mode category headers */
+body.dark-mode .monthly-grid th {
+  background-color: #1F618D !important;
+  color: #dbeafe !important;
+}
+
+body.dark-mode .monthly-grid th.date-header {
+  background-color: #1F618D !important;
+  color: #dbeafe !important;
+}
+
+body.dark-mode .date-cell {
+  background-color: #374151 !important;
+}
+
+/* Dark mode weekend rows */
+body.dark-mode .weekend-row .date-cell {
+  background-color: #485766 !important;
+}
+
+body.dark-mode .weekend-row {
+  background-color: rgba(231, 243, 255, 0.08) !important;
+}
+
+body.dark-mode .weekend-row:hover {
+  background-color: rgba(231, 243, 255, 0.12) !important;
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+  
+  .recurring-icon i {
+    font-size: 16px;
+  }
+}
+</style>

@@ -1,0 +1,3625 @@
+<script>
+  /**
+   * Init.html - Initialization script for SimBudget
+   * Handles application startup, event binding, and view management
+   */
+
+  // Dashboard helper functions (must be defined before SimBudget object)
+  
+  /**
+   * Set up dashboard banner month navigation (replaces old dropdowns)
+   */
+  function setupDashboardBanner() {
+    // Update the month/year display immediately
+    const currentMonth = window.SimBudget?.getCurrentMonth() || new Date().getMonth();
+    const currentYear = window.SimBudget?.getCurrentYear() || new Date().getFullYear();
+    const monthYearDisplayBudget = document.getElementById('monthYearDisplayBudget');
+    if (monthYearDisplayBudget) {
+      const monthKeys = [
+        "january", "february", "march", "april", "may", "june", 
+        "july", "august", "september", "october", "november", "december"
+      ];
+      const monthKey = monthKeys[currentMonth];
+      let translatedMonth;
+      if (window.SimBudget && SimBudget.translations && SimBudget.translations[monthKey]) {
+        translatedMonth = SimBudget.translations[monthKey];
+      } else {
+        translatedMonth = new Date(currentYear, currentMonth, 1).toLocaleString('default', { month: 'long' });
+      }
+      monthYearDisplayBudget.textContent = `${translatedMonth} ${currentYear}`;
+    }
+    
+    // Prevent multiple setups - check if already initialized
+    if (monthYearDisplayBudget && monthYearDisplayBudget._dashboardInitialized) {
+      return;
+    }
+    
+    // Previous month button for budget
+    const prevMonthBudget = document.getElementById('prevMonthBudget');
+    if (prevMonthBudget) {
+      // Remove existing listeners first
+      prevMonthBudget.removeEventListener('click', prevMonthBudget._dashboardHandler);
+      
+      prevMonthBudget._dashboardHandler = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        navigateDashboardMonth(-1);
+      };
+      
+      prevMonthBudget.addEventListener('click', prevMonthBudget._dashboardHandler);
+    }
+
+    // Next month button for budget
+    const nextMonthBudget = document.getElementById('nextMonthBudget');
+    if (nextMonthBudget) {
+      // Remove existing listeners first
+      nextMonthBudget.removeEventListener('click', nextMonthBudget._dashboardHandler);
+      
+      nextMonthBudget._dashboardHandler = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        navigateDashboardMonth(1);
+      };
+      
+      nextMonthBudget.addEventListener('click', nextMonthBudget._dashboardHandler);
+    }
+
+    // Click-to-edit functionality for budget month/year display
+    const monthYearDisplayBudget2 = document.getElementById('monthYearDisplayBudget');
+    if (monthYearDisplayBudget2) {
+      // Remove existing listeners first
+      monthYearDisplayBudget2.removeEventListener('click', monthYearDisplayBudget2._dashboardHandler);
+      
+      monthYearDisplayBudget2._dashboardHandler = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        showDashboardMonthYearEditor();
+      };
+      
+      monthYearDisplayBudget2.addEventListener('click', monthYearDisplayBudget2._dashboardHandler);
+    }
+    
+    // Mark as initialized to prevent duplicate setup
+    if (monthYearDisplayBudget) {
+      monthYearDisplayBudget._dashboardInitialized = true;
+    }
+  }
+
+  // Dashboard month navigation function
+  function navigateDashboardMonth(direction) {
+    // Prevent double execution
+    if (navigateDashboardMonth._isNavigating) return;
+    navigateDashboardMonth._isNavigating = true;
+    
+    // Get current month/year from SimBudget's internal state using public methods
+    const currentMonth = window.SimBudget?.getCurrentMonth() ?? new Date().getMonth();
+    const currentYear = window.SimBudget?.getCurrentYear() ?? new Date().getFullYear();
+    
+    let newMonth = currentMonth + direction;
+    let newYear = currentYear;
+    
+    if (newMonth < 0) {
+      newMonth = 11;
+      newYear = currentYear - 1;
+    } else if (newMonth > 11) {
+      newMonth = 0;
+      newYear = currentYear + 1;
+    }
+    
+    // Update using existing SimBudget function (pass numbers, not strings)
+    window.SimBudget.updateMonthYear(newMonth, newYear);
+    
+    // Reset navigation flag after a short delay
+    setTimeout(() => {
+      navigateDashboardMonth._isNavigating = false;
+    }, 100);
+  }
+
+  // Dashboard month/year editor popup
+  function showDashboardMonthYearEditor() {
+    const currentMonth = window.SimBudget?.getCurrentMonth() || new Date().getMonth();
+    const currentYear = window.SimBudget?.getCurrentYear() || new Date().getFullYear();
+    
+    // Create modal
+    const modal = document.createElement('div');
+    modal.className = 'month-year-editor-modal';
+    
+    // Generate month options
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    
+    const monthOptions = months.map((month, index) => 
+      `<option value="${index}" ${index === currentMonth ? 'selected' : ''}>${month}</option>`
+    ).join('');
+    
+    // Generate year options (current year ± 5 years)
+    const thisYear = new Date().getFullYear();
+    const yearOptions = [];
+    for (let year = thisYear - 5; year <= thisYear + 5; year++) {
+      yearOptions.push(`<option value="${year}" ${year === currentYear ? 'selected' : ''}>${year}</option>`);
+    }
+    
+    modal.innerHTML = `
+      <div class="modal-backdrop"></div>
+      <div class="modal-content">
+        <h3>Go to Month/Year</h3>
+        <div class="editor-inputs">
+          <div class="select-group">
+            <label>Month</label>
+            <select id="monthSelectBudget" class="month-year-select">
+              ${monthOptions}
+            </select>
+          </div>
+          <div class="select-group">
+            <label>Year</label>
+            <select id="yearSelectBudget" class="month-year-select">
+              ${yearOptions.join('')}
+            </select>
+          </div>
+        </div>
+        <div class="editor-buttons">
+          <button class="btn editor-cancel">Cancel</button>
+          <button class="btn editor-save">Go</button>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Focus on month select (but not on mobile to prevent auto-opening dropdown)
+    const monthSelect = modal.querySelector('#monthSelectBudget');
+    if (!window.matchMedia('(max-width: 768px)').matches) {
+      monthSelect.focus();
+    }
+    
+    // Event listeners
+    modal.querySelector('.editor-cancel').addEventListener('click', () => {
+      modal.remove();
+    });
+    
+    modal.querySelector('.modal-backdrop').addEventListener('click', () => {
+      modal.remove();
+    });
+    
+    modal.querySelector('.editor-save').addEventListener('click', () => {
+      const month = parseInt(monthSelect.value); // Already 0-based
+      const year = parseInt(modal.querySelector('#yearSelectBudget').value);
+      
+      // Convert to month name for SimBudget.updateMonthYear
+      const monthNames = ["January", "February", "March", "April", "May", "June",
+                         "July", "August", "September", "October", "November", "December"];
+      window.SimBudget.updateMonthYear(monthNames[month], year);
+      modal.remove();
+    });
+    
+    // Enter key to save
+    modal.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        modal.querySelector('.editor-save').click();
+      } else if (e.key === 'Escape') {
+        modal.remove();
+      }
+    });
+    
+    // Show modal
+    setTimeout(() => modal.classList.add('visible'), 10);
+  }
+
+  // Update dashboard last refresh time
+  function updateDashboardLastRefreshTime() {
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit',
+      hour12: true 
+    });
+    
+    const refreshElement = document.getElementById('lastRefreshTimeBudget');
+    if (refreshElement) {
+      const updatedAtText = window.getTranslation ? window.getTranslation('updated_at', getLanguageFromSettings()) : 'Updated at';
+      refreshElement.textContent = `${updatedAtText} ${timeStr}`;
+    }
+  }
+
+  // Main SimBudget namespace
+  var SimBudget = (function () {
+    // Private variables
+    let _initialized = false;
+    let _currentView = "expense";
+    let _isRendering = false;
+    let _loadingView = null;
+    let _isLoadingExpenseView = false;
+
+  
+ 
+
+
+// Settings module - Updated to work with the new initialization
+const Settings = {
+  // Keep existing defaults
+  defaults: {
+    currencySymbol: "$",
+    dateFormat: "MM/DD/YYYY",
+    darkMode: false,
+    showRemaining: true,
+    enableAlerts: true,
+    startingDay: "1",
+    language: "en",
+    showDecimals: true,
+    netWorthDefaultChart: "allocation",
+  },
+
+  // Internal cache for loaded settings
+  _cachedSettings: null,
+
+  // Get a setting with fallback to default
+  getSetting: function (key) {
+    // Use cached settings if available (loaded during init)
+    if (this._cachedSettings) {
+      return this._cachedSettings[key] !== undefined ? this._cachedSettings[key] : this.defaults[key];
+    }
+    
+    // Fallback to CacheManager
+    const cached = CacheManager.getSettings();
+    if (cached) {
+      return cached[key] !== undefined ? cached[key] : this.defaults[key];
+    }
+    
+    // Last resort: defaults
+    return this.defaults[key];
+  },
+
+  // Set a single setting
+  setSetting: function (key, value) {
+    const settings = this.getAll();
+    settings[key] = value;
+    return this.saveAll(settings);
+  },
+
+  // Save all settings to server
+  saveAll: function (settings) {
+    // Update internal cache immediately
+    this._cachedSettings = { ...settings };
+    
+    // Save to server
+    API.setUserSettings(settings, 
+      function() {
+        // Success - update cache
+        CacheManager.setSettings(settings);
+        
+        // Update all grid views with new currency
+        if (window.MonthlyGrid) MonthlyGrid.updateCurrency();
+        
+        // Broadcast currency change to other components
+        if (settings.currencySymbol) {
+          document.dispatchEvent(new CustomEvent('currency-changed', {
+            detail: { symbol: settings.currencySymbol }
+          }));
+        }
+      },
+      function(error) {
+        console.error("Error saving settings to server:", error);
+      }
+    );
+    return true;
+  },
+
+  // Get all settings (from cache or defaults)
+  getAll: function () {
+    // Use cached settings if available
+    if (this._cachedSettings) {
+      return { ...this._cachedSettings };
+    }
+    
+    // Try CacheManager
+    const cached = CacheManager.getSettings();
+    if (cached) {
+      this._cachedSettings = cached; // Cache it
+      return { ...cached };
+    }
+    
+    // Return defaults
+    return { ...this.defaults };
+  },
+
+  // Fetch settings from server in the background
+_fetchFromServer: function() {
+  API.getUserSettings(
+    function(result) {
+      if (result && result.settings) {
+        // Update cache
+        CacheManager.setSettings(result.settings);
+        
+        // ONLY re-apply if settings actually changed
+        const currentSettings = SimBudget.Settings.getAll();
+        const hasChanged = JSON.stringify(currentSettings) !== JSON.stringify(result.settings);
+        
+        if (hasChanged) {
+          SimBudget.applySettingsFromData(result.settings);
+          
+          // Force budget re-render if we're on budget view
+          if (SimBudget.Views.getCurrent() === "budget") {
+            const cachedData = window.CacheManager.getDashboardData();
+            if (cachedData) {
+              SimBudget.renderBudgetDashboard(cachedData);
+            }
+          }
+        }
+      }
+    },
+    function(error) {
+      console.error("Error fetching settings from server:", error);
+    }
+  );
+},
+
+  // Keep convenience methods unchanged
+  getCurrencySymbol: function () {
+    return this.getSetting("currencySymbol");
+  },
+
+  getDateFormat: function () {
+    return this.getSetting("dateFormat");
+  },
+
+  isDarkMode: function () {
+    return this.getSetting("darkMode");
+  },
+
+  showDecimals: function () {
+    return this.getSetting("showDecimals");
+  },
+};
+
+const Views = {
+   // UPDATE the Views.switchTo function (around line 200) to save to both storages:
+  
+  switchTo: function(viewName) {
+    if (!viewName) return;
+  
+    try {
+      // Save current view to BOTH session and localStorage for persistence
+      try {
+        sessionStorage.setItem('simbudget_lastActiveView', viewName);
+        localStorage.setItem('simbudget_lastActiveView', viewName);
+      } catch (e) {
+        console.warn('Could not save view to storage:', e);
+      }
+  
+      // Hide all views
+      document.querySelectorAll(".view").forEach((view) => {
+        view.classList.remove("active-view");
+        view.style.display = ""; // Clear any inline display styles
+      });
+  
+      // Show the selected view
+      const targetView = document.getElementById(viewName + "View");
+      if (targetView) {
+        targetView.classList.add("active-view");
+        _currentView = viewName;
+  
+        // Update sidebar active state
+        this.updateSidebarActiveState(viewName);
+  
+        // Dispatch event when view is activated
+        const event = new CustomEvent("view-activated", {
+          detail: { view: viewName },
+        });
+        document.dispatchEvent(event);
+
+        // Check data freshness for new view
+        if (viewName !== 'settings' && window.SimBudget) {
+                    SimBudget.checkDataFreshness(viewName);
+                  }
+                  
+        // If switching to expense view and we're in yearly mode, refresh yearly after 4 seconds
+        if (viewName === 'expense') {
+          setTimeout(() => {
+            const reportsView = document.getElementById('reportsView');
+            if (reportsView && reportsView.style.display !== 'none' && window.YearlyGrid && window.YearlyGrid.setExpenseData) {
+              const unifiedCache = CacheManager.get('expenses_with_timestamp');
+              if (unifiedCache && unifiedCache.expenses) {
+                YearlyGrid.setExpenseData(unifiedCache.expenses);
+              }
+            }
+          }, 4000);
+        }
+          
+        // Load data for the view with smart caching
+        if (viewName === 'budget' && window.CacheManager && CacheManager.isValid('budget')) {
+          SimBudget.renderViewFromCache('budget');
+          // Setup dashboard banner when switching to budget view
+          setTimeout(() => setupDashboardBanner(), 100);
+        } else if (viewName === 'expense' && window.CacheManager && CacheManager.isValid('expense')) {
+          // Check if we're in yearly mode and load appropriate data
+          setTimeout(() => {
+            const reportsView = document.getElementById('reportsView');
+            const isYearlyMode = reportsView && reportsView.style.display !== 'none';
+            
+            if (isYearlyMode) {
+              // In yearly mode - ensure we have all year data
+              const unifiedCache = CacheManager.get('expenses_with_timestamp');
+              if (unifiedCache && unifiedCache.expenses && window.MonthlyGrid) {
+                // Replace everything, don't merge
+                CacheManager.set('expenses_with_timestamp', unifiedCache);
+                window.MonthlyGrid.setExpenseData(unifiedCache.expenses);
+              } else {
+                // No cache available - this case shouldn't happen often since we're checking isValid('expense') first
+                console.warn('No unified cache available in yearly mode during cached expense view load');
+              }
+            } else {
+              // In monthly mode - sync to current month
+              const currentMonth = _currentMonth || new Date().getMonth();
+              const currentYear = _currentYear || new Date().getFullYear();
+              if (window.MonthlyGrid) {
+                MonthlyGrid.setMonthYear(currentMonth, currentYear);
+              }
+            }
+          }, 100);
+          SimBudget.loadViewData(viewName);
+        } else if (viewName === 'settings') {
+          // Settings don't need data loading
+        } else {
+          // Load fresh data for other views
+          SimBudget.loadViewData(viewName);
+          // Setup dashboard banner when loading budget view fresh
+          if (viewName === 'budget') {
+            setTimeout(() => setupDashboardBanner(), 100);
+          }
+          // Handle expense view data loading based on current mode
+          else if (viewName === 'expense' && window.MonthlyGrid) {
+            setTimeout(() => {
+              const reportsView = document.getElementById('reportsView');
+              const isYearlyMode = reportsView && reportsView.style.display !== 'none';
+              
+              if (isYearlyMode) {
+                // In yearly mode - load all year data
+                const unifiedCache = CacheManager.get('expenses_with_timestamp');
+                if (unifiedCache && unifiedCache.expenses) {
+                  window.MonthlyGrid.setExpenseData(unifiedCache.expenses);
+                } else {
+                  // No cache - show loading and fetch fresh data for all year
+                  if (window.YearlyGrid && window.YearlyGrid.showLoadingIndicator) {
+                    window.YearlyGrid.showLoadingIndicator();
+                  }
+                  
+                  const refreshPromise = window.MonthlyGrid.refresh();
+                  if (refreshPromise && refreshPromise.then) {
+                    refreshPromise.then(() => {
+                      // After refresh, YearlyGrid needs to re-render with fresh data
+                      if (window.YearlyGrid && window.YearlyGrid.renderGrid) {
+                        window.YearlyGrid.renderGrid();
+                      }
+                      
+                      if (window.YearlyGrid && window.YearlyGrid.hideLoadingIndicator) {
+                        window.YearlyGrid.hideLoadingIndicator();
+                      }
+                    }).catch(() => {
+                      if (window.YearlyGrid && window.YearlyGrid.hideLoadingIndicator) {
+                        window.YearlyGrid.hideLoadingIndicator();
+                      }
+                    });
+                  } else {
+                    // If refresh doesn't return promise, re-render and hide loading after short delay
+                    setTimeout(() => {
+                      if (window.YearlyGrid && window.YearlyGrid.renderGrid) {
+                        window.YearlyGrid.renderGrid();
+                      }
+                      
+                      if (window.YearlyGrid && window.YearlyGrid.hideLoadingIndicator) {
+                        window.YearlyGrid.hideLoadingIndicator();
+                      }
+                    }, 1000);
+                  }
+                }
+              } else {
+                // In monthly mode - sync to current month
+                const currentMonth = _currentMonth || new Date().getMonth();
+                const currentYear = _currentYear || new Date().getFullYear();
+                MonthlyGrid.setMonthYear(currentMonth, currentYear);
+              }
+            }, 100);
+          }
+        }
+      } else {
+        console.error(`View element not found: ${viewName}View`);
+      }
+    } catch (error) {
+      console.error(`Error switching to view ${viewName}:`, error);
+      
+      // Fallback to expense view if switch fails
+      if (viewName !== 'expense') {
+        this.switchTo('expense');
+      }
+    }
+  },
+
+  /**
+   * Update sidebar active state
+   */
+  updateSidebarActiveState: function(viewName) {
+    try {
+      // Remove active from all sidebar items
+      document.querySelectorAll(".sb-nav-item, .sidebar-item").forEach((item) => {
+        item.classList.remove("active");
+      });
+
+      // Add active to current view
+      const activeItem = document.querySelector(
+        `.sb-nav-item[data-view="${viewName}"], .sidebar-item[data-view="${viewName}"]`
+      );
+      if (activeItem) {
+        activeItem.classList.add("active");
+      } else {
+        console.warn(`Sidebar item not found for view: ${viewName}`);
+      }
+    } catch (error) {
+      console.error('Error updating sidebar active state:', error);
+    }
+  },
+
+
+  // Get current view
+  getCurrent: function () {
+    return _currentView;
+  },
+
+  /**
+   * Check if a view exists
+   */
+  exists: function(viewName) {
+    const viewElement = document.getElementById(viewName + "View");
+    return viewElement !== null;
+  },
+  /**
+   * Get all available views
+   */
+  getAvailable: function() {
+    const views = [];
+    document.querySelectorAll('.view').forEach(view => {
+      const id = view.id;
+      if (id && id.endsWith('View')) {
+        views.push(id.replace('View', ''));
+      }
+    });
+    return views;
+  },
+
+  /**
+   * Force refresh current view
+   */
+  refresh: function() {
+    if (_currentView) {
+      SimBudget.loadViewData(_currentView, true); // true = force refresh
+    }
+  }
+};
+
+    // Public methods
+    return {
+      // Settings module reference
+      Settings: Settings,
+
+      // Views module reference
+      Views: Views,
+
+      // ============= ADD SMART UPDATE QUEUE HERE =============
+  
+  // Smart update queue for managing data refreshes
+  updateQueue: [],
+  lastPreloadTime: 0,
+  
+  /**
+   * Queue a data update based on priority
+   */
+  queueUpdate: function(dataType) {
+    const currentView = this.Views.getCurrent();
+    const priority = this.getUpdatePriority(dataType, currentView);
+    
+    setTimeout(() => {
+      this.fetchFreshData(dataType);
+    }, priority);
+  },
+  
+  /**
+   * Get update priority based on current view
+   */
+  getUpdatePriority: function(dataType, currentView) {
+    // Immediate if it affects current view
+    if (this.affectsView(dataType, currentView)) {
+      return 0;
+    }
+    
+    // Quick for related data
+    if (this.isRelated(dataType, currentView)) {
+      return 500;
+    }
+    
+    // Delayed for everything else
+    return 2000;
+  },
+  
+  /**
+   * Check if data type affects the given view
+   */
+  affectsView: function(dataType, view) {
+  // Settings affect ALL views
+  if (dataType === 'settings') {
+    return true;
+  }
+  
+  const viewDependencies = {
+    'budget': ['masterData', 'budget', 'categories'],
+    'expense': ['masterData', 'categories'],
+    'categories': ['categories'],
+    'netWorth': ['netWorth'],
+    'recurring': ['recurring'],
+    'income': ['income']
+  };
+  
+  return viewDependencies[view]?.includes(dataType) || false;
+},
+  
+  /**
+   * Check if data type is related to current view
+   */
+  isRelated: function(dataType, currentView) {
+    // Define relationships between views and data
+    const relationships = {
+      'budget': ['expense', 'income'],
+      'expense': ['budget', 'recurring'],
+      // Add more relationships
+    };
+    
+    return relationships[currentView]?.includes(dataType) || false;
+  },
+  
+  /**
+   * Fetch fresh data for a specific type
+   */
+  fetchFreshData: function(dataType) {
+  const fetchMap = {
+    'masterData': () => {
+      API.getExpenseData(
+        (result) => {
+          if (result?.expenses) {
+            // Store ALL expenses in unified cache directly (not month-specific)
+            const unifiedCache = {
+              expenses: result.expenses,
+              cached_at: new Date().toISOString(),
+              timestamp: Date.now(),
+              totalRows: result.expenses.length,
+              monthsCached: 'all'
+            };
+            CacheManager.set('expenses_with_timestamp', unifiedCache, { ttl: 30 * 24 * 60 * 60 * 1000 });
+            
+            // Re-render current view if it uses expense data
+            const currentView = this.Views.getCurrent();
+            if (currentView === 'budget') {
+              this.loadBudgetData();
+            } else if (currentView === 'expense') {
+              // Check if we're in yearly view and refresh it
+              const reportsView = document.getElementById('reportsView');
+              if (reportsView && reportsView.style.display !== 'none' && window.YearlyGrid) {
+                // Re-render yearly grid with fresh cache data
+                if (YearlyGrid.renderGrid) {
+                  YearlyGrid.renderGrid();
+                }
+              }
+            }
+            // Note: MonthlyGrid handles its own expense data loading
+          }
+        },
+        (error) => {
+          console.error('Failed to fetch expense data:', error);
+        }
+      );
+    },
+    
+    'categories': () => {
+      API.getCategoriesWithTimestamp(
+        (result) => {
+          if (result?.categories) {
+            const categoriesTimestamp = CacheManager.getTimestamp('categories');
+            CacheManager.setCategoriesWithTimestamp(result.categories, categoriesTimestamp);
+            
+            // Re-render current view if it uses categories
+            const currentView = this.Views.getCurrent();
+            if (currentView === 'categories') {
+              if (window.CategoriesManager) {
+                CategoriesManager.init();
+              }
+            } else if (currentView === 'budget') {
+              this.loadBudgetData();
+            } else if (currentView === 'recurring') {
+              if (window.RecurringManager) {
+                RecurringManager.refresh();
+              }
+            }
+          }
+        },
+        (error) => {
+          console.error('Failed to fetch categories:', error);
+        }
+      );
+    },
+    
+    'budget': () => {
+      API.getBudgetData(
+        (result) => {
+          if (result?.budgetData) {
+            const budgetTimestamp = CacheManager.getTimestamp('budget');
+            CacheManager.setBudgetDataWithTimestamp(result.budgetData, budgetTimestamp);
+            
+            // Re-render budget view if current
+            const currentView = this.Views.getCurrent();
+            if (currentView === 'budget') {
+              this.loadBudgetData();
+            }
+          }
+        },
+        (error) => {
+          console.error('Failed to fetch budget:', error);
+        },
+        true
+      );
+    },
+    
+    'netWorth': () => {
+  API.getNetWorthData(
+    (result) => {
+      if (result?.entries) {
+        const netWorthTimestamp = CacheManager.getTimestamp('netWorth');
+        CacheManager.setNetWorthWithTimestamp(result.entries, netWorthTimestamp);
+        
+        // Re-render net worth view if current
+        const currentView = this.Views.getCurrent();
+        if (currentView === 'netWorth') {
+          if (window.NetWorthManager) {
+      // Update data silently without loading overlay
+      NetWorthManager.updateDataSilently(result.entries);
+          }
+        }
+      }
+    },
+    (error) => {
+      console.error('Failed to fetch net worth:', error);
+    }
+  );
+},
+    
+    'recurring': () => {
+  API.getRecurringData(
+    (result) => {
+      if (result?.recurring) {
+        CacheManager.setRecurringWithTimestamp(result.recurring, CacheManager.getTimestamp('recurring'));
+        
+        // Re-render views that use recurring data
+        const currentView = this.Views.getCurrent();
+        if (currentView === 'recurring') {
+          if (window.RecurringManager && typeof RecurringManager.updateDataSilently === 'function') {
+            // Update data silently without loading overlay
+            RecurringManager.updateDataSilently(result.recurring);
+          }
+        } else if (currentView === 'budget') {
+          this.loadBudgetData();
+        }
+      }
+    },
+    (error) => {
+      console.error('Failed to fetch recurring:', error);
+    }
+  );
+},
+    
+    'income': () => {
+  API.getIncomeData(
+    (result) => {
+      if (result?.income) {
+        const incomeTimestamp = CacheManager.getTimestamp('income');
+        CacheManager.setIncomeWithTimestamp(result.income, incomeTimestamp);
+        
+        // Re-render views that use income data
+        const currentView = this.Views.getCurrent();
+        if (currentView === 'income') {
+          if (window.IncomeManager && typeof IncomeManager.updateDataSilently === 'function') {
+            // Update data silently without loading overlay
+            IncomeManager.updateDataSilently(result.income);
+          }
+        } else if (currentView === 'budget') {
+          this.loadBudgetData();
+        }
+      }
+    },
+    (error) => {
+      console.error('Failed to fetch income:', error);
+    }
+  );
+},
+    
+    'settings': () => {
+      API.getUserSettings(
+        (result) => {
+          if (result?.settings) {
+            const settingsTimestamp = CacheManager.getTimestamp('settings');
+            CacheManager.setSettingsWithTimestamp(result.settings, settingsTimestamp);
+            CacheManager.setSettings(result.settings);
+            
+            // Apply settings to UI
+            SimBudget.applySettingsFromData(result.settings);
+            
+            // Re-render current view since settings affect all views
+            const currentView = this.Views.getCurrent();
+            
+            // Reload current view to apply new settings (currency, decimals, etc)
+            this.loadViewData(currentView);
+          }
+        },
+        (error) => {
+          console.error('Failed to fetch settings:', error);
+        },
+        true
+      );
+    },
+  };
+  
+  const fetcher = fetchMap[dataType];
+  if (fetcher) {
+    fetcher();
+  }
+},
+  
+  /**
+   * Find stale data by comparing timestamps
+   */
+  findStaleData: function(serverTimestamps) {
+    const stale = [];
+    
+    Object.entries(serverTimestamps).forEach(([key, serverTime]) => {
+      const cached = this.getCachedTimestamp(key);
+      if (!cached || new Date(serverTime) > new Date(cached)) {
+        stale.push(key);
+      }
+    });
+    
+    return stale;
+  },
+  
+
+       /**
+       * Get cached timestamp for a data type
+       */
+      getCachedTimestamp: function(dataType) {
+        const cacheKeyMap = {
+          'masterData': 'expenses_with_timestamp',
+          'settings': 'settings_with_timestamp',
+          'categories': 'categories_with_timestamp',
+          'budget': 'budget_data_with_timestamp',
+          'netWorth': 'networth_with_timestamp',
+          'recurring': 'recurring_with_timestamp',
+          'income': 'income_with_timestamp'
+        };
+        
+        const cacheKey = cacheKeyMap[dataType];
+        if (!cacheKey) return null;
+        
+        // For expenses/masterData - use getCacheTimestamp to get metadata timestamp
+        if (dataType === 'masterData' && CacheManager.getCacheTimestamp) {
+          return CacheManager.getCacheTimestamp(cacheKey);
+        }
+        
+        // FIXED: For NetWorth, also use metadata timestamp (not data's cached_at)
+        if (dataType === 'netWorth' && CacheManager.getCacheTimestamp) {
+          return CacheManager.getCacheTimestamp(cacheKey);
+        }
+        
+        // ADD THIS: For Recurring, also use metadata timestamp
+        if (dataType === 'recurring' && CacheManager.getCacheTimestamp) {
+          return CacheManager.getCacheTimestamp(cacheKey);
+        }
+        
+        // ADD THIS: For Income, also use metadata timestamp
+        if (dataType === 'income' && CacheManager.getCacheTimestamp) {
+          return CacheManager.getCacheTimestamp(cacheKey);
+        }
+
+        // Get the cached data
+        const cachedData = CacheManager.get(cacheKey);
+        
+        // For all other timestamped data, return WHEN WE CACHED IT (cached_at)
+        if (cachedData && cachedData.cached_at) {
+          return new Date(cachedData.cached_at).toISOString();
+        }
+        
+        return null;
+},
+  // ============= END SMART UPDATE QUEUE =============
+
+
+
+
+      /**
+       * FAILSAFE Initialize the application - Can't fail, period!
+       */
+      initialize: function() {
+        if (_initialized) {
+          return;
+        }
+        
+        try {
+          _initialized = true;
+          
+
+          // STEP 1: Initialize core variables
+          this.initializeCoreVariables();
+
+          // STEP 2: Load settings SYNCHRONOUSLY (blocking)
+          this.loadSettingsSyncBlocking();
+
+          // STEP 3: Setup session management
+          this.setupSessionManagement();
+
+          // STEP 4: Load global categories
+          this.loadGlobalCategories();
+
+          // STEP 5: Check data freshness
+          this.checkDataFreshness();
+
+          // STEP 6: Bind events
+          this.bindEvents();
+
+          // STEP 7: Setup selectors
+          this.setupMonthYearSelectors();
+          
+          // STEP 7.5: Setup dashboard banner (new style)
+          if (typeof setupDashboardBanner === 'function') {
+            setupDashboardBanner();
+          }
+
+          // STEP 8: Load user info
+          this.loadUserInfo();
+
+          // STEP 9: Load translations
+          this.loadTranslations();
+
+          // STEP 10: Initialize view (now with correct settings!)
+          this.initializeDefaultView();
+          window._initialLoadComplete = true;
+
+          // STEP 11: Start trial enforcement (30 seconds after app load)
+          this.initializeTrialEnforcement(); 
+
+        } catch (error) {
+          console.error('SimBudget: CRITICAL INITIALIZATION ERROR:', error);
+          this.handleInitializationFailure(error);
+        }
+
+      
+      },
+
+/**
+ * NEW: Initialize core variables with safe defaults - NOW ASYNC
+ */
+initializeCoreVariables: function() {
+  try {
+    // Ensure current month/year are always set
+    if (typeof _currentMonth === 'undefined') {
+      _currentMonth = new Date().getMonth();
+    }
+    if (typeof _currentYear === 'undefined') {
+      _currentYear = new Date().getFullYear();
+    }
+    
+    // Ensure CacheManager exists
+    if (!window.CacheManager) {
+      console.warn('CacheManager not found - creating stub');
+      window.CacheManager = {
+        setCurrentMonth: () => {},
+        get: () => null,
+        set: () => {},
+        invalidate: () => {},
+        isValid: () => false,
+        getNetWorthWithTimestamp: () => null,
+        setNetWorthWithTimestamp: () => {}
+      };
+    }
+    
+    // Ensure API exists
+    if (!window.API) {
+      console.warn('API not found - creating stub');
+      window.API = {
+        getCategoriesWithTimestamp: (success, error) => error('API not available'),
+        getUserSettings: (success, error) => error('API not available'),
+        getExpenseData: (success, error) => error('API not available'),
+        getNetWorthData: (success, error) => error('API not available')
+      };
+    }
+    
+  } catch (error) {
+    console.error('Error initializing core variables:', error);
+    // Set absolute minimums
+    _currentMonth = new Date().getMonth();
+    _currentYear = new Date().getFullYear();
+  }
+},
+
+/**
+ * NEW: Setup session management safely
+ */
+setupSessionManagement: function() {
+  try {
+    sessionStorage.setItem('monthlyGrid_sessionActive', 'true');
+  } catch (error) {
+    console.warn('Session storage not available:', error);
+  }
+},
+
+
+/**
+ * NEW: Initialize default view safely with session persistence
+ */
+initializeDefaultView: function() {
+  try {
+    // STEP 1: Get saved view from session/localStorage
+    let savedView = null;
+    
+    // Try session storage first (current session)
+    try {
+      savedView = sessionStorage.getItem('simbudget_lastActiveView');
+    } catch (e) {
+      console.warn('Session storage not available');
+    }
+    
+    // Fallback to localStorage if no session data
+    if (!savedView) {
+      try {
+        savedView = localStorage.getItem('simbudget_lastActiveView');
+      } catch (e) {
+        console.warn('LocalStorage not available');
+      }
+    }
+    
+    // STEP 2: Validate the saved view
+    const viewToLoad = this.isValidView(savedView) ? savedView : 'expense';
+        
+    // STEP 3: Load the view
+    this.Views.switchTo(viewToLoad);
+    
+    // STEP 4: Check connection in background (don't block view loading)
+    setTimeout(() => {
+      this.checkExistingConnection();
+    }, 1000);
+    
+  } catch (error) {
+    console.error('Error initializing view:', error);
+    // Absolute fallback - just show expense view
+    try {
+      this.Views.switchTo('expense');
+    } catch (fallbackError) {
+      console.error('CRITICAL: Cannot initialize any view:', fallbackError);
+      document.body.innerHTML = '<div style="padding:50px;text-align:center;"><h2>Application Error</h2><p>Please refresh the page</p></div>';
+    }
+  }
+},
+
+/**
+ * NEW: Handle complete initialization failure
+ */
+handleInitializationFailure: function(error) {
+  console.error('HANDLING CRITICAL FAILURE:', error);
+  
+  try {
+    // Show error screen but keep basic functionality
+    const contentArea = document.getElementById('contentArea') || document.body;
+    contentArea.innerHTML = `
+      <div style="padding:50px;text-align:center;color:#d32f2f;">
+        <h2>⚠️ Initialization Error</h2>
+        <p>The application encountered an error during startup.</p>
+        <p style="font-size:12px;color:#666;margin-top:20px;">Error: ${error.message}</p>
+        <button onclick="location.reload()" style="margin-top:20px;padding:10px 20px;background:#2196F3;color:white;border:none;border-radius:4px;cursor:pointer;">
+          🔄 Reload Application
+        </button>
+      </div>
+    `;
+    
+    // Try to initialize minimal functionality
+    this.bindEvents();
+    
+  } catch (finalError) {
+    console.error('FINAL FALLBACK FAILED:', finalError);
+    document.body.innerHTML = '<div style="padding:50px;text-align:center;"><h2>Critical Error</h2><p>Please refresh the page</p></div>';
+  }
+},
+
+
+ checkDataFreshness: function(viewName = null) {
+
+    const now = Date.now();
+  if (this._lastFreshnessCheck && (now - this._lastFreshnessCheck < 2000)) {
+    return;
+  }
+  this._lastFreshnessCheck = now;
+
+  if (!window.CacheManager || !window.API) {
+    return;
+  }
+  
+  API.getAllTimestamps(
+    (result) => {
+      if (!result || !result.timestamps) return;
+      
+      const stale = this.findStaleData(result.timestamps);
+      
+      // Store timestamps centrally
+      if (window.CacheManager) {
+        CacheManager.setAllTimestamps(result.timestamps);
+      }
+      
+      // Just load ALL stale data immediately!
+      stale.forEach(dataType => {
+        this.fetchFreshData(dataType);
+      });
+    },
+    (error) => {
+      console.warn('Could not check timestamps:', error);
+    }
+  );
+},
+
+/**
+ * Preload data for other views intelligently
+ */
+preloadOtherViews: function(staleDataTypes) {
+  // Settings MUST be first - affects display of everything else
+  const criticalPriority = ['settings'];
+  const highPriority = ['categories', 'budget'];
+  const mediumPriority = ['recurring', 'income'];
+  const lowPriority = ['netWorth'];
+  
+  const sorted = staleDataTypes.sort((a, b) => {
+    const aPriority = criticalPriority.includes(a) ? -1 :  // Settings always first!
+                     highPriority.includes(a) ? 0 : 
+                     mediumPriority.includes(a) ? 1 : 2;
+    const bPriority = criticalPriority.includes(b) ? -1 :
+                     highPriority.includes(b) ? 0 : 
+                     mediumPriority.includes(b) ? 1 : 2;
+    return aPriority - bPriority;
+  });
+  
+  sorted.forEach((dataType, index) => {
+    setTimeout(() => {
+      const currentView = this.Views.getCurrent();
+      if (!this.affectsView(dataType, currentView)) {
+        this.fetchFreshData(dataType);
+      }
+    }, index * 1000);
+  });
+},
+
+findStaleData: function(serverTimestamps) {
+  const stale = [];
+  
+  try {
+    Object.entries(serverTimestamps).forEach(([key, serverTime]) => {
+      
+      const cached = this.getCachedTimestamp(key);
+    
+      if (!cached || new Date(serverTime) > new Date(cached)) {
+        stale.push(key);
+      }
+    });
+  } catch (error) {
+    console.error('ERROR in staleness check:', error);
+  }
+  
+  return stale;
+},
+
+
+
+loadSettingsSyncBlocking: function() {
+  const cachedData = window.CacheManager.getSettingsWithTimestamp();
+  
+  if (cachedData && cachedData.settings && cachedData.timestamp) {
+    // Apply cached settings immediately
+    this.applySettingsFromData(cachedData.settings);
+    
+    // Load fresh settings in background (non-blocking)
+    window.CacheManager.loadSettingsWithTimestamp()
+      .then(freshSettings => {
+        const hasChanged = JSON.stringify(cachedData.settings) !== JSON.stringify(freshSettings);
+        if (hasChanged) {
+          this.applySettingsFromData(freshSettings);
+          this.updateAllViewsWithNewSettings();
+        }
+      })
+      .catch(error => {
+        console.error('SimBudget: Error updating settings in background:', error);
+      });
+  } else {
+    // NO CACHE - Use synchronous XMLHttpRequest (blocking)
+    console.log('No cached settings - loading synchronously...');
+    
+    // First apply defaults
+    this.applySettingsFromData(this.Settings.defaults);
+    
+    // Then try to load fresh settings synchronously
+    try {
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', '/api/settings', false); // false = synchronous
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.send();
+      
+      if (xhr.status === 200) {
+        const result = JSON.parse(xhr.responseText);
+        if (result && result.settings) {
+          console.log('Loaded settings synchronously:', result.settings);
+          this.applySettingsFromData(result.settings);
+          // Cache the loaded settings
+          window.CacheManager.setSettings(result.settings);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading settings synchronously:', error);
+      // Continue with defaults
+    }
+  }
+},
+
+/**
+ * Update all views when settings change
+ */
+updateAllViewsWithNewSettings: function() {
+  // Update MonthlyGrid currency if it exists
+  if (window.MonthlyGrid && typeof MonthlyGrid.updateCurrency === 'function') {
+    MonthlyGrid.updateCurrency();
+  }
+  
+  // Update YearlyGrid currency if it exists  
+  if (window.YearlyGrid && typeof YearlyGrid.updateCurrency === 'function') {
+    YearlyGrid.updateCurrency();
+  }
+  
+  // Force re-render current view if it's expense
+  if (this.Views.getCurrent() === 'expense') {
+    if (window.MonthlyGrid && typeof MonthlyGrid.renderGrid === 'function') {
+      MonthlyGrid.renderGrid();
+    }
+  }
+},
+
+/**
+ * FIXED: Remove duplicate applySettingsFromData (keep only one)
+ */
+applySettingsFromData: function(settingsData) {
+  try {
+    // Apply dark mode if enabled
+    if (settingsData && settingsData.darkMode) {
+      document.body.classList.add("dark-mode");
+    } else {
+      document.body.classList.remove("dark-mode");
+    }
+
+    // Set values in settings form if they exist - SAFE ACCESS
+    const elements = {
+      currencySymbol: settingsData?.currencySymbol || '$',
+      dateFormat: settingsData?.dateFormat || 'MM/DD/YYYY',
+      darkMode: settingsData?.darkMode || false,
+      language: settingsData?.language || 'en',
+      showRemaining: settingsData?.showRemaining !== false,
+      enableAlerts: settingsData?.enableAlerts !== false,
+      startingDay: settingsData?.startingDay || "1",
+      showDecimals: settingsData?.showDecimals !== false,
+      netWorthDefaultChart: settingsData?.netWorthDefaultChart || 'allocation'
+    };
+
+    Object.entries(elements).forEach(([id, value]) => {
+      try {
+        const element = document.getElementById(id);
+        if (element) {
+          if (element.type === 'checkbox') {
+            element.checked = value;
+          } else {
+            element.value = value;
+          }
+        }
+      } catch (elementError) {
+        console.warn(`Error setting ${id}:`, elementError);
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error applying settings:', error);
+    // Don't let settings errors break the app
+  }
+},
+
+/**
+ * Load categories globally so all views can use them
+ */
+loadGlobalCategories: function() {
+  API.getCategoriesWithTimestamp(
+    function(result) {
+      if (result && result.success && result.categories) {
+        // Store globally so MonthlyGrid can access them
+        window._globalCategories = result.categories;
+      }
+    },
+    function(error) {
+      console.warn('Could not load global categories:', error);
+      window._globalCategories = [];
+    }
+  );
+},
+
+/**
+ * Get saved view from localStorage
+ * @return {string|null} Saved view name or null
+ */
+getSavedView: function() {
+  try {
+    return localStorage.getItem('simbudget_lastActiveView');
+  } catch (error) {
+    console.warn("Session persistence: Could not read saved view", error);
+    return null;
+  }
+},
+
+/**
+ * Validate if a view name is supported
+ * @param {string} viewName - View name to validate
+ * @return {boolean} True if valid view
+ */
+isValidView: function(viewName) {
+  const validViews = ['budget', 'expense', 'income', 'recurring', 'netWorth', 'reports', 'categories', 'settings'];
+  return validViews.includes(viewName);
+},
+
+
+/**
+ * Load translations based on user preference
+ */
+loadTranslations: function () {
+  const language = this.Settings.getSetting("language") || "en";
+  
+  API.getTranslations(
+    language,
+    function (result) {
+
+      if (result && result.translations) {
+        // Store translations globally - Fix the nested structure
+        window.SimBudget = window.SimBudget || {};
+        
+        // Handle the nested translations structure correctly
+        if (result.translations.translations) {
+          // Double nested scenario (translations.translations)
+          SimBudget.translations = result.translations.translations;
+        } else {
+          // Single nested scenario
+          SimBudget.translations = result.translations;
+        }
+
+        // Apply translations to the UI
+        SimBudget.applyTranslations();
+      }
+    },
+    function (error) {
+      console.error("Error loading translations:", error);
+    }
+  );
+},
+
+      /**
+       * Apply translations to UI elements
+       */
+      applyTranslations: function () {
+        if (!SimBudget.translations) return;
+
+        document.querySelectorAll("[data-translate]").forEach((el) => {
+          const key = el.getAttribute("data-translate");
+          if (key && SimBudget.translations[key]) {
+            el.textContent = SimBudget.translations[key];
+          }
+        });
+
+        document
+          .querySelectorAll("[data-translate-placeholder]")
+          .forEach((el) => {
+            const key = el.getAttribute("data-translate-placeholder");
+            if (key && SimBudget.translations[key]) {
+              el.setAttribute("placeholder", SimBudget.translations[key]);
+            }
+          });
+
+        document.querySelectorAll("[data-translate-title]").forEach((el) => {
+          const key = el.getAttribute("data-translate-title");
+          if (key && SimBudget.translations[key]) {
+            el.setAttribute("title", SimBudget.translations[key]);
+          }
+        });
+
+        if (this._currentBudgetData) {
+          // Force update budget messages with translations
+          this.updateInfoMessage(true);
+        }
+      },
+      /**
+       * Set up month and year selectors
+       */
+      setupMonthYearSelectors: function () {
+        // YEAR SELECTOR - Add this first
+        const yearSelector = document.getElementById("yearSelector");
+        if (yearSelector) {
+          // Clear existing options
+          yearSelector.innerHTML = "";
+
+          // Get current year
+          const currentYear = new Date().getFullYear();
+
+          // Create options for a range of years (current year ± 2)
+          for (let year = currentYear - 2; year <= currentYear + 2; year++) {
+            const option = document.createElement("option");
+            option.value = year;
+            option.textContent = year;
+            yearSelector.appendChild(option);
+          }
+
+          // Set current year as selected
+          yearSelector.value = currentYear.toString();
+        }
+
+        // MONTH SELECTOR - Keep your existing code
+        const monthSelector = document.getElementById("monthSelector");
+        if (monthSelector) {
+          // Clear existing options
+          monthSelector.innerHTML = "";
+
+          // Month keys for translations
+          const monthKeys = [
+            "january",
+            "february",
+            "march",
+            "april",
+            "may",
+            "june",
+            "july",
+            "august",
+            "september",
+            "october",
+            "november",
+            "december",
+          ];
+
+          // English month names (preserve for values)
+          const monthNames = [
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December",
+          ];
+
+          // Get current month (0-11)
+          const currentMonth = new Date().getMonth();
+
+          // Create options for each month
+          monthKeys.forEach((monthKey, index) => {
+            const option = document.createElement("option");
+            option.value = monthNames[index]; // Keep English values for backend compatibility
+            option.setAttribute("data-translate", monthKey); // Enable translation
+            option.textContent = monthNames[index]; // Default text
+            monthSelector.appendChild(option);
+          });
+
+          // Set current month as selected
+          monthSelector.value = monthNames[currentMonth];
+        }
+      },
+
+            getCurrentMonth: function() {
+        return _currentMonth;
+      },
+      
+      getCurrentYear: function() {
+        return _currentYear;
+      },
+      
+      updateMonthYear: function (month, year) {
+        if (_isRendering) return;
+        if (_loadingView === true) return;  
+        
+        // Convert month name to month number (0-based)
+        const monthNum = typeof month === 'string' ? 
+          new Date(Date.parse(month + " 1, 2000")).getMonth() : month;
+        
+        // Update local state
+        _currentMonth = monthNum;
+        _currentYear = parseInt(year);
+        
+        // Update CacheManager
+        if (window.CacheManager) {
+          window.CacheManager.setCurrentMonth(monthNum, parseInt(year));
+        }
+        
+        // SYNC: Update both budget selectors AND expense display
+        const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+        
+        // Helper function to get translated month name
+        function getTranslatedMonth(monthNum) {
+          const monthKeys = [
+            "january", "february", "march", "april", "may", "june", 
+            "july", "august", "september", "october", "november", "december"
+          ];
+          const monthKey = monthKeys[monthNum];
+          if (window.SimBudget && SimBudget.translations && SimBudget.translations[monthKey]) {
+            return SimBudget.translations[monthKey];
+          } else {
+            return new Date(year, monthNum, 1).toLocaleString('default', { month: 'long' });
+          }
+        }
+        
+        // Update budget selectors
+        const monthSelector = document.getElementById("monthSelector");
+        const yearSelector = document.getElementById("yearSelector");
+        if (monthSelector) monthSelector.value = monthNames[monthNum];
+        if (yearSelector) yearSelector.value = year.toString();
+        
+        const translatedMonth = getTranslatedMonth(monthNum);
+        
+        // Update expense display
+        const monthYearDisplay = document.getElementById('monthYearDisplay');
+        if (monthYearDisplay) {
+          monthYearDisplay.textContent = `${translatedMonth} ${year}`;
+        }
+        
+        // Update budget display (dashboard banner)
+        const monthYearDisplayBudget = document.getElementById('monthYearDisplayBudget');
+        if (monthYearDisplayBudget) {
+          monthYearDisplayBudget.textContent = `${translatedMonth} ${year}`;
+        }
+        
+        // Update net worth display
+        const monthYearDisplayNetWorth = document.getElementById('monthYearDisplayNetWorth');
+        if (monthYearDisplayNetWorth) {
+          monthYearDisplayNetWorth.textContent = `${translatedMonth} ${year}`;
+        }
+        
+        // Load data for current view
+        if (_currentView === 'budget') {
+          this.loadBudgetData();
+        } else if (_currentView === 'expense' && window.MonthlyGrid) {
+          MonthlyGrid.setMonthYear(monthNum, parseInt(year));
+          // Note: MonthlyGrid handles data loading when month/year changes
+        }
+      },
+
+
+      /**
+       * Bind all event listeners
+       */
+      bindEvents: function () {
+
+        // Listen for recurring saves and trigger fetches
+       document.addEventListener('recurring-saved', function(e) {
+
+  // Don't invalidate caches - they were already updated by recurring/income managers
+  if (window.CacheManager) {
+    // Just trigger the updateRelated to refresh dependent views
+    CacheManager.updateRelated('recurring', 'update', {});
+  }
+
+  // REMOVED: Duplicate API call - using unified cache initialization instead
+
+  // Similar for budget...
+  // If viewing budget NOW, re-render it from updated cache
+  if (SimBudget.Views.getCurrent() === 'budget') {
+    setTimeout(() => {
+      SimBudget.loadBudgetData(false); // DON'T force - cache already updated!
+    }, 500);
+  }
+});
+
+    
+
+          // Listen for category changes from any component
+        document.addEventListener('categories-changed', function(event) {
+          
+          const currentView = SimBudget.Views.getCurrent();
+          
+          // If we're in expense view, cache is already updated via CacheManager.setExpenses
+          if (currentView === 'expense') {
+            // Note: MonthlyGrid will read from cache when needed
+          }
+          
+          // Update quick expense dropdown regardless of current view
+          if (window.CategoriesManager && typeof CategoriesManager.updateQuickExpenseDropdown === 'function') {
+            CategoriesManager.updateQuickExpenseDropdown();
+          }
+        });
+
+        // Cross-tab communication listener for category changes
+       window.addEventListener('storage', function(e) {
+        if (e.key === 'simbudget-categories-changed' && e.newValue) {
+        try {
+        const data = JSON.parse(e.newValue);
+      
+       // Update CacheManager cache immediately
+        if (window.CacheManager && data.categories) {
+        // Use centralized timestamp system
+        const timestamp = CacheManager.getTimestamp('categories') || new Date().toISOString();
+        CacheManager.setCategoriesWithTimestamp(data.categories, timestamp);
+      }
+      
+      // Update current view if it's categories
+      if (SimBudget.Views.getCurrent() === 'categories' && window.CategoriesManager) {
+        CategoriesManager.init(); // Refresh categories view
+      }
+      
+      // Update expense view if active
+      if (SimBudget.Views.getCurrent() === 'expense' && window.MonthlyGrid) {
+        // Note: MonthlyGrid will read updated categories from cache when needed
+      }
+      
+      // Update budget view if active
+      if (SimBudget.Views.getCurrent() === 'budget') {
+        // Force dashboard refresh using updateRelated system
+        CacheManager.updateRelated('categories', 'update', {categories: data.categories});
+      }
+      
+    } catch (error) {
+      console.error('Init: Error processing cross-tab category change:', error);
+    }
+  }
+});
+
+
+      // DESKTOP sidebar toggle with reliable event delegation 
+      document.addEventListener("click", function(e) {
+        // Debug what's actually being clicked
+        const clickTarget = e.target.closest('#toggleSidebar');
+        if (clickTarget) {
+          
+          const sidebar = document.getElementById("sidebar");
+          const contentArea = document.getElementById("contentArea");
+          
+          if (sidebar) {
+            sidebar.classList.toggle("sb-open");
+            sidebar.classList.toggle("sb-collapsed");
+            
+            // Save sidebar state to localStorage (desktop only)
+            if (window.innerWidth >= 992) {
+              try {
+                const isCollapsed = sidebar.classList.contains("sb-collapsed");
+                localStorage.setItem('sidebarCollapsed', isCollapsed.toString());
+              } catch (e) {
+                console.warn('Failed to save sidebar state:', e);
+              }
+            }
+            
+            if (contentArea) {
+              contentArea.classList.toggle("sb-expanded");
+            }
+          }
+        }
+      });
+
+      // Restore sidebar state on page load (desktop only)
+      function restoreSidebarState() {
+        if (window.innerWidth >= 992) {
+          try {
+            const savedState = localStorage.getItem('sidebarCollapsed');
+            if (savedState === 'true') {
+              const sidebar = document.getElementById("sidebar");
+              const contentArea = document.getElementById("contentArea");
+              
+              if (sidebar && !sidebar.classList.contains("sb-collapsed")) {
+                sidebar.classList.add("sb-collapsed");
+                if (contentArea) {
+                  contentArea.classList.add("sb-expanded");
+                }
+              }
+            }
+          } catch (e) {
+            console.warn('Failed to restore sidebar state:', e);
+          }
+        }
+      }
+
+      // Call restore function when DOM is ready
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', restoreSidebarState);
+      } else {
+        restoreSidebarState();
+      }
+
+   // MONTH/YEAR SELECTORS - ATTACH TO DOCUMENT (NEVER FAILS!)
+document.addEventListener("change", function(e) {
+  // Only process if we're in budget view
+  if (!document.getElementById('budgetView')?.classList.contains('active-view')) {
+    return;
+  }
+  
+  // Month selector
+  if (e.target && e.target.id === "monthSelector") {
+    const yearSelector = document.getElementById("yearSelector");
+    if (yearSelector) {
+      SimBudget.updateMonthYear(e.target.value, yearSelector.value);
+    }
+  }
+  
+  // Year selector
+  if (e.target && e.target.id === "yearSelector") {
+    const monthSelector = document.getElementById("monthSelector");
+    if (monthSelector) {
+      SimBudget.updateMonthYear(monthSelector.value, e.target.value);
+    }
+  }
+});
+
+
+  // Update recurring last refresh time
+  function updateRecurringLastRefreshTime() {
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit',
+      hour12: true 
+    });
+    
+    const refreshElement = document.getElementById('lastRefreshTimeRecurring');
+    if (refreshElement) {
+      const updatedAtText = window.getTranslation ? window.getTranslation('updated_at', getLanguageFromSettings()) : 'Updated at';
+      refreshElement.textContent = `${updatedAtText} ${timeStr}`;
+    }
+  }
+
+  const refreshRecurringBtn = document.getElementById("refreshRecurring");
+if (refreshRecurringBtn) {
+  refreshRecurringBtn.addEventListener("click", () => {
+    
+    // Add loading state to refresh button
+    refreshRecurringBtn.classList.add('loading');
+    
+    // Show loading indicator
+    if (window.RecurringManager && typeof RecurringManager.showLoadingState === 'function') {
+      RecurringManager.showLoadingState();
+    }
+    
+    // Clear cache
+    CacheManager.invalidate("recurring");
+    
+    // DON'T invalidate master_data_timestamp!
+    
+    // Call RecurringManager's refresh method
+    if (window.RecurringManager && typeof RecurringManager.refresh === 'function') {
+      RecurringManager.refresh();
+    } else {
+      // Fallback: reload the view with forceRefresh=true
+      this.loadViewData("recurring", true);  // true forces fresh fetch
+    }
+    
+    // Update last refresh time
+    updateRecurringLastRefreshTime();
+    
+    // Remove loading state after a short delay
+    setTimeout(() => {
+      refreshRecurringBtn.classList.remove('loading');
+    }, 1000);
+  });
+}
+
+// Update income last refresh time
+function updateIncomeLastRefreshTime() {
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString('en-US', { 
+    hour: 'numeric', 
+    minute: '2-digit',
+    hour12: true 
+  });
+  
+  const refreshElement = document.getElementById('lastRefreshTimeIncome');
+  if (refreshElement) {
+    const updatedAtText = window.getTranslation ? window.getTranslation('updated_at', getLanguageFromSettings()) : 'Updated at';
+    refreshElement.textContent = `${updatedAtText} ${timeStr}`;
+  }
+}
+
+// Refresh income button
+const refreshIncomeBtn = document.getElementById("refreshIncome");
+if (refreshIncomeBtn) {
+  refreshIncomeBtn.addEventListener("click", () => {
+    
+    // Add loading state to refresh button
+    refreshIncomeBtn.classList.add('loading');
+    
+    // Use IncomeManager's refresh method directly instead of loadViewData
+    if (window.IncomeManager && typeof IncomeManager.refresh === 'function') {
+      IncomeManager.refresh();
+    } else {
+      // Fallback if refresh not available
+      if (window.CacheManager) {
+        CacheManager.invalidate("income");
+      }
+      this.loadViewData("income", true);
+    }
+    
+    // Update last refresh time
+    updateIncomeLastRefreshTime();
+    
+    // Remove loading state after a short delay
+    setTimeout(() => {
+      refreshIncomeBtn.classList.remove('loading');
+    }, 1000);
+  });
+}
+
+
+// Note: Refresh expenses button is handled by MonthlyGrid module directly
+
+  // Refresh categories
+  // Update categories last refresh time
+  function updateCategoriesLastRefreshTime() {
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit',
+      hour12: true 
+    });
+    
+    const refreshElement = document.getElementById('lastRefreshTimeCategories');
+    if (refreshElement) {
+      const updatedAtText = window.getTranslation ? window.getTranslation('updated_at', getLanguageFromSettings()) : 'Updated at';
+      refreshElement.textContent = `${updatedAtText} ${timeStr}`;
+    }
+  }
+
+  const refreshCategoriesBtn = document.getElementById("refreshCategories");
+  if (refreshCategoriesBtn) {
+    refreshCategoriesBtn.addEventListener("click", () => {
+      
+      // Add loading state to refresh button
+      refreshCategoriesBtn.classList.add('loading');
+      
+      // Force refresh by invalidating cache
+      if (
+        window.CategoriesManager &&
+        typeof CategoriesManager.refreshCategories === "function"
+      ) {
+        CategoriesManager.refreshCategories();
+      } else {
+        console.error(
+          "Cannot refresh categories - CategoriesManager not available"
+        );
+        Utils.showToast("Cannot refresh categories", "error");
+      }
+      
+      // Update last refresh time
+      updateCategoriesLastRefreshTime();
+      
+      // Remove loading state after a short delay
+      setTimeout(() => {
+        refreshCategoriesBtn.classList.remove('loading');
+      }, 1000);
+    });
+  }
+
+
+
+  // Mobile sidebar toggle - Using event delegation for reliability
+document.addEventListener("click", function(e) {
+  if (e.target.closest('#mobileSidebarToggle')) {
+    const mobileToggle = e.target.closest('#mobileSidebarToggle');
+    const sidebar = document.getElementById("sidebar");
+    const backdrop = document.getElementById("sidebarBackdrop");
+
+    if (sidebar) {
+      sidebar.classList.toggle("sb-open");
+
+      if (backdrop) {
+        backdrop.classList.toggle("sb-visible");
+      }
+
+      // Update toggle icon
+      mobileToggle.innerHTML = sidebar.classList.contains("sb-open")
+        ? '<i class="material-icons">close</i>'
+        : '<i class="material-icons">menu</i>';
+
+      // Lock/unlock body scroll
+      document.body.style.overflow = sidebar.classList.contains("sb-open")
+        ? "hidden"
+        : "";
+    }
+  }
+});
+  // Sidebar navigation - FIXED to use sb-nav-item instead of sidebar-item
+  document
+    .querySelectorAll('.sb-nav-item, [data-view="settings"]')
+    .forEach((item) => {
+      item.addEventListener("click", function (e) {
+        e.preventDefault();
+
+        // Get the view name from data attribute
+        const viewName = this.getAttribute("data-view");
+        if (!viewName) return;
+
+        // Update active state
+        document.querySelectorAll(".sb-nav-item").forEach((navItem) => {
+          navItem.classList.remove("active");
+        });
+        this.classList.add("active");
+
+        // Switch to the view using SimBudget's existing function
+        if (window.SimBudget && SimBudget.Views) {
+          SimBudget.Views.switchTo(viewName);
+        }
+
+        // Close sidebar on mobile
+        if (window.innerWidth < 992) {
+          const sidebar = document.getElementById("sidebar");
+          const backdrop = document.getElementById("sidebarBackdrop");
+          const mobileToggle = document.getElementById(
+            "mobileSidebarToggle"
+          );
+
+          if (sidebar) sidebar.classList.remove("sb-open");
+          if (backdrop) backdrop.classList.remove("sb-visible");
+          document.body.style.overflow = "";
+          if (mobileToggle)
+            mobileToggle.innerHTML = '<i class="material-icons">menu</i>';
+        }
+      });
+
+      // Also handle link clicks directly
+      const link = item.querySelector("a");
+      if (link) {
+        link.addEventListener("click", function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+
+          // Trigger click on parent
+          const navItem = this.closest(
+            '.sb-nav-item, [data-view="settings"]'
+          );
+          if (navItem) navItem.click();
+        });
+      }
+    });
+
+  // Settings panel
+  const saveSettingsBtn = document.getElementById("saveSettingsBtn");
+  if (saveSettingsBtn) {
+    saveSettingsBtn.addEventListener("click", this.saveSettings);
+  }
+
+  const resetSettingsBtn = document.getElementById("resetSettings");
+  if (resetSettingsBtn) {
+    resetSettingsBtn.addEventListener("click", this.resetSettings);
+  }
+
+  const testConnectionBtn = document.getElementById("testConnection");
+  if (testConnectionBtn) {
+    testConnectionBtn.addEventListener("click", this.testConnection);
+  }
+
+  // Responsive design - auto-collapse sidebar on small screens
+  window.addEventListener(
+    "resize",
+    Utils.debounce(function () {
+      const sidebar = document.getElementById("sidebar");
+      if (
+        window.innerWidth < 768 &&
+        sidebar &&
+        sidebar.classList.contains("sb-open")
+      ) {
+        // Close sidebar
+        sidebar.classList.remove("sb-open");
+
+        const backdrop = document.getElementById("sidebarBackdrop");
+        if (backdrop) backdrop.classList.remove("sb-visible");
+
+        document.body.style.overflow = "";
+
+        const mobileToggle = document.getElementById(
+          "mobileSidebarToggle"
+        );
+        if (mobileToggle)
+          mobileToggle.innerHTML = '<i class="material-icons">menu</i>';
+      }
+    }, 250)
+  );
+
+  // Sidebar backdrop click handler
+  const sidebarBackdrop = document.getElementById("sidebarBackdrop");
+  if (sidebarBackdrop) {
+    sidebarBackdrop.addEventListener("click", function () {
+      const sidebar = document.getElementById("sidebar");
+      if (sidebar) {
+        sidebar.classList.remove("sb-open");
+        this.classList.remove("sb-visible");
+        document.body.style.overflow = "";
+
+        const mobileToggle = document.getElementById(
+          "mobileSidebarToggle"
+        );
+        if (mobileToggle)
+          mobileToggle.innerHTML = '<i class="material-icons">menu</i>';
+      }
+    });
+  }
+
+  // Set up view-specific buttons
+ // Simple implementation - add this to your refresh button handler
+
+// Add refresh coordination flag
+let _budgetRefreshInProgress = false;
+
+const refreshBudgetBtn = document.getElementById("refreshBudget");
+if (refreshBudgetBtn) {
+  refreshBudgetBtn.addEventListener("click", () => {
+    // Prevent multiple simultaneous refreshes
+    if (_budgetRefreshInProgress) {
+      console.log('Budget refresh already in progress, skipping');
+      return;
+        }
+        _budgetRefreshInProgress = true;
+        // Show subtle loading indicator like in expense tab
+        const refreshElement = document.getElementById('lastRefreshTimeBudget');
+        
+        if (refreshElement) {
+          refreshElement.textContent = 'Loading...';
+          refreshElement.style.color = '#f39c12'; // Orange/yellow color
+          refreshElement.style.fontWeight = 'bold';
+        }
+        
+        // Add loading class to refresh button
+        refreshBudgetBtn.classList.add('loading');
+        refreshBudgetBtn.disabled = true;
+        
+        // Clear only budget-related caches, keep settings
+        CacheManager.invalidate('expenses_with_timestamp');
+        CacheManager.invalidate('budget_data_with_timestamp');
+        // DON'T clear categories during refresh - they're needed for budget calculation
+        // CacheManager.invalidate('categories_with_timestamp');
+        // Clear all dashboard cache entries
+        Object.keys(CacheManager.getStats().items).forEach(key => {
+          if (key.startsWith('dashboard_')) {
+            CacheManager.invalidate(key);
+          }
+        });
+        console.log('Dashboard refresh: Budget caches cleared, settings preserved');
+        
+        // Store reference to original renderBudgetDashboard
+        const originalRender = SimBudget.renderBudgetDashboard;
+        
+        // Temporarily override to reset loading indicator after render
+        SimBudget.renderBudgetDashboard = function(data) {
+          // Call original render
+          originalRender.call(this, data);
+          
+          // Reset loading indicator
+          if (refreshElement) {
+            refreshElement.style.color = '';
+            refreshElement.style.fontWeight = '';
+          }
+          
+          // Update last refresh time
+          updateDashboardLastRefreshTime();
+          
+          // Reset button state
+          refreshBudgetBtn.classList.remove('loading');
+          refreshBudgetBtn.disabled = false;
+          
+          // Reset refresh flag
+          _budgetRefreshInProgress = false;
+          
+          // Restore original function
+          SimBudget.renderBudgetDashboard = originalRender;
+        };
+        
+        // Start fresh load
+        this.loadFreshBudgetData();
+        
+        // Failsafe: Reset everything after 10 seconds if something goes wrong
+        setTimeout(() => {
+          if (refreshElement) {
+            refreshElement.style.color = '';
+            refreshElement.style.fontWeight = '';
+          }
+          refreshBudgetBtn.classList.remove('loading');
+          refreshBudgetBtn.disabled = false;
+          _budgetRefreshInProgress = false;
+          SimBudget.renderBudgetDashboard = originalRender;
+        }, 10000);
+      });
+}
+
+  const refreshNetWorthBtn = document.getElementById("refreshNetWorth");
+  if (refreshNetWorthBtn) {
+    refreshNetWorthBtn.addEventListener("click", () => {
+      // Force refresh by invalidating cache
+      CacheManager.invalidate("netWorth");
+      this.loadViewData("netWorth", true);
+    });
+  }
+},
+
+    /**
+ * Check for existing connection and load if available
+ */
+checkExistingConnection: function () {
+  API.getUserCredentials(
+    function (result) {
+      if (result.sheetUrl) {
+        const urlInput = document.getElementById("budgetSheetUrl");
+        if (urlInput) {
+          urlInput.value = result.sheetUrl;
+        }
+
+        // REMOVED: Auto-test connection that was clearing cache
+        // SimBudget.testConnection();
+      }
+    },
+    function (error) {
+      console.error("Error getting user credentials:", error);
+    }
+  );
+},
+
+      /**
+       * Apply user settings
+       */
+      applySettings: function () {
+        const settings = Settings.getAll();
+
+        // Apply dark mode if enabled
+        if (settings.darkMode) {
+          document.body.classList.add("dark-mode");
+        } else {
+          document.body.classList.remove("dark-mode");
+        }
+
+        // Set values in settings form
+        const currencyInput = document.getElementById("currencySymbol");
+        if (currencyInput) {
+          currencyInput.value = settings.currencySymbol;
+        }
+
+        const dateFormatSelect = document.getElementById("dateFormat");
+        if (dateFormatSelect) {
+          dateFormatSelect.value = settings.dateFormat;
+        }
+
+        const darkModeCheckbox = document.getElementById("darkMode");
+        if (darkModeCheckbox) {
+          darkModeCheckbox.checked = settings.darkMode;
+        }
+
+        const languageSelect = document.getElementById("languageSelector");
+        if (languageSelect) {
+          languageSelect.value = settings.language;
+        }
+
+        const showRemainingCheckbox = document.getElementById("showRemaining");
+        if (showRemainingCheckbox) {
+          showRemainingCheckbox.checked = settings.showRemaining;
+        }
+
+        const enableAlertsCheckbox = document.getElementById("enableAlerts");
+        if (enableAlertsCheckbox) {
+          enableAlertsCheckbox.checked = settings.enableAlerts;
+        }
+
+        const startingDaySelect = document.getElementById("startingDay");
+        if (startingDaySelect) {
+          startingDaySelect.value = settings.startingDay;
+        }
+
+        // In applySettings function
+        const showDecimalsCheckbox = document.getElementById("showDecimals");
+        if (showDecimalsCheckbox) {
+          showDecimalsCheckbox.checked = settings.showDecimals;
+        }
+      },
+
+      /**
+       * Load yearly expense view (using YearlyGrid)
+       */
+      loadReportsSheet: function() {
+        // Load YearlyGrid in the reports section
+        const contentArea = document.getElementById("reportsContent");
+        if (!contentArea) {
+          console.error("Reports content area not found");
+          _loadingView = null;
+          return;
+        }
+
+        // Create fresh container for yearly grid
+        const containerId = "yearly-grid-" + Date.now();
+        contentArea.innerHTML = `
+          <div id="${containerId}" class="yearly-grid-container" 
+               style="width:100%; height:100%; position:relative; overflow:auto;">
+            <div class="loading-indicator">
+              <div class="loading-spinner"></div>
+              <p>Loading yearly expense data...</p>
+            </div>
+          </div>
+        `;
+        
+        if (window.YearlyGrid) {
+          // Initialize YearlyGrid
+          YearlyGrid.init(containerId);
+          
+          // Check data freshness for reports view
+          this.checkDataFreshness('reports');
+          
+          // Set the current year
+          if (typeof _currentYear !== 'undefined') {
+            setTimeout(() => {
+              YearlyGrid.setMonthYear(0, _currentYear);
+              // Don't auto-refresh on reports button click - only refresh when refresh button is clicked
+              // Ensure currency is applied from settings
+              if (typeof YearlyGrid.updateCurrency === 'function') {
+                YearlyGrid.updateCurrency();
+              }
+            }, 100);
+          }
+        } else {
+          contentArea.innerHTML = '<div class="error-message">YearlyGrid not available. Please refresh the page.</div>';
+        }
+        
+        _loadingView = null;
+      },
+
+      openSpreadsheet: function () {
+        // Try cached URL first for instant opening
+        if (window._cachedSheetUrl) {
+          window.open(window._cachedSheetUrl, '_blank');
+          return;
+        }
+
+        // Fallback: fetch from server if not cached
+        API.getUserCredentials(
+          function(result) {
+            if (result.success && result.sheetUrl) {
+              window._cachedSheetUrl = result.sheetUrl; // Cache it
+              window.open(result.sheetUrl, '_blank');
+            } else {
+              alert('No spreadsheet connected. Please connect a spreadsheet in Settings first.');
+            }
+          },
+          function(error) {
+            console.error('Error getting spreadsheet URL:', error);
+            alert('Could not open spreadsheet. Please try again.');
+          }
+        );
+      },
+
+      /**
+       * Load user info
+       */
+      loadUserInfo: function () {
+        API.getUserCredentials(
+          function (result) {
+            const userEmailEl = document.getElementById("userEmail");
+            if (userEmailEl) {
+              userEmailEl.textContent = result.email || "Not signed in";
+            }
+            // Cache the sheet URL for instant Reports access
+            if (result.sheetUrl) {
+              window._cachedSheetUrl = result.sheetUrl;
+            }
+          },
+          function (error) {
+            console.error("Error getting user credentials:", error);
+            const userEmailEl = document.getElementById("userEmail");
+            if (userEmailEl) {
+              userEmailEl.textContent = "Error loading user info";
+            }
+          }
+        );
+      },
+
+      /**
+       * Save settings
+       */
+            saveSettings: function () {
+        // Get values from form
+        const settings = {
+          currencySymbol: document.getElementById("currencySymbol").value,
+          dateFormat: document.getElementById("dateFormat").value,
+          darkMode: document.getElementById("darkMode").checked,
+          showRemaining: document.getElementById("showRemaining").checked,
+          enableAlerts: document.getElementById("enableAlerts").checked,
+          startingDay: document.getElementById("startingDay").value,
+          language: document.getElementById("languageSelector").value,
+          showDecimals: document.getElementById("showDecimals").checked,
+        };
+        
+        // Save settings to server
+        if (SimBudget.Settings.saveAll(settings)) {
+          // Apply settings immediately
+          SimBudget.applySettings();
+          
+          // Save sheet URL if provided - also server-side
+          const sheetUrl = document.getElementById("budgetSheetUrl").value;
+          if (sheetUrl) {
+            API.setBudgetSheetUrl(
+              sheetUrl,
+              function () {
+                Utils.showStatus(
+                  "Settings saved successfully",
+                  false,
+                  document.getElementById("settingsStatus"),
+                  3000
+                );
+                // Invalidate all caches when sheet URL changes
+                CacheManager.invalidateAll();
+              },
+              function (error) {
+                Utils.showStatus(
+                  "Settings saved but sheet URL could not be saved: " + error,
+                  true,
+                  document.getElementById("settingsStatus")
+                );
+              }
+            );
+          } else {
+            Utils.showStatus(
+              "Settings saved successfully",
+              false,
+              document.getElementById("settingsStatus"),
+              3000
+            );
+          }
+        } else {
+          Utils.showStatus(
+            "Error saving settings",
+            true,
+            document.getElementById("settingsStatus")
+          );
+        }
+      },
+
+      /**
+       * Reset settings to defaults
+       */
+      resetSettings: function () {
+        // Reset to defaults
+        if (SimBudget.Settings.saveAll(SimBudget.Settings.defaults)) {
+          // Apply settings
+          SimBudget.applySettings();
+
+          Utils.showStatus(
+            "Settings reset to defaults",
+            false,
+            document.getElementById("settingsStatus"),
+            3000
+          );
+        } else {
+          Utils.showStatus(
+            "Error resetting settings",
+            true,
+            document.getElementById("settingsStatus")
+          );
+        }
+      },
+
+testConnection: function () {
+  const sheetUrl = document.getElementById("budgetSheetUrl").value;
+  if (!sheetUrl) {
+    Utils.showStatus(
+      "Please enter a spreadsheet URL",
+      true,
+      document.getElementById("connectionStatus")
+    );
+    return;
+  }
+
+  // Show loading state
+  Utils.showStatus(
+    "Testing connection...",
+    false,
+    document.getElementById("connectionStatus")
+  );
+
+  API.verifySheetUrl(
+    sheetUrl,
+    function (result) {
+      Utils.showStatus(
+        "Sheet successfully saved!",
+        false,
+        document.getElementById("connectionStatus"),
+        3000
+      );
+
+      // FIXED: Only clear cache if URL actually changed AND preserve settings
+      if (window._lastTestedUrl !== sheetUrl) {
+        window._lastTestedUrl = sheetUrl;
+        
+        // PRESERVE settings cache before clearing
+        const preservedSettings = CacheManager.getSettingsWithTimestamp();
+        
+        CacheManager.invalidateAll();
+        
+        // RESTORE settings cache after clearing
+        if (preservedSettings && preservedSettings.settings && preservedSettings.timestamp) {
+          CacheManager.setSettingsWithTimestamp(preservedSettings.settings, preservedSettings.timestamp);
+        }
+      } else {
+      }
+    },
+    function (error) {
+      Utils.showStatus(
+        "Connection failed: " + error,
+        true,
+        document.getElementById("connectionStatus")
+      );
+    }
+  );
+},
+
+
+/**
+ * ENHANCED: Failsafe loadViewData
+ */
+loadViewData: function(viewName, forceRefresh = false) {
+  if (!viewName) {
+    console.error('loadViewData: No viewName provided');
+    return;
+  }
+
+  try {
+    // Skip if already loading the same view
+    if (_loadingView === viewName && !forceRefresh) {
+      return;
+    }
+
+    // Set loading flag
+    _loadingView = viewName;
+
+    // Route to appropriate loader with error handling
+    switch (viewName) {
+      case "budget":
+        this.loadBudgetData();
+        break;
+      case "expense":
+        this.loadExpenseData();
+        break;
+      case "income":
+        this.loadIncomeData();
+        break;
+      case "recurring":
+        this.loadRecurringData();
+        break;
+      case "netWorth":
+        this.loadNetWorthData();
+        break;
+      case "categories":
+        this.loadCategoriesData();
+        break;
+      case "reports":
+        this.loadReportsSheet();
+        break;
+      case "settings":
+        _loadingView = null; // Settings don't need loading
+        break;
+      default:
+        console.error(`Unknown view: ${viewName}`);
+        _loadingView = null;
+    }
+    
+  } catch (error) {
+    console.error(`Error loading view ${viewName}:`, error);
+    _loadingView = null;
+    
+    // Show error in the view
+    const contentArea = document.getElementById(viewName + 'Content');
+    if (contentArea) {
+      contentArea.innerHTML = `
+        <div style="padding:40px;text-align:center;color:#d32f2f;">
+          <h3>Error Loading ${viewName}</h3>
+          <p>${error.message}</p>
+          <button onclick="SimBudget.loadViewData('${viewName}', true)" style="margin-top:20px;padding:10px 20px;background:#2196F3;color:white;border:none;border-radius:4px;cursor:pointer;">
+            Retry
+          </button>
+        </div>
+      `;
+    }
+  }
+},
+
+/**
+ * Load categories data - UPDATED to use timestamp system only
+ */
+loadCategoriesData: function () {
+
+  const contentArea = document.getElementById("categoriesContent");
+  if (!contentArea) {
+    console.error("Categories content area not found");
+    _loadingView = null;
+    return;
+  }
+
+  let categoriesContainer = document.getElementById("categories-container");
+  if (!categoriesContainer) {
+    categoriesContainer = document.createElement("div");
+    categoriesContainer.id = "categories-container";
+    categoriesContainer.className = "categories-container";
+    contentArea.appendChild(categoriesContainer);
+  }
+
+  // Check if CategoriesManager is already initialized
+  if (window.CategoriesManager &&
+      typeof CategoriesManager.isInitialized === 'function' &&
+      CategoriesManager.isInitialized()) {
+    _loadingView = null;
+    return;
+      }
+
+      if (!categoriesContainer) {
+      categoriesContainer = document.createElement("div");
+      categoriesContainer.id = "categories-container";
+      categoriesContainer.className = "categories-container";
+      contentArea.appendChild(categoriesContainer);
+    }
+      // Initialize CategoriesManager with timestamp system
+      if (window.CategoriesManager && typeof CategoriesManager.init === 'function') {
+
+        try {
+          CategoriesManager.init();
+          _loadingView = null;
+        } catch (error) {
+          console.error('Init: Error initializing CategoriesManager:', error);
+          categoriesContainer.innerHTML = `
+            <div class="categories-error">
+              <i class="material-icons">error</i>
+              <p>Error loading categories: ${error}</p>
+              <button onclick="SimBudget.loadCategoriesData()" class="retry-btn">Retry</button>
+            </div>
+          `;
+          _loadingView = null;
+        }
+      } else {
+        console.error('Init: CategoriesManager not available');
+        categoriesContainer.innerHTML = `
+          <div class="categories-error">
+            <i class="material-icons">error</i>
+            <p>CategoriesManager component not found</p>
+          </div>
+        `;
+        _loadingView = null;
+  }
+},
+
+  /**
+ * Render view using cached data
+ * @param {string} viewName - Name of the view to render
+ */
+renderViewFromCache: function (viewName) {
+  
+  // Views that don't use cache rendering (already loaded on init)
+  if (viewName === "settings") {
+    return;
+  }
+  
+  // Categories use timestamp-based caching
+  if (viewName === "categories") {
+    this.loadCategoriesData();
+    return;
+  }
+  
+  // For all other views, check cache
+  const cachedData = CacheManager.get(viewName);
+
+  if (!cachedData) {
+    console.error(`No cached data found for ${viewName} view`);
+    return;
+  }
+
+  switch (viewName) {
+    case "budget":
+      this.loadBudgetData(false); // Don't force refresh - use cache
+      break;
+    case "expense":
+      this.loadExpenseData();
+      break;
+    case "income":
+      this.loadIncomeData();
+      break;
+    case "recurring":
+      this.loadRecurringData();
+      break;
+    case "netWorth":
+      this.loadNetWorthData();
+      break;
+    case "reports":
+      this.loadReportsSheet();
+      break;
+    default:
+      console.error(`Unknown view name for cache rendering: ${viewName}`);
+  }
+},
+
+  
+/**
+ * SMART loadBudgetData - Shows cache immediately, updates async if needed
+ * This preserves your smart cache system while handling multi-device sync
+ */
+loadBudgetData: function(forceRefresh = false) {
+  
+  if (typeof _currentMonth === 'undefined') {
+    _currentMonth = new Date().getMonth();
+    _currentYear = new Date().getFullYear();
+  }
+  
+  const contentArea = document.getElementById("budgetContent");
+  if (!contentArea) {
+    console.error("Budget content area not found");
+    _loadingView = null;
+    return;
+  }
+
+  // STEP 1: Try to calculate dashboard from cached pieces (INSTANT)
+  const cachedExpenses = CacheManager.getExpenses(_currentMonth, _currentYear);
+  const cachedCategories = CacheManager.getCategoriesWithTimestamp();
+  const cachedBudget = CacheManager.getBudgetData();
+
+  if (cachedExpenses && cachedCategories && cachedBudget && !forceRefresh) {
+    // Calculate dashboard from cached pieces
+    const dashboardData = CacheManager.calculateDashboardData(
+      cachedExpenses,
+      cachedCategories.categories || cachedCategories,
+      _currentMonth,
+      _currentYear
+    );
+    
+    if (dashboardData) {
+      // Add timestamp for cache tracking
+      dashboardData.cached_at = Date.now();
+      dashboardData.timestamp = Date.now();
+      
+      // Render immediately - INSTANT response
+      SimBudget.renderBudgetDashboard(dashboardData);
+      _loadingView = null;
+      
+      // STEP 2: Optional background check if cache is older than 10 seconds
+      const cacheAge = dashboardData.cached_at ? Date.now() - dashboardData.cached_at : Infinity;
+      if (cacheAge > 10000) {
+        this.checkAndUpdateBudgetInBackground();
+      }
+      return; // Done - no Google Sheets needed!
+    }
+  }
+
+  // STEP 2: FALLBACK - Check for pre-calculated dashboard (original logic)
+  const cachedDashboard = CacheManager.getDashboardDataSafe(_currentMonth, _currentYear);
+
+  if (cachedDashboard && !forceRefresh) {
+    // Render immediately for instant response
+    SimBudget.renderBudgetDashboard(cachedDashboard);
+    _loadingView = null;
+    
+    // Background check logic
+    const cacheAge = cachedDashboard.cached_at ? Date.now() - cachedDashboard.cached_at : Infinity;
+    if (cacheAge > 10000) {
+      this.checkAndUpdateBudgetInBackground();
+    }
+    return;
+  }
+  
+  // STEP 3: No cache or force refresh - load fresh immediately
+  if (forceRefresh) {
+    CacheManager.invalidate('budget_data_with_timestamp');
+    CacheManager.invalidate('expenses_with_timestamp');
+    CacheManager.invalidateAll(); // Clear all cached dashboard data
+  }
+  
+  this.loadFreshBudgetData();
+},
+
+/**
+ * BACKGROUND: Check server timestamps and update only if server is newer
+ * This runs after cached data is already displayed
+ */
+checkAndUpdateBudgetInBackground: function() {
+  
+  // Check if cache was updated very recently (within last 5 seconds)
+  const cachedDashboard = CacheManager.getDashboardDataSafe(_currentMonth, _currentYear);
+  if (cachedDashboard && cachedDashboard.cached_at) {
+    const cacheAge = Date.now() - cachedDashboard.cached_at;
+    if (cacheAge < 5000) { // Less than 5 seconds old
+      return;
+    }
+  }
+  
+  // Continue with existing staleness check...
+  if (window.CacheManager?.isTransactionDataStale) {
+    CacheManager.isTransactionDataStale((isStale) => {
+      if (isStale) {
+        this.updateBudgetFromServer();
+      }
+    });
+  }
+},
+
+/**
+ * BACKGROUND: Update budget data from server without disrupting display
+ * Only called when server has newer data than cache
+ */
+updateBudgetFromServer: function() {
+  
+  // Load fresh data in background
+  CacheManager.loadBudgetDataWithTimestamp()
+    .then(budgetData => {
+      
+      // Get current expenses and categories
+      const cachedExpenses = CacheManager.getExpenses(_currentMonth, _currentYear);
+      const cachedCategories = CacheManager.getCategoriesWithTimestamp();
+      
+      if (budgetData && cachedExpenses && cachedCategories) {
+        try {
+          // Calculate new dashboard with fresh data
+          const dashboardData = CacheManager.calculateDashboardData(
+            cachedExpenses,
+            cachedCategories.categories || cachedCategories,
+            _currentMonth,
+            _currentYear
+          );
+          
+          if (dashboardData) {
+            // Add timestamp for cache tracking
+            dashboardData.cached_at = Date.now();
+            dashboardData.timestamp = Date.now();
+            
+            // Update cache
+            CacheManager.setDashboardDataSafe(dashboardData, _currentMonth, _currentYear);
+       
+            
+            // Re-render with updated data (smooth update)
+            SimBudget.renderBudgetDashboard(dashboardData);
+          }
+        } catch (error) {
+          console.error('Error calculating dashboard from server data:', error);
+        }        } else {
+          this.loadFreshBudgetData();
+        }
+    })
+    .catch(error => {
+      console.error('Error loading fresh budget data:', error);
+      // Fail silently - user already has cached data displayed
+    });
+},
+
+/**
+ * FRESH LOAD: When no cache exists or force refresh requested
+ * This is your existing logic for loading everything from scratch
+ */
+loadFreshBudgetData: function() {
+  
+  let expensesLoaded = false;
+  let budgetLoaded = false; 
+  let categoriesLoaded = false;
+  let expensesData = null;
+  let budgetData = null;
+  let categoriesData = null;
+
+  const checkAndRender = () => {
+    if (expensesLoaded && budgetLoaded && categoriesLoaded) {
+      try {
+        // Store in cache - expensesData contains ALL expenses from server
+        if (expensesData) {
+          // Create unified cache structure directly since we have ALL expenses
+          const unifiedCache = {
+            expenses: expensesData,
+            cached_at: new Date().toISOString(),
+            timestamp: Date.now(),
+            totalRows: expensesData.length,
+            monthsCached: 'all'
+          };
+          CacheManager.set('expenses_with_timestamp', unifiedCache, { ttl: 30 * 24 * 60 * 60 * 1000 });
+        }
+        if (budgetData) {
+          // Extract the actual budget data if it's wrapped in result structure
+          const actualBudgetData = budgetData.budgets ? budgetData : { budgets: budgetData };
+          
+          // Save budget data to cache with timestamp - use the correct format
+          const budgetTimestamp = CacheManager.getTimestamp('budgetData') || new Date().toISOString();
+          CacheManager.setBudgetDataWithTimestamp(actualBudgetData, budgetTimestamp);
+        }
+        
+        // Calculate dashboard data - filter expenses for current month
+        const currentMonthExpenses = (expensesData || []).filter(expense => {
+          if (!expense.date) return false;
+          const expenseDate = expense.date instanceof Date ? expense.date : new Date(expense.date);
+          if (isNaN(expenseDate.getTime())) return false;
+          return expenseDate.getMonth() === _currentMonth && expenseDate.getFullYear() === _currentYear;
+        });
+        
+        const dashboardData = CacheManager.calculateDashboardData(
+          currentMonthExpenses, 
+          categoriesData || [],
+          _currentMonth, 
+          _currentYear
+        );
+        
+        if (dashboardData) {
+          // Add timestamp for smart cache tracking
+          dashboardData.cached_at = Date.now();
+          dashboardData.timestamp = Date.now();
+          
+          SimBudget.renderBudgetDashboard(dashboardData);
+          CacheManager.setDashboardDataSafe(dashboardData, _currentMonth, _currentYear);
+        
+          
+        }
+        
+      } catch (error) {
+        console.error('ERROR in budget fresh data render:', error);
+      }
+      
+      _loadingView = null;
+    }
+  };
+  
+  // Load all three data sources in parallel
+  API.getCategoriesWithTimestamp(
+    function(result) {
+      categoriesData = (result && result.categories) ? result.categories : [];
+      categoriesLoaded = true;
+      checkAndRender();
+    },
+    function(error) {
+      console.error('Categories error:', error);
+      categoriesData = [];
+      categoriesLoaded = true;
+      checkAndRender();
+    }
+  );
+  
+  // Force fresh budget data load from API
+  if (window.API && typeof API.getBudgetData === 'function') {
+    API.getBudgetData(
+      function(result) {
+        budgetData = (result && result.budgetData) ? result.budgetData : {};
+        budgetLoaded = true;
+        checkAndRender();
+      },
+      function(error) {
+        console.error('Budget API error:', error);
+        budgetData = {};
+        budgetLoaded = true;
+        checkAndRender();
+      },
+      true // Force fresh data
+    );
+  } else {
+    console.error('API.getBudgetData not available');
+    budgetData = {};
+    budgetLoaded = true;
+    checkAndRender();
+  }
+  
+  API.getExpenseData(
+    function(result) {
+      expensesData = result.expenses || [];
+      expensesLoaded = true;
+      checkAndRender();
+    },
+    function(error) {
+      console.error('Expenses error:', error);
+      expensesData = [];
+      expensesLoaded = true;
+      checkAndRender();
+    }
+  );
+},
+
+
+      /**
+       * This function remains in init.html even though it's referenced from dashboard.js
+       * to maintain original scope access to _currentBudgetData
+       */
+      updateInfoMessage: function (force = false) {
+        if (!this._currentBudgetData) return;
+
+        const el =
+          document.getElementById("budget-alert") ||
+          document.getElementById("budget-info-message") ||
+          document.querySelector(".budget-alert");
+        if (!el) return;
+
+        const budget = this._currentBudgetData;
+        const totalBudgeted = budget.categories.reduce(
+          (sum, cat) =>
+            sum + (typeof cat.budgeted === "number" ? cat.budgeted : 0),
+          0
+        );
+
+        // Determine message type and parameters
+        let key,
+          msgClass = "info";
+        const formatted = Utils.formatCurrency(totalBudgeted);
+
+        if (!budget.income) {
+          key = "budget_no_income_tip";
+          el.setAttribute("data-param1", formatted);
+
+
+              } else if (Math.abs(budget.income - totalBudgeted) < 1) {
+          // Perfect match - hide the alert completely
+          el.style.display = "none";
+          return;
+        } else if (budget.income > totalBudgeted) {
+
+
+          key = "budget_under_income";
+          el.setAttribute("data-param1", formatted);
+          el.setAttribute(
+            "data-param2",
+            Utils.formatCurrency(budget.income - totalBudgeted)
+          );
+        } else {
+          key = "budget_over_income";
+          el.setAttribute("data-param1", formatted);
+          el.setAttribute(
+            "data-param2",
+            Utils.formatCurrency(totalBudgeted - budget.income)
+          );
+          msgClass = "warning";
+        }
+
+        // Set translation attributes
+        el.setAttribute("data-translate", key);
+
+        // Set initial text content using current translations if available
+        if (SimBudget.translations && SimBudget.translations[key]) {
+          const params = [
+            el.getAttribute("data-param1"),
+            el.getAttribute("data-param2"),
+          ].filter(Boolean);
+          el.textContent = Utils.formatTranslation(
+            SimBudget.translations[key],
+            params
+          );
+        }
+
+        // Update class and ensure visibility
+        el.className =
+          (el.classList.contains("budget-alert")
+            ? "budget-alert"
+            : "info-message") +
+          " " +
+          msgClass;
+        el.style.display = "block";
+      },
+
+  
+
+  getCacheStats: function() {
+    return CacheManager.getStats();
+  },
+
+  // CACHE CONTROLS  
+  clearCache: function() {
+    CacheManager.invalidateAll();
+  },
+
+  loadExpenseData: function() {
+  // Prevent multiple simultaneous loads
+  if (_isLoadingExpenseView) {
+    return;
+  }
+  
+  _isLoadingExpenseView = true;
+  
+  const contentArea = document.getElementById("expenseContent");
+  if (!contentArea) {
+    console.error("Expense content area not found");
+    _loadingView = null;
+    _isLoadingExpenseView = false;
+    return;
+  }
+
+  // ALWAYS create fresh container
+  const containerId = "expense-grid-" + Date.now();
+  contentArea.innerHTML = `
+    <div id="${containerId}" class="monthly-grid-container" 
+         style="width:100%; height:100%; position:relative; overflow:auto;">
+    </div>
+  `;
+  
+  // Initialize Monthly/Yearly toggle functionality first
+  initExpenseViewToggle();
+  
+  // Check saved toggle state BEFORE initializing MonthlyGrid
+  const savedMode = sessionStorage.getItem('simbudget_expenseViewMode') || 
+                   localStorage.getItem('simbudget_expenseViewMode') || 
+                   'monthly';
+  
+  if (window.MonthlyGrid) {
+    // Initialize
+    MonthlyGrid.init(containerId);
+    
+    if (savedMode === 'yearly') {
+      // In yearly mode - load all year data INSTANTLY
+      const unifiedCache = CacheManager.get('expenses_with_timestamp');
+      if (unifiedCache && unifiedCache.expenses) {
+        // First clear cache completely, then set all data
+        if (window.CacheManager) {
+          CacheManager.set('expenses_with_timestamp', unifiedCache);
+        }
+        window.MonthlyGrid.setExpenseData(unifiedCache.expenses);
+      } else {
+        // No cache - fetch fresh data for all year
+        if (window.MonthlyGrid.refresh) {
+          window.MonthlyGrid.refresh();
+        }
+      }
+      
+      // Restore yearly toggle state UI INSTANTLY
+      if (window.restoreExpenseToggleState) {
+        window.restoreExpenseToggleState();
+      }
+    } else {
+      // In monthly mode - set the correct month/year INSTANTLY
+      if (typeof _currentMonth !== 'undefined' && typeof _currentYear !== 'undefined') {
+        MonthlyGrid.setMonthYear(_currentMonth, _currentYear);
+        // Ensure currency is applied from settings
+        if (typeof MonthlyGrid.updateCurrency === 'function') {
+          MonthlyGrid.updateCurrency();
+        }
+      }
+      
+      // Restore monthly toggle state UI INSTANTLY
+      if (window.restoreExpenseToggleState) {
+        window.restoreExpenseToggleState();
+      }
+    }
+  }
+  
+  _loadingView = null;
+  _isLoadingExpenseView = false;
+},
+
+/**
+ * Load income data using the new IncomeManager
+ */
+loadIncomeData: function() {
+  
+  const contentArea = document.getElementById("incomeContent");
+  if (!contentArea) {
+    console.error("Income content area not found");
+    _loadingView = null;
+    return;
+  }
+
+  // Check cache first
+  const cachedData = CacheManager.get('income');
+  
+  if (cachedData && Array.isArray(cachedData) && cachedData.length > 0) {
+    if (window.IncomeManager && typeof IncomeManager.init === 'function') {
+      IncomeManager.init('incomeContent', cachedData);
+    }
+  } else {
+    if (window.IncomeManager && typeof IncomeManager.init === 'function') {
+      IncomeManager.init('incomeContent', null);
+    }
+  }
+  
+  _loadingView = null;
+},
+
+
+// REPLACE your loadRecurringData with this TIMESTAMP-AWARE version:
+
+loadRecurringData: function() {
+  const contentArea = document.getElementById("recurringContent");
+  if (!contentArea) {
+    console.error("Recurring content area not found");
+    _loadingView = null;
+    return;
+  }
+
+  try {
+    if (!window.RecurringManager || typeof RecurringManager.init !== 'function') {
+      throw new Error("RecurringManager component not found");
+    }
+
+    // Check if cached data is still valid using timestamp
+    const isValid = CacheManager.isRecurringCacheValid();
+    const cachedData = isValid ? CacheManager.getRecurringWithTimestamp() : null;
+    
+
+    
+    if (cachedData?.entries && Array.isArray(cachedData.entries) && cachedData.entries.length > 0) {
+      RecurringManager.init('recurringContent', cachedData.entries);
+    } else {
+      RecurringManager.init('recurringContent', null);
+    }
+    
+  } catch (err) {
+    console.error("Error initializing RecurringManager:", err);
+    contentArea.innerHTML = `
+      <div class="error-message">
+        <h3>Error Loading Recurring Module</h3>
+        <p>${err.message}</p>
+      </div>
+    `;
+  } finally {
+    _loadingView = null;
+  }
+},
+
+
+
+loadNetWorthData: function() {
+  const contentArea = document.getElementById("netWorthContent");
+  if (!contentArea) {
+    console.error("Net Worth content area not found");
+    _loadingView = null;
+    return;
+  }
+
+  if (window.NetWorthManager && typeof NetWorthManager.init === 'function') {
+    try {
+      // Check cache first
+      const cachedData = CacheManager.getNetWorthWithTimestamp();
+      
+      // Pass cached data to prevent loading spinner
+      if (cachedData && cachedData.entries && Array.isArray(cachedData.entries)) {
+        NetWorthManager.init('netWorthContent', cachedData.entries);
+      } else {
+        NetWorthManager.init('netWorthContent', null);
+      }
+      
+    } catch (error) {
+      console.error('SimBudget: Error initializing NetWorthManager:', error);
+      contentArea.innerHTML = `
+        <div class="nw-error">
+          <h3>Error Loading Net Worth</h3>
+          <p>${error.toString()}</p>
+          <button onclick="SimBudget.loadNetWorthData()" class="nw-btn nw-btn-primary">
+            Try Again
+          </button>
+        </div>
+      `;
+    }
+  } else {
+    console.error('SimBudget: NetWorthManager component not found');
+    contentArea.innerHTML = `
+      <div class="nw-error">
+        <h3>NetWorth Manager Not Available</h3>
+        <p>The NetWorth component could not be loaded.</p>
+      </div>
+    `;
+  }
+  
+  // Clear loading flag
+  _loadingView = null;
+},
+
+/**
+ * TRIAL SYSTEM ENFORCEMENT
+ */
+
+/**
+ * Initialize trial enforcement with 30-second delay
+ */
+initializeTrialEnforcement: function() {
+  setTimeout(() => {
+    this.checkLicenseAndEnforce();
+  }, 5000); // 5 seconds after app loads
+},
+
+/**
+ * Check license status and enforce trial restrictions
+ */
+checkLicenseAndEnforce: function() {
+  // Get user email from existing user info load
+  API.getUserCredentials(
+    (result) => {
+      if (result.success && result.email) {
+        API.checkTrialStatus(result.email, 
+          (trialResult) => {
+            // If user has sheet connected but no payment record, record first use
+            if (result.sheetUrl && trialResult.status === 'new') {
+              API.recordFirstUse(result.email, 
+                (recordResult) => {
+                  this.handleTrialStatus(recordResult);
+                },
+                (recordError) => {
+                  this.handleTrialStatus(trialResult);
+                }
+              );
+            } else {
+              this.handleTrialStatus(trialResult);
+            }
+          },
+          (error) => {
+            // Fail silently - don't break app for license check errors
+          }
+        );
+      }
+    },
+    (error) => {
+      // Fail silently
+    }
+  );
+},
+
+/**
+ * Handle trial status with graduated enforcement
+ */
+handleTrialStatus: function(result) {
+  if (result.status === 'paid') {
+    return; // All good, do nothing
+  }
+  
+  if (result.status === 'trial') {
+    const daysLeft = result.daysLeft;
+    
+    if (daysLeft > 10) {
+      // Days 1-20: Silent (only show in settings)
+      return;
+    } else if (daysLeft > 0) {
+      // Days 21-30: Dismissible popup
+      this.showTrialWarning(daysLeft, true); // true = can dismiss
+    }
+  } else if (result.status === 'expired') {
+    // Expired: Non-dismissible popup + app shutdown
+    this.showTrialWarning(0, false); // false = cannot dismiss
+    this.scheduleAppShutdown();
+  }
+},
+
+/**
+ * Show trial warning popup
+ */
+showTrialWarning: function(daysLeft, canDismiss) {
+  // Remove existing popup if any
+  const existing = document.getElementById('trialPopup');
+  if (existing) existing.remove();
+  
+  const popup = document.createElement('div');
+  popup.id = 'trialPopup';
+  popup.style.cssText = `
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    background: white; border: 2px solid #ff4444; padding: 30px; z-index: 9999;
+    box-shadow: 0 0 20px rgba(0,0,0,0.5); text-align: center; border-radius: 8px;
+    max-width: 400px; font-family: 'Inter', sans-serif;
+  `;
+  
+  const message = daysLeft > 0 ? 
+    `Trial expires in ${daysLeft} days. ` :
+    `Trial expired. Please purchase license to continue.`;
+  
+  const dismissButton = canDismiss ? 
+    '<button onclick="SimBudget.closeTrialPopup()" style="margin-left:10px;padding:8px 16px;background:#007cba;color:white;border:none;border-radius:4px;cursor:pointer;">Continue Trial</button>' : 
+    '';
+  
+  popup.innerHTML = `
+    <h3 style="color:#ff4444;margin-top:0;">${message}</h3>
+    <p><a href='https://ko-fi.com/s/4b62acb528' target='_blank' style='color:#007cba;'>Purchase license here</a></p>
+    <p><a href='mailto:contact@simplifybudget.com' style='color:#007cba; font-size:12px;'>Contact for help</a></p>
+    <div style="margin-top:20px;">
+      ${dismissButton}
+    </div>
+  `;
+  
+  document.body.appendChild(popup);
+  
+  // If can't dismiss, make it persistent and block interactions
+  if (!canDismiss) {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.8); z-index: 9998;
+    `;
+    document.body.appendChild(overlay);
+    
+    // Disable all interactions except the popup
+    popup.style.pointerEvents = 'auto';
+    overlay.style.pointerEvents = 'all';
+  }
+},
+
+/**
+ * Close trial popup (only for dismissible ones)
+ */
+closeTrialPopup: function() {
+  const popup = document.getElementById('trialPopup');
+  if (popup) popup.remove();
+},
+
+/**
+ * Schedule app shutdown after trial expiry
+ */
+scheduleAppShutdown: function() {
+  // App works for 3 more minutes then stops
+  setTimeout(() => {
+    document.body.innerHTML = `
+      <div style="text-align:center;padding:50px;font-family:'Inter',sans-serif;">
+        <h2 style="color:#ff4444;">Trial Expired</h2>
+        <p>Please purchase license to continue using SimBudget.</p>
+        <p><a href='https://ko-fi.com/s/4b62acb528' target='_blank' style='color:#007cba;'>Purchase license here</a></p>
+        <p><a href='mailto:contact@simplifybudget.com' style='color:#007cba; font-size:12px;'>Contact for help</a></p>
+      </div>
+    `;
+  }, 3 * 60 * 1000); // 3 minutes
+},
+
+ };
+  })();
+
+  // Initialize Monthly/Yearly toggle functionality
+  function initExpenseViewToggle() {
+    const expenseView = document.getElementById('expenseView');
+    const reportsView = document.getElementById('reportsView');
+    const monthlyContent = document.getElementById('expenseContent');
+    const yearlyContent = document.getElementById('reportsContent');
+
+    if (!expenseView || !reportsView || !monthlyContent || !yearlyContent) return;
+
+    // Get toggle buttons
+    const viewToggle = document.getElementById('viewToggle');
+    const viewToggleReports = document.getElementById('viewToggleReports');
+
+    function switchToMonthly() {
+
+      // Show expense view, hide reports view
+      expenseView.style.display = 'block';
+      reportsView.style.display = 'none';
+
+      // Update toggle buttons
+      if (viewToggle) {
+        viewToggle.textContent = 'Monthly';
+        viewToggle.setAttribute('data-view', 'monthly');
+      }
+      if (viewToggleReports) {
+        viewToggleReports.textContent = 'Monthly';
+        viewToggleReports.setAttribute('data-view', 'monthly');
+      }
+
+      // Save toggle state
+      try {
+        localStorage.setItem('simbudget_expenseViewMode', 'monthly');
+        sessionStorage.setItem('simbudget_expenseViewMode', 'monthly');
+      } catch (e) {
+        console.warn('Could not save expense view mode:', e);
+      }
+
+      // Reload monthly data from cache - but don't trigger cache updates
+      if (window.MonthlyGrid && window.MonthlyGrid.setExpenseData) {
+        const unifiedCache = CacheManager.get('expenses_with_timestamp');
+        if (unifiedCache && unifiedCache.expenses) {
+          // Set flag to prevent cache updates during toggle
+          window._isToggling = true;
+          MonthlyGrid.setExpenseData(unifiedCache.expenses);
+          setTimeout(() => {
+            window._isToggling = false;
+          }, 100);
+        }
+      }
+    }
+
+    function switchToYearly() {
+
+      // Hide expense view, show reports view
+      expenseView.style.display = 'none';
+      reportsView.style.display = 'block';
+
+      // Update toggle buttons
+      if (viewToggle) {
+        viewToggle.textContent = 'Yearly';
+        viewToggle.setAttribute('data-view', 'yearly');
+      }
+      if (viewToggleReports) {
+        viewToggleReports.textContent = 'Yearly';
+        viewToggleReports.setAttribute('data-view', 'yearly');
+      }
+
+      // Save toggle state
+      try {
+        localStorage.setItem('simbudget_expenseViewMode', 'yearly');
+        sessionStorage.setItem('simbudget_expenseViewMode', 'yearly');
+      } catch (e) {
+        console.warn('Could not save expense view mode:', e);
+      }
+
+      // Load ALL year data into MonthlyGrid when switching to yearly mode
+      if (window.MonthlyGrid && window.CacheManager) {
+        const unifiedCache = CacheManager.get('expenses_with_timestamp');
+        if (unifiedCache && unifiedCache.expenses) {
+          // Replace everything, don't merge
+          CacheManager.set('expenses_with_timestamp', unifiedCache);
+          MonthlyGrid.setExpenseData(unifiedCache.expenses);
+        }
+      }
+
+      // Initialize yearly grid when first shown
+      if (!yearlyContent._yearlyInitialized && window.YearlyGrid) {
+        const containerId = "yearly-grid-" + Date.now();
+        yearlyContent.innerHTML = `<div id="${containerId}" class="yearly-grid-container"></div>`;
+        YearlyGrid.init(containerId);
+        yearlyContent._yearlyInitialized = true;
+      } else if (window.YearlyGrid && window.YearlyGrid.setExpenseData) {
+        // Get fresh data from cache and set it
+        const unifiedCache = CacheManager.get('expenses_with_timestamp');
+        if (unifiedCache && unifiedCache.expenses) {
+          YearlyGrid.setExpenseData(unifiedCache.expenses);
+        }
+      }
+    }
+
+    // Bind events to toggle buttons
+    if (viewToggle && !viewToggle._toggleBound) {
+      viewToggle.addEventListener('click', function() {
+        const currentView = viewToggle.getAttribute('data-view');
+        if (currentView === 'monthly') {
+          switchToYearly();
+        } else {
+          switchToMonthly();
+        }
+      });
+      viewToggle._toggleBound = true;
+    }
+    if (viewToggleReports && !viewToggleReports._toggleBound) {
+      viewToggleReports.addEventListener('click', function() {
+        const currentView = viewToggleReports.getAttribute('data-view');
+        if (currentView === 'yearly') {
+          switchToMonthly();
+        } else {
+          switchToYearly();
+        }
+      });
+      viewToggleReports._toggleBound = true;
+    }
+
+    // Function to restore saved toggle state (called when switching to expense view)
+    function restoreSavedToggleState() {
+      try {
+        const savedMode = sessionStorage.getItem('simbudget_expenseViewMode') ||
+                         localStorage.getItem('simbudget_expenseViewMode') ||
+                         'monthly'; // Default to monthly
+
+        if (savedMode === 'yearly') {
+          switchToYearly();
+        } else {
+          switchToMonthly();
+        }
+      } catch (e) {
+        console.warn('Could not restore expense view mode:', e);
+        // Default to monthly if restore fails
+        switchToMonthly();
+      }
+    }
+
+    // Make restore function available globally so Views.switchTo can call it
+    window.restoreExpenseToggleState = restoreSavedToggleState;
+  }
+
+  // Make debug functions available globally for testing
+  window.SimBudgetDebug = {
+    /**
+     * Force reload budget data from server
+     */
+    reloadBudget: function () {
+      SimBudget.loadBudgetData();
+    },
+
+    /**
+     * Clear the cache and reload
+     */
+    clearCache: function () {
+      if (window.CacheManager && typeof window.CacheManager.invalidateAll === "function") {
+        window.CacheManager.invalidateAll();
+        console.log("Cache cleared");
+      } else {
+        console.log("Global cache not available");
+      }
+    },
+
+     checkCache: function() {
+    const isCoherent = CacheManager.checkCoherency();
+    
+    if (!isCoherent) {
+      CacheManager.forceCacheSync();
+    }
+    
+    return isCoherent;
+  },
+
+    /**
+     * Check current structure and log it
+     */
+    checkData: function () {
+
+      if (window.CacheManager && typeof window.CacheManager.get === "function") {
+      } else {
+        console.log("Cache is not accessible");
+      }
+    },
+
+    /**
+     * Test API connection
+     */
+    testConnection: function () {
+      API.testServerConnection(
+        function (result) {
+        },
+        function (error) {
+          console.error("API Connection failed:", error);
+        }
+      );
+    },
+  };
+
+  // Initialize when DOM is loaded
+  document.addEventListener("DOMContentLoaded", function () {
+    if (typeof SimBudget !== "undefined") {
+      SimBudget.initialize();
+    } else {
+      console.error("SimBudget object not found. Initialization failed.");
+    }
+  });
+
+
+
+
+
+  document.addEventListener("language-changed", function () {
+    // Refresh category displays
+    if (
+      window.CategoriesManager &&
+      typeof CategoriesManager.renderCategories === "function"
+    ) {
+      CategoriesManager.renderCategories();
+    }
+
+    // Refresh quick expense dropdown
+    if (
+      window.QuickExpenseEntry &&
+      typeof QuickExpenseEntry.updateCategoriesDropdown === "function"
+    ) {
+      QuickExpenseEntry.updateCategoriesDropdown();
+    }
+
+    // Refresh budget table if visible (but not if manual refresh is in progress)
+    if (
+      SimBudget._currentView === "budget" &&
+      typeof SimBudget.renderBudgetDashboard === "function" &&
+      !_budgetRefreshInProgress
+    ) {
+      SimBudget.loadViewData("budget", true);
+    }
+  });
+
+
+
+  // Listen for category changes and update budget dashboard immediately
+document.addEventListener('category-status-changed', function(event) {
+  // Only update if we're currently viewing budget dashboard
+  if (_currentView !== 'budget') return;
+  
+  // Get fresh categories and current expenses from cache
+  const updatedCategories = CacheManager.getCategoriesWithTimestamp();
+  const currentExpenses = CacheManager.getExpenses(_currentMonth, _currentYear);
+  
+  // Recalculate dashboard with updated categories
+  const newDashboard = CacheManager.calculateDashboardData(currentExpenses || [], updatedCategories?.categories || [], _currentMonth, _currentYear);
+  
+  // Re-render dashboard immediately
+  if (newDashboard) SimBudget.renderBudgetDashboard(newDashboard);
+});
+
+
+</script>

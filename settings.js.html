@@ -1,0 +1,1196 @@
+<script>
+/**
+ * settings.js - Simplified JavaScript for SimBudget Settings page
+ * Provides clean, professional settings functionality without animations
+ */
+
+// Settings page functionality
+const SettingsPage = (function() {
+  // Private variables
+  let _initialized = false;
+  
+const currencyOptions = [
+  { symbol: '$', code: 'USD', name: 'US Dollar' },
+  { symbol: '€', code: 'EUR', name: 'Euro' },
+  { symbol: '£', code: 'GBP', name: 'British Pound' },
+  { symbol: '¥', code: 'JPY', name: 'Japanese Yen' },
+  { symbol: '₹', code: 'INR', name: 'Indian Rupee' },
+  { symbol: '₽', code: 'RUB', name: 'Russian Ruble' },
+  { symbol: '¥', code: 'CNY', name: 'Chinese Yuan' },
+  { symbol: '₺', code: 'TRY', name: 'Turkish Lira' },
+  { symbol: 'C$', code: 'CAD', name: 'Canadian Dollar' },
+  { symbol: 'A$', code: 'AUD', name: 'Australian Dollar' },
+  { symbol: 'CHF', code: 'CHF', name: 'Swiss Franc' },
+  { symbol: 'R$', code: 'BRL', name: 'Brazilian Real' },
+  { symbol: '₩', code: 'KRW', name: 'South Korean Won' },
+  { symbol: 'د.إ', code: 'AED', name: 'UAE Dirham' },
+  { symbol: '₫', code: 'VND', name: 'Vietnamese Dong' },
+  { symbol: 'RM', code: 'MYR', name: 'Malaysian Ringgit' },
+  { symbol: '฿', code: 'THB', name: 'Thai Baht' },
+  { symbol: '₦', code: 'NGN', name: 'Nigerian Naira' },
+  { symbol: '₴', code: 'UAH', name: 'Ukrainian Hryvnia' },
+  { symbol: 'د.ا', code: 'JOD', name: 'Jordanian Dinar' },
+  { symbol: '$', code: 'MXN', name: 'Mexican Peso' },
+  { symbol: 'S$', code: 'SGD', name: 'Singapore Dollar' },
+  { symbol: 'HK$', code: 'HKD', name: 'Hong Kong Dollar' },
+  { symbol: 'R', code: 'ZAR', name: 'South African Rand' },
+  { symbol: 'kr', code: 'SEK', name: 'Swedish Krona' },
+  { symbol: 'NZ$', code: 'NZD', name: 'New Zealand Dollar' },
+  { symbol: 'kr', code: 'NOK', name: 'Norwegian Krone' },
+  { symbol: 'kr', code: 'DKK', name: 'Danish Krone' },
+  { symbol: 'zł', code: 'PLN', name: 'Polish Złoty' },
+  { symbol: '﷼', code: 'SAR', name: 'Saudi Riyal' },
+  { symbol: 'Rp', code: 'IDR', name: 'Indonesian Rupiah' },
+  { symbol: '₱', code: 'PHP', name: 'Philippine Peso' },
+  { symbol: 'NT$', code: 'TWD', name: 'Taiwan Dollar' },
+];
+
+
+ 
+  /**
+   * Initialize settings page functionality
+   */
+  function init() {
+    if (_initialized) return;
+    buildCurrencyOptions();
+    loadSavedSettings();
+    loadCurrentSheetStatus();
+    loadTrialStatus(); // Add trial status check
+    initEventListeners();
+    _initialized = true;
+  }
+
+
+  /**
+ * Change language and apply immediately
+ */
+function changeLanguage(langCode) {
+  // Save the language setting
+  const settings = {
+    currencySymbol: document.getElementById('currencySelector').value || '$',
+    dateFormat: document.getElementById('dateFormat').value || 'MM/DD/YYYY',
+    darkMode: document.getElementById('darkMode').checked || false,
+    showRemaining: document.getElementById('showRemaining').checked || false,
+    enableAlerts: document.getElementById('enableAlerts').checked || false,
+    language: langCode,  // ← Use the new language
+    showDecimals: document.getElementById('showDecimals').checked || false
+  };
+  
+  // Save to server
+  API.setUserSettings(settings, 
+    function() {
+      // Update cache
+      CacheManager.setSettings(settings);
+      
+      // Apply translations immediately
+      applyTranslations(langCode);
+      
+      // Tell other components language changed
+      document.dispatchEvent(new CustomEvent("language-changed"));
+    },
+    function(error) {
+      showStatus('Error changing language: ' + error, true);
+    }
+  );
+}
+
+/**
+ * Initialize event listeners with autosave
+ */
+function initEventListeners() {
+  // Create a debounce function for autosaving
+  const debounceAutoSave = Utils.debounce(function() {
+    saveSettings(true); // true = silent save (no notification)
+  }, 500);
+  
+  // Set up form controls with autosave (excluding currency selector)
+  document.querySelectorAll('#dateFormat, #showDecimals, #showRemaining, #enableAlerts, #showCategoryTotals, #showCurrencySymbolGrid, #netWorthDefaultChart')
+    .forEach(element => {
+      element.addEventListener('change', debounceAutoSave);
+    });
+  
+  // Currency selector needs special handling to update spreadsheet
+  const currencySelector = document.getElementById('currencySelector');
+  if (currencySelector) {
+    currencySelector.addEventListener('change', function() {
+      // Update currency in spreadsheet
+      updateCurrencyInSpreadsheet(this.value);
+      // Also save settings locally
+      debounceAutoSave();
+    });
+  }
+  
+  
+  // Dark mode has additional UI impact
+  const darkModeToggle = document.getElementById('darkMode');
+  if (darkModeToggle) {
+    darkModeToggle.addEventListener('change', function() {
+      document.body.classList.toggle('dark-mode', this.checked);
+      debounceAutoSave();
+    });
+  }
+    
+  // Keep reset button
+  const resetButton = document.getElementById('resetSettings');
+  if (resetButton) {
+    resetButton.addEventListener('click', resetSettings);
+  }
+  
+  // Test connection button
+  const testConnectionBtn = document.getElementById('testConnection');
+  if (testConnectionBtn) {
+    testConnectionBtn.addEventListener('click', testConnection);
+  }
+
+  
+  // Pick Sheet button
+  const pickSheetBtn = document.getElementById('pickSheetFile');
+  if (pickSheetBtn) {
+    pickSheetBtn.addEventListener('click', openGooglePicker);
+  }
+  
+  // New Spreadsheet button - creates new sheet from template
+  const newDatabaseBtn = document.getElementById('newDatabase');
+  if (newDatabaseBtn) {
+    newDatabaseBtn.addEventListener('click', function() {
+      createNewBudgetSheet();
+    });
+  }
+  
+  // Disconnect Database button - removes sheet from user properties
+  const disconnectBtn = document.getElementById('disconnectDatabase');
+  if (disconnectBtn) {
+    disconnectBtn.addEventListener('click', function() {
+      disconnectBudgetSheet();
+    });
+  }
+
+  // Display currency selector - show/hide exchange rate field
+  const displayCurrencySelector = document.getElementById('displayCurrencySelector');
+  if (displayCurrencySelector) {
+    displayCurrencySelector.addEventListener('change', function() {
+      updateExchangeRateVisibility();
+      debounceAutoSave();
+      // Dispatch event to notify other components
+      document.dispatchEvent(new CustomEvent('display-currency-changed'));
+    });
+  }
+
+  // Exchange rate input
+  const exchangeRateInput = document.getElementById('exchangeRateInput');
+  if (exchangeRateInput) {
+    exchangeRateInput.addEventListener('input', debounceAutoSave);
+    exchangeRateInput.addEventListener('change', function() {
+      // Dispatch event to notify other components
+      document.dispatchEvent(new CustomEvent('display-currency-changed'));
+    });
+  }
+
+  // Show Category Totals toggle - dispatch event for real-time update
+  const showCategoryTotalsToggle = document.getElementById('showCategoryTotals');
+  if (showCategoryTotalsToggle) {
+    showCategoryTotalsToggle.addEventListener('change', function() {
+      debounceAutoSave();
+      // Dispatch event to notify MonthlyGrid
+      document.dispatchEvent(new CustomEvent('category-totals-toggled'));
+    });
+  }
+
+  // Show Currency Symbol in Grid toggle - dispatch event for real-time update
+  const showCurrencySymbolToggle = document.getElementById('showCurrencySymbolGrid');
+  if (showCurrencySymbolToggle) {
+    showCurrencySymbolToggle.addEventListener('change', function() {
+      debounceAutoSave();
+      // Dispatch event to notify MonthlyGrid
+      document.dispatchEvent(new CustomEvent('currency-symbol-toggled'));
+    });
+  }
+
+  // Language selector needs special handling
+  const languageSelector = document.getElementById('languageSelector');
+if (languageSelector) {
+  languageSelector.addEventListener('change', function() {
+    const selectedLanguage = this.value;
+    changeLanguage(selectedLanguage); // This now exists!
+  });
+  }
+
+  // Sheet URL needs special handling - save on blur
+  const sheetUrlInput = document.getElementById('budgetSheetUrl');
+  if (sheetUrlInput) {
+    sheetUrlInput.addEventListener('blur', debounceAutoSave);
+  }
+
+
+}
+  
+
+
+
+
+/**
+ * Build currency dropdown options
+ */
+function buildCurrencyOptions() {
+  const currencySelect = document.getElementById('currencySelector');
+  const displayCurrencySelect = document.getElementById('displayCurrencySelector');
+  if (!currencySelect) return;
+
+  // Get defaults from SimBudget if available
+  const defaultCurrency = (window.SimBudget && SimBudget.Settings && SimBudget.Settings.defaults)
+    ? SimBudget.Settings.defaults.currencySymbol || '$'
+    : '$';
+
+  // Clear existing options
+  currencySelect.innerHTML = '';
+  if (displayCurrencySelect) displayCurrencySelect.innerHTML = '';
+
+  // Add options for each currency
+  currencyOptions.forEach(currency => {
+    const option = document.createElement('option');
+    option.value = currency.symbol;
+    option.textContent = `${currency.name} (${currency.symbol})`;
+    option.dataset.code = currency.code;
+    option.dataset.name = currency.name;
+    currencySelect.appendChild(option);
+
+    // Also add to display currency selector
+    if (displayCurrencySelect) {
+      const displayOption = option.cloneNode(true);
+      displayCurrencySelect.appendChild(displayOption);
+    }
+  });
+
+  // Set default value after adding options
+  currencySelect.value = defaultCurrency;
+  if (displayCurrencySelect) displayCurrencySelect.value = defaultCurrency;
+}
+
+/**
+ * Update exchange rate field visibility based on currency selection
+ */
+function updateExchangeRateVisibility() {
+  const baseCurrency = document.getElementById('currencySelector');
+  const displayCurrency = document.getElementById('displayCurrencySelector');
+  const exchangeRateRow = document.getElementById('exchangeRateRow');
+  const exchangeRateLabel = document.getElementById('exchangeRateLabel');
+
+  if (!baseCurrency || !displayCurrency || !exchangeRateRow) return;
+
+  const baseSymbol = baseCurrency.value;
+  const displaySymbol = displayCurrency.value;
+
+  // Get currency codes for labels
+  const baseOption = baseCurrency.options[baseCurrency.selectedIndex];
+  const displayOption = displayCurrency.options[displayCurrency.selectedIndex];
+  const baseCode = baseOption?.dataset?.code || baseSymbol;
+  const displayCode = displayOption?.dataset?.code || displaySymbol;
+
+  if (baseSymbol === displaySymbol) {
+    // Same currency - hide exchange rate
+    exchangeRateRow.style.display = 'none';
+  } else {
+    // Different currencies - show exchange rate
+    exchangeRateRow.style.display = '';
+    if (exchangeRateLabel) {
+      exchangeRateLabel.textContent = `1 ${baseCode} =`;
+    }
+    // Add helper text showing display currency
+    const input = document.getElementById('exchangeRateInput');
+    if (input) {
+      input.placeholder = `${displayCode} rate`;
+    }
+  }
+}
+
+function applyTranslations(langCode) {
+  const statusEl = document.getElementById('settingsStatus');
+  if (statusEl) {
+    statusEl.className = 'status-message success';
+    statusEl.textContent = 'Loading translations...';
+    statusEl.classList.remove('hidden');
+  }
+
+  API.getTranslations(langCode,
+    function(result) {
+      if (result && result.translations) {
+        // Store translations globally - FIX THE DOUBLE NESTING
+        window.SimBudget = window.SimBudget || {};
+        SimBudget.translations = result.translations.translations; // ← FIXED!
+        
+        // Apply to all elements with data-translate
+        document.querySelectorAll('[data-translate]').forEach(el => {
+          const key = el.getAttribute('data-translate');
+          if (key && SimBudget.translations[key]) {
+            el.textContent = SimBudget.translations[key];
+          }
+        });
+
+        // Apply to all placeholders
+        document.querySelectorAll('[data-translate-placeholder]').forEach(el => {
+          const key = el.getAttribute('data-translate-placeholder');
+          if (key && SimBudget.translations[key]) {
+            el.setAttribute('placeholder', SimBudget.translations[key]);
+          }
+        });
+
+        // Apply to all titles
+        document.querySelectorAll('[data-translate-title]').forEach(el => {
+          const key = el.getAttribute('data-translate-title');
+          if (key && SimBudget.translations[key]) {
+            el.setAttribute('title', SimBudget.translations[key]);
+          }
+        });
+
+        // Update budget info message if needed
+        if (window.SimBudget && typeof SimBudget.updateInfoMessage === 'function') {
+          SimBudget.updateInfoMessage(true);
+        }
+
+        // Hide status
+        if (statusEl) statusEl.classList.add('hidden');
+        
+        // Dispatch event
+        document.dispatchEvent(new CustomEvent("language-changed"));
+      } else if (statusEl) {
+        statusEl.textContent = 'Error loading translations';
+        statusEl.className = 'status-message error';
+      }
+    },
+    function(error) {
+      if (statusEl) {
+        statusEl.textContent = 'Error loading translations: ' + error;
+        statusEl.className = 'status-message error';
+      }
+    }
+  );
+}
+
+/**
+ * Load saved settings from CacheManager first, then server
+ */
+function loadSavedSettings() {
+  // Try cache first
+  const cached = CacheManager.getSettings();
+  if (cached) {
+    applySettingsToForm(cached);
+    return;
+  }
+  
+  // If not cached, load from server
+  API.getUserSettings(
+    function(result) {
+      if (result && result.settings) {
+        // Cache the settings
+        CacheManager.setSettings(result.settings);
+        // Apply to form
+        applySettingsToForm(result.settings);
+      } else {
+        // No settings found, apply defaults with auto-detected language
+        applyDefaultsWithAutoLanguage();
+      }
+    },
+    function(error) {
+      console.error('Failed to load settings from server:', error);
+      showStatus('Error loading settings. Using defaults with auto-detected language.', true);
+      
+      // Apply defaults with auto-detected language
+      applyDefaultsWithAutoLanguage();
+    }
+  );
+}
+
+/**
+ * Apply default settings with auto-detected language
+ */
+function applyDefaultsWithAutoLanguage() {
+  let defaults = {
+    currencySymbol: '$',
+    dateFormat: 'MM/DD/YYYY',
+    darkMode: false,
+    showRemaining: true,
+    enableAlerts: true,
+    showDecimals: true,
+    language: 'en',
+    displayCurrency: '$',
+    exchangeRate: 1,
+    showCategoryTotals: true,
+    showCurrencySymbolGrid: true,
+    netWorthDefaultChart: 'allocation'
+  };
+  
+  // Override language with auto-detection if available
+  if (typeof detectBrowserLanguage === 'function') {
+    defaults.language = detectBrowserLanguage();
+  }
+  
+  // Use SimBudget defaults if available, but keep our detected language
+  if (window.SimBudget && SimBudget.Settings && SimBudget.Settings.defaults) {
+    defaults = { ...SimBudget.Settings.defaults, language: defaults.language };
+  }
+  
+  applySettingsToForm(defaults);
+}
+
+/**
+ * Apply settings object to form elements
+ */
+function applySettingsToForm(settings) {
+  // Apply settings to form elements
+  const currencySelect = document.getElementById('currencySelector');
+  if (currencySelect && settings.currencySymbol) {
+    // First attempt to find the matching option
+    let found = false;
+    
+    // Check all existing options first
+    Array.from(currencySelect.options).forEach(option => {
+      if (option.value === settings.currencySymbol) {
+        found = true;
+        currencySelect.value = settings.currencySymbol;
+      }
+    });
+    
+    // If not found, add it as a new option
+    if (!found) {
+      const option = document.createElement('option');
+      option.value = settings.currencySymbol;
+      option.textContent = `${settings.currencySymbol} - Custom`;
+      currencySelect.appendChild(option);
+      currencySelect.value = settings.currencySymbol;
+    }
+  }
+  
+  // Set all other form elements
+  const dateFormatSelect = document.getElementById('dateFormat');
+  if (dateFormatSelect) {
+    dateFormatSelect.value = settings.dateFormat || 'MM/DD/YYYY';
+  }
+  
+  const darkModeCheckbox = document.getElementById('darkMode');
+  if (darkModeCheckbox) {
+    darkModeCheckbox.checked = settings.darkMode || false;
+    // Apply dark mode to body if enabled
+    document.body.classList.toggle('dark-mode', settings.darkMode);
+  }
+  
+  const showRemainingCheckbox = document.getElementById('showRemaining');
+  if (showRemainingCheckbox) {
+    showRemainingCheckbox.checked = settings.showRemaining !== undefined ? 
+      settings.showRemaining : true;
+  }
+  
+  const enableAlertsCheckbox = document.getElementById('enableAlerts');
+  if (enableAlertsCheckbox) {
+    enableAlertsCheckbox.checked = settings.enableAlerts !== undefined ? 
+      settings.enableAlerts : true;
+  }
+  
+  const showDecimalsCheckbox = document.getElementById('showDecimals');
+  if (showDecimalsCheckbox) {
+    showDecimalsCheckbox.checked = settings.showDecimals !== undefined ? 
+      settings.showDecimals : true;
+  }
+  
+  const languageSelector = document.getElementById('languageSelector');
+  if (languageSelector) {
+    languageSelector.value = settings.language || 'en';
+  }
+
+  // Display currency and exchange rate
+  const displayCurrencySelect = document.getElementById('displayCurrencySelector');
+  if (displayCurrencySelect) {
+    displayCurrencySelect.value = settings.displayCurrency || settings.currencySymbol || '$';
+  }
+
+  const exchangeRateInput = document.getElementById('exchangeRateInput');
+  if (exchangeRateInput && settings.exchangeRate) {
+    exchangeRateInput.value = settings.exchangeRate;
+  }
+
+  // Show category totals toggle
+  const showCategoryTotalsCheckbox = document.getElementById('showCategoryTotals');
+  if (showCategoryTotalsCheckbox) {
+    showCategoryTotalsCheckbox.checked = settings.showCategoryTotals !== undefined ?
+      settings.showCategoryTotals : true; // Default to true (show totals)
+  }
+
+  // Show currency symbol in grid toggle
+  const showCurrencySymbolGridCheckbox = document.getElementById('showCurrencySymbolGrid');
+  if (showCurrencySymbolGridCheckbox) {
+    showCurrencySymbolGridCheckbox.checked = settings.showCurrencySymbolGrid !== undefined ?
+      settings.showCurrencySymbolGrid : true; // Default to true (show symbols)
+  }
+
+  const netWorthDefaultChartSelect = document.getElementById('netWorthDefaultChart');
+  if (netWorthDefaultChartSelect) {
+    const allowedModes = ['performance', 'timeline', 'allocation'];
+    const mode = allowedModes.includes(settings.netWorthDefaultChart) ?
+      settings.netWorthDefaultChart : 'allocation';
+    netWorthDefaultChartSelect.value = mode;
+  }
+
+  // Update exchange rate visibility
+  updateExchangeRateVisibility();
+}
+
+
+
+    /**
+     * Save settings to server-side storage
+     * @param {boolean} silent - Whether to show success message
+     */
+    function saveSettings(silent = false) {
+      // Get values from form with null checks
+      const currencyEl = document.getElementById('currencySelector');
+      const dateFormatEl = document.getElementById('dateFormat');
+      const darkModeEl = document.getElementById('darkMode');
+      const showRemainingEl = document.getElementById('showRemaining');
+      const enableAlertsEl = document.getElementById('enableAlerts');
+      const languageEl = document.getElementById('languageSelector');
+      const showDecimalsEl = document.getElementById('showDecimals');
+      const displayCurrencyEl = document.getElementById('displayCurrencySelector');
+      const exchangeRateEl = document.getElementById('exchangeRateInput');
+      const showCategoryTotalsEl = document.getElementById('showCategoryTotals');
+      const showCurrencySymbolGridEl = document.getElementById('showCurrencySymbolGrid');
+      const netWorthDefaultChartEl = document.getElementById('netWorthDefaultChart');
+
+      const settings = {
+        currencySymbol: currencyEl ? currencyEl.value : '$',
+        dateFormat: dateFormatEl ? dateFormatEl.value : 'MM/DD/YYYY',
+        darkMode: darkModeEl ? darkModeEl.checked : false,
+        showRemaining: showRemainingEl ? showRemainingEl.checked : false,
+        enableAlerts: enableAlertsEl ? enableAlertsEl.checked : false,
+        language: languageEl ? languageEl.value : 'en',
+        showDecimals: showDecimalsEl ? showDecimalsEl.checked : false,
+        displayCurrency: displayCurrencyEl ? displayCurrencyEl.value : (currencyEl ? currencyEl.value : '$'),
+        exchangeRate: exchangeRateEl ? parseFloat(exchangeRateEl.value) || 1 : 1,
+        showCategoryTotals: showCategoryTotalsEl ? showCategoryTotalsEl.checked : true,
+        showCurrencySymbolGrid: showCurrencySymbolGridEl ? showCurrencySymbolGridEl.checked : true,
+        netWorthDefaultChart: netWorthDefaultChartEl ? netWorthDefaultChartEl.value || 'allocation' : 'allocation'
+      };
+      
+      // Save sheet URL (this is still separate since it requires verification)
+      const sheetUrlEl = document.getElementById('budgetSheetUrl');
+      const sheetUrl = sheetUrlEl ? sheetUrlEl.value : '';
+      
+      // FIX: Use SimBudget.Settings.saveAll instead of calling API directly
+      if (window.SimBudget && SimBudget.Settings) {
+        SimBudget.Settings.saveAll(settings);
+        
+        // Handle sheet URL separately
+        if (sheetUrl) {
+          API.setBudgetSheetUrl(sheetUrl, 
+            function() {
+              // Update cached sheet URL for instant Reports access
+              window._cachedSheetUrl = sheetUrl;
+              if (!silent) showStatus('All settings saved successfully', false);
+            },
+            function(error) {
+              showStatus('Settings saved but sheet URL could not be saved: ' + error, true);
+            }
+          );
+        } else if (!silent) {
+          showStatus('Settings saved successfully', false);
+        }
+        
+        // Update currency in spreadsheet
+        if (settings.currencySymbol) {
+          API.setCurrencyInSpreadsheet(settings.currencySymbol, null, null);
+        }
+      } else {
+        // Fallback to old method if SimBudget not available
+        API.setUserSettings(settings, 
+          function(result) {
+            CacheManager.setSettings(settings);
+            if (!silent) showStatus('Settings saved successfully', false);
+          },
+          function(error) {
+            showStatus('Error saving settings: ' + error, true);
+          }
+        );
+      }
+    }
+  
+  /**
+   * Reset settings to defaults
+   */
+  function resetSettings() {
+    // Use the SimBudget.Settings object if available
+    if (window.SimBudget && SimBudget.Settings) {
+      const defaults = SimBudget.Settings.defaults;
+      
+      // Reset to defaults
+      if (SimBudget.Settings.saveAll(defaults)) {
+        // Update form values
+        document.getElementById('currencySelector').value = defaults.currencySymbol || '$';
+        document.getElementById('dateFormat').value = defaults.dateFormat || 'MM/DD/YYYY';
+        document.getElementById('darkMode').checked = defaults.darkMode || false;
+        document.getElementById('showRemaining').checked = defaults.showRemaining !== undefined ? 
+          defaults.showRemaining : true;
+        document.getElementById('enableAlerts').checked = defaults.enableAlerts !== undefined ? 
+          defaults.enableAlerts : true;
+        document.getElementById('languageSelector').value = defaults.language || 'en';
+        document.getElementById('showDecimals').checked = defaults.showDecimals !== undefined ? 
+          defaults.showDecimals : true;
+        const netWorthChartSelect = document.getElementById('netWorthDefaultChart');
+        if (netWorthChartSelect) {
+          netWorthChartSelect.value = defaults.netWorthDefaultChart || 'allocation';
+        }
+        
+        // Update dark mode
+        document.body.classList.toggle('dark-mode', defaults.darkMode || false);
+        
+        showStatus('Settings reset to defaults', false);
+      } else {
+        showStatus('Error resetting settings', true);
+      }
+    }
+  }
+  
+  /**
+   * Google Picker functionality with correct origin
+   */
+  let pickerInited = false;
+  
+  function openGooglePicker() {
+    updateSheetStatus('Initializing picker...', false);
+    
+    // Check if gapi is available
+    if (typeof gapi === 'undefined') {
+      updateSheetStatus('Google APIs not loaded', true);
+      return;
+    }
+    
+    if (!pickerInited) {
+      gapi.load('picker', {
+        callback: function() {
+          pickerInited = true;
+          showPicker();
+        },
+        onerror: function() {
+          updateSheetStatus('Failed to load picker', true);
+        }
+      });
+    } else {
+      showPicker();
+    }
+  }
+  
+  function showPicker() {
+   updateSheetStatus('Loading Google Sheets picker...', false);
+   
+   API.getPickerConfig(
+  function(config) {
+    if (!config.success) {
+      updateSheetStatus('Failed to get picker config: ' + config.error, true);
+      return;
+    }
+    
+    updateSheetStatus('Opening picker...', false);
+    
+    const picker = new google.picker.PickerBuilder()
+          .addView(new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS))
+          .setOAuthToken(config.token)
+          .setCallback(pickerCallback)
+          .setTitle('Select your budget spreadsheet')
+          .setOrigin('https://script.google.com')
+          .build();
+        
+        picker.setVisible(true);
+      },
+      function(error) {
+        updateSheetStatus('Failed to show picker: ' + error, true);
+      }
+    );
+  }
+  
+  function pickerCallback(data) {
+    if (data.action == google.picker.Action.PICKED) {
+      const file = data.docs[0];
+      const fileId = file.id;
+      const fileName = file.name;
+      
+      updateSheetStatus('Saving sheet selection...', false);
+      
+      API.saveSheetFromPicker(fileId, fileName,
+        function(result) {
+          if (result.success) {
+            // Update cached sheet URL for instant Reports access
+            const sheetUrl = 'https://docs.google.com/spreadsheets/d/' + fileId + '/edit';
+            window._cachedSheetUrl = sheetUrl;
+            
+            // Update status with clickable link
+            const statusEl = document.getElementById('sheetStatus');
+            if (statusEl) {
+              statusEl.innerHTML = `<span style="color: #006600">Sheet connected: <a href="${sheetUrl}" target="_blank" style="color: #006600; text-decoration: underline;">${fileName}</a></span>`;
+            }
+            
+            if (window.CacheManager && CacheManager.invalidateAll) {
+              CacheManager.invalidateAll();
+            }
+          } else {
+            updateSheetStatus('Failed to save sheet: ' + result.error, true);
+          }
+        },
+        function(error) {
+          updateSheetStatus('Error saving sheet: ' + error, true);
+        }
+      );
+    } else if (data.action == google.picker.Action.CANCEL) {
+      updateSheetStatus('No sheet selected', false);
+    }
+  }
+  
+  /**
+   * Load current sheet status on page load
+   */
+  function loadCurrentSheetStatus() {
+    API.getUserCredentials(
+      function(result) {
+        if (result.success && result.sheetUrl) {
+          // Get sheet name from URL (extract ID and format it)
+          const sheetId = result.sheetUrl.match(/\/d\/([a-zA-Z0-9-_]+)\//)?.[1];
+          const sheetName = result.sheetName || 'Budget Spreadsheet';
+          
+          // Show connected status with clickable link
+          const statusEl = document.getElementById('sheetStatus');
+          if (statusEl) {
+            statusEl.innerHTML = `<span style="color: #006600">Sheet connected: <a href="${result.sheetUrl}" target="_blank" style="color: #006600; text-decoration: underline;">${sheetName}</a></span>`;
+          }
+        } else {
+          updateSheetStatus('No sheet selected', false);
+        }
+      },
+      function(error) {
+        updateSheetStatus('No sheet selected', false);
+      }
+    );
+  }
+  
+  function updateSheetStatus(message, isError) {
+    const statusEl = document.getElementById('sheetStatus');
+    if (statusEl) {
+      statusEl.innerHTML = `<span style="color: ${isError ? '#cc0000' : '#006600'}">${message}</span>`;
+    }
+  }
+
+  /**
+   * Load and display trial status
+   */
+  function loadTrialStatus() {
+    // First, get user email and show it immediately
+    API.getUserCredentials(
+      function(result) {
+        const userEmailEl = document.getElementById("userEmail");
+        if (userEmailEl && result.email) {
+          userEmailEl.textContent = result.email;
+        }
+        
+        // Now check trial status in background
+        if (result.email) {
+          API.checkTrialStatus(result.email, 
+            function(trialResult) {
+              showTrialStatus(trialResult);
+            },
+            function(error) {
+              console.error('TRIAL DEBUG: Error checking trial status:', error);
+              // If trial check fails, default to 30 days
+              showTrialStatus({ status: 'trial', daysLeft: 30 });
+            }
+          );
+        } else {
+          showTrialStatus({ status: 'trial', daysLeft: 30 });
+        }
+      },
+      function(error) {
+        console.error('Error getting user credentials:', error);
+        showTrialStatus({ status: 'error' });
+      }
+    );
+  }
+
+  /**
+   * Display trial status in UI
+   */
+  function showTrialStatus(result) {
+    const statusEl = document.getElementById('trialStatus');
+    if (!statusEl) return;
+
+    // Clear existing classes
+    statusEl.className = 'trial-status-inline';
+    
+    if (result.status === 'paid') {
+      statusEl.classList.add('paid');
+      statusEl.innerHTML = 'Licensed';
+    } else if (result.status === 'trial') {
+      statusEl.classList.add('trial');
+      statusEl.innerHTML = `Trial: ${result.daysLeft} days left - <a href='https://ko-fi.com/s/4b62acb528' target='_blank' style='color:#007cba;'>Purchase License</a>`;
+    } else if (result.status === 'expired') {
+      statusEl.classList.add('expired');
+      statusEl.innerHTML = 'Expired - <a href=\'https://ko-fi.com/s/4b62acb528\' target=\'_blank\' style=\'color:#721c24;\'>Purchase License</a>';
+    } else if (result.status === 'new') {
+      statusEl.classList.add('trial');
+      statusEl.innerHTML = 'Trial: 30 days left - <a href=\'https://ko-fi.com/s/4b62acb528\' target=\'_blank\' style=\'color:#007cba;\'>Purchase License</a>';
+    } else {
+      statusEl.innerHTML = 'Unknown';
+    }
+  }
+
+  /**
+   * Test connection to sheet (legacy - kept for compatibility)
+   */
+  function testConnection() {
+    updateSheetStatus('Testing connection...', false);
+    
+    API.testServerConnection(null,
+      function(result) {
+        updateSheetStatus('Connection successful!', false);
+      },
+      function(error) {
+        updateSheetStatus('Connection failed: ' + error, true);
+      }
+    );
+  }
+
+  
+  /**
+   * Show a status message
+   * @param {string} message - Message to display
+   * @param {boolean} isError - Whether this is an error message
+   */
+  function showStatus(message, isError) {
+    const statusEl = document.getElementById('settingsStatus');
+    if (!statusEl) return;
+    
+    // Clear existing classes and content
+    statusEl.className = 'status-message';
+    statusEl.textContent = message;
+    
+    // Add appropriate class
+    statusEl.classList.add(isError ? 'error' : 'success');
+    
+    // Show the message
+    statusEl.classList.remove('hidden');
+    
+    // Auto-hide success messages after 5 seconds
+    if (!isError) {
+      setTimeout(function() {
+        statusEl.classList.add('hidden');
+      }, 5000);
+    }
+  }
+  
+  // Public API
+  return {
+    init: init,
+    saveSettings: saveSettings,
+    resetSettings: resetSettings,
+    testConnection: testConnection,
+    showStatus: showStatus,
+
+
+
+
+
+            /**
+         * Fix missing transaction IDs - user-triggered
+         */
+        fixTransactionIds: function() {
+          const button = document.getElementById('fixTransactionIds');
+          if (!button) return;
+          
+          // Show loading state
+          const originalText = button.textContent;
+          button.textContent = SimBudget.translations?.fixing || 'Fixing...';
+          button.disabled = true;
+          
+          this.showStatus(SimBudget.translations?.scanning_transaction_ids || 'Scanning sheets for missing and numeric transaction IDs...', false);
+          
+          API.fixMissingTransactionIds(
+            function(result) {
+              // Success
+              button.textContent = originalText;
+              button.disabled = false;
+              
+              if (result.totalFixed > 0) {
+                let message = SimBudget.translations?.fixed_transaction_ids || 'Fixed {count} rows with missing/numeric transaction IDs';
+                message = message.replace('{count}', result.totalFixed);
+                
+                // Add which sheets were modified to the status message
+                if (result.sheetsModified && result.sheetsModified.length > 0) {
+                  const sheetsText = result.sheetsModified.join(', ');
+                  message += ` in: ${sheetsText}`;
+                }
+                
+                SettingsPage.showStatus(`✅ ${message}`, false);
+                
+              } else {
+                SettingsPage.showStatus(`✅ ${SimBudget.translations?.no_missing_ids_found || 'No missing or numeric transaction IDs found - your data is clean!'}`, false);
+              }
+              
+
+            },
+            function(error) {
+              // Error
+              button.textContent = originalText;
+              button.disabled = false;
+              const errorMsg = SimBudget.translations?.error_fixing_ids || 'Error fixing transaction IDs';
+              SettingsPage.showStatus(`❌ ${errorMsg}: ${error}`, true);
+            }
+          );
+        },
+
+/**
+ * Check data health - gives user info about their data
+ */
+checkDataHealth: function() {
+  const button = document.getElementById('checkDataHealth');
+  if (!button) return;
+  
+  // Show loading state
+  const originalText = button.textContent;
+  button.textContent = SimBudget.translations?.checking || 'Checking...';
+  button.disabled = false; // ← FIXED: Should be true during loading
+  
+  this.showStatus(SimBudget.translations?.analyzing_data || 'Analyzing your data...', false);
+  
+  API.checkDataHealth(
+    function(result) {
+      // Success
+      button.textContent = originalText;
+      button.disabled = false;
+    
+      
+      // NEW: Show comprehensive summary including numeric IDs
+      const template = 'Data Health: {totalRows} total rows, {missingIds} missing IDs, {numericIds} numeric IDs, {duplicateIds} duplicates';
+    const summary = `📊 ${template
+      .replace('{totalRows}', result.totalRows)
+      .replace('{missingIds}', result.missingIds || 0)
+      .replace('{numericIds}', result.numericIds || 0)
+      .replace('{duplicateIds}', result.duplicateIds || 0)}`;
+      
+      // Show as error if there are any issues (missing, numeric, or duplicate IDs)
+      const hasIssues = (result.missingIds > 0) || (result.numericIds > 0) || (result.duplicateIds > 0);
+      SettingsPage.showStatus(summary, hasIssues);
+      
+
+    },
+    function(error) {
+      // Error
+      button.textContent = originalText;
+      button.disabled = false;
+      const errorMsg = SimBudget.translations?.error_checking_health || 'Error checking data health';
+      SettingsPage.showStatus(`❌ ${errorMsg}: ${error}`, true);
+    }
+  );
+},
+
+
+
+    
+  };
+})();
+
+// Initialize when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize settings page
+  SettingsPage.init();
+});
+
+
+/**
+ * Update currency in spreadsheet (cell M76 in Dontedit sheet)
+ * @param {string} currencySymbol - Currency symbol to set
+ */
+function updateCurrencyInSpreadsheet(currencySymbol) {
+  API.setCurrencyInSpreadsheet(currencySymbol,
+    function(result) {
+      // Use the status message box instead of toast
+      SettingsPage.showStatus('Currency updated in app and spreadsheet', false);
+    },
+    function(error) {
+      console.error('Failed to update currency in spreadsheet:', error);
+      // Show error in the status box
+      SettingsPage.showStatus('Error updating currency: ' + error, true);
+    }
+  );
+}
+
+/**
+ * Create new budget sheet from template automatically
+ */
+function createNewBudgetSheet() {
+  // Create modal overlay
+  const modalOverlay = document.createElement('div');
+  modalOverlay.id = 'copyingModal';
+  modalOverlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+  `;
+  
+  const modalContent = document.createElement('div');
+  modalContent.style.cssText = `
+    background: white;
+    border-radius: 10px;
+    padding: 30px;
+    max-width: 500px;
+    text-align: center;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  `;
+  
+  modalContent.innerHTML = `
+    <div style="font-size: 48px; margin-bottom: 20px;">⏳</div>
+    <h2 style="color: #333; margin-bottom: 15px; font-size: 24px;">Creating Your Budget Spreadsheet</h2>
+    <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
+      We're creating the Budget Spreadsheet to your Google Drive.<br>
+      
+    </p>
+    <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #ffc107;">
+      
+    </div>
+    <div style="margin-top: 20px;">
+      <div style="display: inline-block; padding: 10px 20px; background: #007bff; color: white; border-radius: 5px; font-size: 14px;">
+        Processing...
+      </div>
+    </div>
+  `;
+  
+  modalOverlay.appendChild(modalContent);
+  document.body.appendChild(modalOverlay);
+  
+  // Disable the button to prevent multiple clicks
+  const newBtn = document.getElementById('newDatabase');
+  if (newBtn) {
+    newBtn.disabled = true;
+    newBtn.textContent = 'Creating... Please wait';
+  }
+  
+  // Failsafe: Remove modal after 45 seconds if still present
+  const failsafeTimeout = setTimeout(() => {
+    const modal = document.getElementById('copyingModal');
+    if (modal) {
+      if (modal.remove) {
+        modal.remove();
+      } else if (modal.parentNode) {
+        modal.parentNode.removeChild(modal);
+      }
+      SettingsPage.showStatus('⚠️ Operation completed but modal did not close automatically. Please refresh if needed.', false);
+    }
+  }, 45000);
+  
+  // Helper function to safely remove modal
+  function removeModal() {
+    clearTimeout(failsafeTimeout);
+    const modal = document.getElementById('copyingModal');
+    if (modal) {
+      if (modal.remove) {
+        modal.remove();
+      } else if (modal.parentNode) {
+        modal.parentNode.removeChild(modal);
+      }
+    }
+  }
+  
+  // Call the API to create a copy of the template
+  API.createBudgetSheetFromTemplate(
+    function(result) {
+      if (result.success) {
+        // Update cached sheet URL for instant Reports access
+        window._cachedSheetUrl = result.url;
+        
+        // Invalidate cache to refresh data
+        if (window.CacheManager && CacheManager.invalidateAll) {
+          CacheManager.invalidateAll();
+        }
+        
+        // Remove modal
+        removeModal();
+        
+        // Show success message with the new sheet name
+        SettingsPage.showStatus(`✅ Budget spreadsheet created successfully: ${result.name}`, false);
+        
+        // Update the sheet status with clickable link
+        const statusEl = document.getElementById('sheetStatus');
+        if (statusEl) {
+          statusEl.innerHTML = `<span style="color: #006600">Sheet connected: <a href="${result.url}" target="_blank" style="color: #006600; text-decoration: underline;">${result.name}</a></span>`;
+        }
+        
+        // Re-enable button and restore text
+        if (newBtn) {
+          newBtn.disabled = false;
+          newBtn.textContent = 'New Spreadsheet';
+        }
+        
+        // Switch to the expense view to show the new budget data
+        if (window.SimBudget && SimBudget.Views) {
+          SimBudget.Views.switchTo('expense');
+        }
+      } else {
+        // Remove modal
+        removeModal();
+        
+        SettingsPage.showStatus('❌ Failed to create budget sheet: ' + (result.error || 'Unknown error'), true);
+        if (newBtn) {
+          newBtn.disabled = false;
+          newBtn.textContent = 'New Spreadsheet';
+        }
+      }
+    },
+    function(error) {
+      // Remove modal
+      removeModal();
+      
+      SettingsPage.showStatus('❌ Error creating budget sheet: ' + error, true);
+      if (newBtn) {
+        newBtn.disabled = false;
+        newBtn.textContent = 'New Spreadsheet';
+      }
+    }
+  );
+}
+
+/**
+ * Disconnect budget sheet
+ */
+function disconnectBudgetSheet() {
+  if (!confirm('Are you sure you want to disconnect your budget sheet? This will remove the connection but won\'t delete your data.')) {
+    return;
+  }
+  
+  SettingsPage.showStatus('Disconnecting sheet...', false);
+  
+  API.disconnectBudgetSheet(
+    function(result) {
+      if (result.success) {
+        // Invalidate cache
+        if (window.CacheManager && CacheManager.invalidateAll) {
+          CacheManager.invalidateAll();
+        }
+        
+        SettingsPage.showStatus('Budget sheet disconnected successfully. You can now connect a different sheet.', false);
+        
+        // Reload the page to reset everything
+        setTimeout(() => {
+          location.reload();
+        }, 1500);
+      } else {
+        SettingsPage.showStatus('Error disconnecting sheet: ' + (result.error || 'Unknown error'), true);
+      }
+    },
+    function(error) {
+      SettingsPage.showStatus('Error disconnecting sheet: ' + error, true);
+    }
+  );
+}
+
+
+
+</script>

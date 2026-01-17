@@ -1,0 +1,1309 @@
+<script>
+/**
+ * API.html - API abstraction layer for SimBudget
+ * Creates a clean interface between UI and server code
+ * Rewritten for modular loading approach
+ */
+
+// SimBudget API namespace
+var API = (function() {
+  // Private variables
+  var _lastError = null;
+  
+  // Public methods
+  return {
+    /**
+     * Test connection to server and spreadsheet
+     * @param {string} sheetUrl - The Google Sheet URL to test
+     * @param {Function} successCallback - Called on success
+     * @param {Function} errorCallback - Called on error
+     */
+    testConnection: function(sheetUrl, successCallback, errorCallback) {
+      try {
+        google.script.run
+          .withSuccessHandler(function(result) {
+            if (result && result.success) {
+              successCallback(result);
+            } else {
+              _lastError = result && result.error ? result.error : "Unknown error";
+              errorCallback(_lastError);
+            }
+          })
+          .withFailureHandler(function(error) {
+            _lastError = error;
+            errorCallback(error);
+          })
+          .testServerConnection(sheetUrl);
+      } catch (e) {
+        _lastError = e.message || String(e);
+        errorCallback(_lastError);
+      }
+    },
+
+/**
+ * Get translations for UI strings
+ * @param {string} languageCode - Target language code
+ * @param {Function} successCallback - Called on success
+ * @param {Function} errorCallback - Called on error
+ * @param {boolean} [bustCache=false] - Whether to bypass cache
+ */
+getTranslations: function(languageCode, successCallback, errorCallback, bustCache) {
+  try {
+    google.script.run
+      .withSuccessHandler(function(translations) {
+        successCallback({ success: true, translations: translations });
+      })
+      .withFailureHandler(function(error) {
+        _lastError = error;
+        errorCallback(error);
+      })
+      .getTranslatedUI(languageCode, bustCache || false);
+  } catch (e) {
+    _lastError = e.message || String(e);
+    errorCallback(_lastError);
+  }
+},
+
+
+/**
+ * Enhanced getUserSettings - now returns timestamp
+ * @param {Function} successCallback - Called with {success, settings, timestamp}
+ * @param {Function} errorCallback - Called on error
+ * @param {boolean} forceRefresh - Whether to bypass cache
+ */
+getUserSettings: function(successCallback, errorCallback, forceRefresh = false) {
+  try {
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result && result.success) {
+          successCallback(result);
+        } else {
+          _lastError = result && result.error ? result.error : "Unknown error getting settings";
+          errorCallback(_lastError);
+        }
+      })
+      .withFailureHandler(function(error) {
+        _lastError = error;
+        errorCallback(error);
+      })
+      .getUserSettings(!forceRefresh); // Pass useCache parameter
+  } catch (e) {
+    _lastError = e.message || String(e);
+    errorCallback(_lastError);
+  }
+},
+
+/**
+ * Enhanced setUserSettings - now updates cache with timestamp
+ * @param {Object} settings - Settings object to save
+ * @param {Function} successCallback - Called on success
+ * @param {Function} errorCallback - Called on error
+ */
+setUserSettings: function(settings, successCallback, errorCallback) {
+  try {
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result && result.success) {
+          // ENHANCED: Update cache with timestamp when save succeeds
+          if (result.timestamp && window.CacheManager) {
+            CacheManager.setSettingsWithTimestamp(settings, result.timestamp);
+          }
+          successCallback(result);
+        } else {
+          _lastError = result && result.error ? result.error : "Unknown error saving settings";
+          errorCallback(_lastError);
+        }
+      })
+      .withFailureHandler(function(error) {
+        _lastError = error;
+        errorCallback(error);
+      })
+      .setUserSettings(settings);
+  } catch (e) {
+    _lastError = e.message || String(e);
+    errorCallback(_lastError);
+  }
+},
+
+
+
+
+    
+    /**
+     * Set budget sheet URL
+     * @param {string} url - The sheet URL to set
+     * @param {Function} successCallback - Called on success
+     * @param {Function} errorCallback - Called on error
+     */
+    setBudgetSheetUrl: function(url, successCallback, errorCallback) {
+      try {
+        google.script.run
+          .withSuccessHandler(function(result) {
+            if (result && result.success) {
+              successCallback(result);
+            } else {
+              _lastError = result && result.error ? result.error : "Unknown error";
+              errorCallback(_lastError);
+            }
+          })
+          .withFailureHandler(function(error) {
+            _lastError = error;
+            errorCallback(error);
+          })
+          .setBudgetSheetUrl(url);
+      } catch (e) {
+        _lastError = e.message || String(e);
+        errorCallback(_lastError);
+      }
+    },
+    
+    /**
+     * Verify sheet URL and accessibility
+     * @param {string} url - The sheet URL to verify
+     * @param {Function} successCallback - Called on success
+     * @param {Function} errorCallback - Called on error
+     */
+    verifySheetUrl: function(url, successCallback, errorCallback) {
+      try {
+        google.script.run
+          .withSuccessHandler(function(result) {
+            if (result && result.success) {
+              successCallback(result);
+            } else {
+              _lastError = result && result.error ? result.error : "Unknown error";
+              errorCallback(_lastError);
+            }
+          })
+          .withFailureHandler(function(error) {
+            _lastError = error;
+            errorCallback(error);
+          })
+          .verifySheetUrl(url);
+      } catch (e) {
+        _lastError = e.message || String(e);
+        errorCallback(_lastError);
+      }
+    },
+    
+
+    
+    /**
+     * Get user credentials
+     * @param {Function} successCallback - Called on success
+     * @param {Function} errorCallback - Called on error
+     */
+    getUserCredentials: function(successCallback, errorCallback) {
+      try {
+        google.script.run
+          .withSuccessHandler(function(result) {
+            if (result && result.success) {
+              successCallback(result);
+            } else {
+              _lastError = result && result.error ? result.error : "Unknown error";
+              errorCallback(_lastError);
+            }
+          })
+          .withFailureHandler(function(error) {
+            _lastError = error;
+            errorCallback(error);
+          })
+          .getUserCredentials();
+      } catch (e) {
+        _lastError = e.message || String(e);
+        errorCallback(_lastError);
+      }
+    },
+    
+    /**
+     * Set user property
+     * @param {string} key - Property key
+     * @param {string} value - Property value
+     * @param {Function} successCallback - Called on success
+     * @param {Function} errorCallback - Called on error
+     */
+    setUserProperty: function(key, value, successCallback, errorCallback) {
+      try {
+        google.script.run
+          .withSuccessHandler(function(result) {
+            if (result && result.success) {
+              successCallback(result);
+            } else {
+              _lastError = result && result.error ? result.error : "Unknown error";
+              errorCallback(_lastError);
+            }
+          })
+          .withFailureHandler(function(error) {
+            _lastError = error;
+            errorCallback(error);
+          })
+          .setUserProperty(key, value);
+      } catch (e) {
+        _lastError = e.message || String(e);
+        errorCallback(_lastError);
+      }
+    },
+    
+
+    /**
+     * Save expense
+     * @param {Object} expense - The expense data to save
+     * @param {Function} successCallback - Called on success
+     * @param {Function} errorCallback - Called on error
+     */
+    saveExpense: function(expense, successCallback, errorCallback) {
+      try {
+        google.script.run
+          .withSuccessHandler(function(result) {
+            if (result && result.success) {
+              successCallback(result);
+            } else {
+              _lastError = result && result.error ? result.error : "Unknown error";
+              errorCallback(_lastError);
+            }
+          })
+          .withFailureHandler(function(error) {
+            _lastError = error;
+            errorCallback(error);
+          })
+          .saveExpense(expense);
+      } catch (e) {
+        _lastError = e.message || String(e);
+        errorCallback(_lastError);
+      }
+    },
+    
+  /**
+   * Set currency symbol in spreadsheet
+   * @param {string} currencySymbol - Currency symbol to set
+   * @param {Function} successCallback - Function to call on success
+   * @param {Function} errorCallback - Function to call on error
+   */
+  setCurrencyInSpreadsheet: function(currencySymbol, successCallback, errorCallback) {
+    google.script.run
+      .withSuccessHandler(successCallback)
+      .withFailureHandler(errorCallback)
+      .setCurrencyInSheet(currencySymbol);
+  },
+  
+  /**
+   * Get OAuth token and config for Google Picker
+   * @param {Function} successCallback - Called on success
+   * @param {Function} errorCallback - Called on error
+   */
+  getPickerConfig: function(successCallback, errorCallback) {
+    try {
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result && result.success) {
+            successCallback(result);
+          } else {
+            var error = result && result.error ? result.error : "Unknown error";
+            errorCallback(error);
+          }
+        })
+        .withFailureHandler(function(error) {
+          errorCallback(error);
+        })
+        .getPickerConfig();
+    } catch (e) {
+      errorCallback(e.message || String(e));
+    }
+  },
+  
+  /**
+   * Save sheet from Google Picker selection
+   * @param {string} fileId - Google Drive file ID
+   * @param {string} fileName - Name of the selected file
+   * @param {Function} successCallback - Called on success
+   * @param {Function} errorCallback - Called on error
+   */
+  saveSheetFromPicker: function(fileId, fileName, successCallback, errorCallback) {
+    try {
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result && result.success) {
+            successCallback(result);
+          } else {
+            var error = result && result.error ? result.error : "Unknown error";
+            errorCallback(error);
+          }
+        })
+        .withFailureHandler(function(error) {
+          errorCallback(error);
+        })
+        .saveSheetFromPicker(fileId, fileName);
+    } catch (e) {
+      errorCallback(e.message || String(e));
+    }
+  },
+  
+  /**
+   * Create a new budget sheet from template
+   * @param {Function} successCallback - Called on success with sheet info
+   * @param {Function} errorCallback - Called on error
+   */
+  createBudgetSheetFromTemplate: function(successCallback, errorCallback) {
+    try {
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result && result.success) {
+            successCallback(result);
+          } else {
+            var error = result && result.error ? result.error : "Unknown error";
+            errorCallback(error);
+          }
+        })
+        .withFailureHandler(function(error) {
+          errorCallback(error);
+        })
+        .createBudgetSheetFromTemplate();
+    } catch (e) {
+      errorCallback(e.message || String(e));
+    }
+  },
+  
+  /**
+   * Disconnect budget sheet
+   * @param {Function} successCallback - Called on success
+   * @param {Function} errorCallback - Called on error
+   */
+  disconnectBudgetSheet: function(successCallback, errorCallback) {
+    try {
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result && result.success) {
+            successCallback(result);
+          } else {
+            var error = result && result.error ? result.error : "Unknown error";
+            errorCallback(error);
+          }
+        })
+        .withFailureHandler(function(error) {
+          errorCallback(error);
+        })
+        .disconnectBudgetSheet();
+    } catch (e) {
+      errorCallback(e.message || String(e));
+    }
+  },
+
+
+
+
+// API FUNCTIONS: Add these to API.html
+
+/**
+ * Update a category's active status in the spreadsheet and user properties
+ * @param {string} categoryName - The name of the category
+ * @param {boolean} active - The new active status
+ * @param {Function} successCallback - Called on success
+ * @param {Function} errorCallback - Called on error
+ */
+updateCategoryStatus: function(categoryName, active, successCallback, errorCallback) {
+  try {
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result && result.success) {
+          successCallback(result);
+        } else {
+          _lastError = result && result.error ? result.error : "Unknown error";
+          errorCallback(_lastError);
+        }
+      })
+      .withFailureHandler(function(error) {
+        _lastError = error;
+        errorCallback(error);
+      })
+      .updateCategoryStatus(categoryName, active);
+  } catch (e) {
+    _lastError = e.message || String(e);
+    errorCallback(_lastError);
+  }
+},
+
+
+/**
+ * Add this function to your existing API object in API.html
+ * Place it with your other category-related functions
+ */
+
+/**
+ * Update category display order
+ * @param {Array} displayOrderMap - Array of {name: string, displayOrder: number}
+ * @param {Function} successCallback - Called on success
+ * @param {Function} errorCallback - Called on error
+ */
+updateCategoryDisplayOrder: function(displayOrderMap, successCallback, errorCallback) {
+  try {
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        
+        if (result && result.success) {
+          successCallback(result);
+        } else {
+          _lastError = result && result.error ? result.error : "Unknown error";
+          console.error('API.updateCategoryDisplayOrder failed:', _lastError);
+          errorCallback(_lastError);
+        }
+      })
+      .withFailureHandler(function(error) {
+        _lastError = error;
+        console.error('API.updateCategoryDisplayOrder server error:', error);
+        errorCallback(error);
+      })
+      .updateCategoryDisplayOrder(displayOrderMap);
+  } catch (e) {
+    _lastError = e.message || String(e);
+    console.error('API.updateCategoryDisplayOrder exception:', _lastError);
+    errorCallback(_lastError);
+  }
+},
+
+
+getExpenseData: function(successCallback, errorCallback) {
+  
+  if (typeof google === 'undefined' || !google.script || !google.script.run) {
+    const error = 'Google Apps Script runtime not available';
+    errorCallback(error);
+    return;
+  }
+  
+  if (typeof successCallback !== 'function') {
+    const error = 'Success callback is not a function';
+    console.error("API.getExpenseData:", error);
+    errorCallback(error);
+    return;
+  }
+  
+  if (typeof errorCallback !== 'function') {
+    console.error("API.getExpenseData: Error callback is not a function");
+    return;
+  }
+  
+  
+  google.script.run
+    .withSuccessHandler(function(result) {
+      
+      if (result === null || result === undefined) {
+        const error = 'Server returned null/undefined. Check if getExpenseData() function exists in Code.gs';
+        console.error("API.getExpenseData:", error);
+        errorCallback(error);
+        return;
+      }
+      
+      if (typeof result !== 'object') {
+        const error = 'Server returned non-object: ' + typeof result + ' = ' + JSON.stringify(result);
+        console.error("API.getExpenseData:", error);
+        errorCallback(error);
+        return;
+      }
+      
+      if (!result.success) {
+        const error = 'Server returned failure: ' + (result.error || 'No error message');
+        console.error("API.getExpenseData:", error);
+        errorCallback(error);
+        return;
+      }
+      
+      successCallback(result);
+    })
+    .withFailureHandler(function(error) {
+      const errorMsg = 'Server function call failed: ' + (error.message || error.toString());
+      console.error("API.getExpenseData:", errorMsg);
+      console.error("API.getExpenseData: Full error object:", error);
+      errorCallback(errorMsg);
+    })
+        .getExpenseData();
+        
+
+  
+},
+
+
+
+      /**
+       * Save a batch of expenses at once
+       * @param {Array} expenses - Array of expense objects
+       * @param {Function} successCallback - Called on success
+       * @param {Function} errorCallback - Called on error
+       */
+      saveBatchExpenses: function(expenses, successCallback, errorCallback) {
+        try {
+          if (!Array.isArray(expenses) || expenses.length === 0) {
+            _lastError = "Invalid expenses array";
+            errorCallback(_lastError);
+            return;
+          }
+              
+          google.script.run
+            .withSuccessHandler(function(result) {
+              if (result && result.success) {
+                successCallback(result);
+              } else {
+                _lastError = result && result.error ? result.error : "Unknown error in batch save";
+                console.error("API: Batch save error:", _lastError);
+                errorCallback(_lastError);
+              }
+            })
+            .withFailureHandler(function(error) {
+              _lastError = error;
+              console.error("API: Server error in batch save:", error);
+              errorCallback(error);
+            })
+            .saveBatchExpenses(expenses);
+        } catch (e) {
+          _lastError = e.message || String(e);
+          console.error("API: Exception in saveBatchExpenses:", _lastError);
+          errorCallback(_lastError);
+        }
+      },
+
+
+
+
+/**
+ * Clear a transaction row by ID (sets all fields to blank)
+ * @param {string} transactionId - The unique ID of the transaction to clear
+ * @param {Function} successCallback - Called on success
+ * @param {Function} errorCallback - Called on error
+ */
+clearTransactionRow: function(transactionId, successCallback, errorCallback) {
+  try {
+    if (!transactionId) {
+      _lastError = "Transaction ID is required";
+      errorCallback(_lastError);
+      return;
+    }
+    
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result && result.success) {
+          successCallback(result);
+        } else {
+          _lastError = result && result.error ? result.error : "Unknown error clearing transaction";
+          console.error("API: Clear transaction error:", _lastError);
+          errorCallback(_lastError);
+        }
+      })
+      .withFailureHandler(function(error) {
+        _lastError = error;
+        console.error("API: Server error clearing transaction:", error);
+        errorCallback(error);
+      })
+      .clearTransactionRow(transactionId);
+  } catch (e) {
+    _lastError = e.message || String(e);
+    console.error("API: Exception in clearTransactionRow:", _lastError);
+    errorCallback(_lastError);
+  }
+},
+
+
+
+  
+  
+getRecurringData: function(successCallback, errorCallback) {
+  try {
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result && result.success) {
+          
+          // UPDATE server timestamp AFTER successful fetch
+          if (result.timestamp) {
+            localStorage.setItem('simbudget_recurring_server_timestamp', result.timestamp);
+          } else {
+            // Only clear if server explicitly has no timestamp
+            localStorage.removeItem('simbudget_recurring_server_timestamp');
+          }
+          
+          successCallback(result);
+        } else {
+          const err = result && result.error || 'Unknown error';
+          console.error('API.getRecurringData error:', err);
+          errorCallback(err);
+        }
+      })
+      .withFailureHandler(function(error) {
+        console.error('API.getRecurringData failure:', error);
+        errorCallback(error);
+      })
+      .getRecurringData();
+  } catch (e) {
+    console.error('API.getRecurringData exception:', e);
+    errorCallback(e.toString());
+  }
+},
+
+  /**
+ * Save batch recurring transactions
+ * @param {Array} recurring - Array of recurring transaction objects
+ * @param {Function} successCallback - Called on success
+ * @param {Function} errorCallback - Called on error
+ */
+saveBatchRecurring: function(recurring, successCallback, errorCallback) {
+  try {
+    
+    if (!Array.isArray(recurring) || recurring.length === 0) {
+      const error = "Invalid recurring array";
+      console.error('API.saveBatchRecurring:', error);
+      errorCallback(error);
+      return;
+    }
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result && result.success) {
+          successCallback(result);
+        } else {
+          const err = result && result.error || 'Unknown error';
+          console.error('API.saveBatchRecurring error:', err);
+          errorCallback(err);
+        }
+      })
+      .withFailureHandler(function(error) {
+        console.error('API.saveBatchRecurring failure:', error);
+        errorCallback(error);
+      })
+      .saveRecurringTransaction(recurring);
+  } catch (e) {
+    console.error('API.saveBatchRecurring exception:', e);
+    errorCallback(e.toString());
+  }
+},
+
+    
+/**
+ * Clear recurring transaction row
+ * @param {string} transactionId - Transaction ID to clear
+ * @param {Function} successCallback - Called on success
+ * @param {Function} errorCallback - Called on error
+ */
+clearRecurringRow: function(transactionId, successCallback, errorCallback) {
+  try {
+    
+    if (!transactionId) {
+      const error = "Transaction ID is required";
+      console.error('API.clearRecurringRow:', error);
+      errorCallback(error);
+      return;
+    }
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result && result.success) {
+          successCallback(result);
+        } else {
+          const err = result && result.error || 'Unknown error';
+          console.error('API.clearRecurringRow error:', err);
+          errorCallback(err);
+        }
+      })
+      .withFailureHandler(function(error) {
+        console.error('API.clearRecurringRow failure:', error);
+        errorCallback(error);
+      })
+      .clearRecurringTransaction(transactionId);
+  } catch (e) {
+    console.error('API.clearRecurringRow exception:', e);
+    errorCallback(e.toString());
+  }
+},
+
+
+/**
+ * Enhanced getBudgetData - now returns timestamp
+ * @param {Function} successCallback - Called with {success, budgetData, timestamp}
+ * @param {Function} errorCallback - Called on error
+ * @param {boolean} forceRefresh - Whether to bypass cache
+ */
+getBudgetData: function(successCallback, errorCallback, forceRefresh = false) {
+  try {
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result && result.success) {
+          successCallback(result);
+        } else {
+          _lastError = result && result.error ? result.error : "Unknown error getting budget data";
+          errorCallback(_lastError);
+        }
+      })
+      .withFailureHandler(function(error) {
+        _lastError = error;
+        errorCallback(error);
+      })
+      .getBudgetData(!forceRefresh); // Pass useCache parameter
+  } catch (e) {
+    _lastError = e.message || String(e);
+    errorCallback(_lastError);
+  }
+},
+
+
+
+
+/**
+ * Enhanced saveBudgetData - now updates cache with timestamp
+ * @param {Object} budgetData - Budget data to save
+ * @param {Function} successCallback - Called on success
+ * @param {Function} errorCallback - Called on error
+ */
+saveBudgetData: function(budgetData, successCallback, errorCallback) {
+  try {
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result && result.success) {
+          // ENHANCED: Update cache with timestamp when save succeeds
+          if (result.timestamp && window.CacheManager) {
+            CacheManager.setBudgetDataWithTimestamp(budgetData, result.timestamp);
+          }
+          successCallback(result);
+        } else {
+          _lastError = result && result.error ? result.error : "Unknown error saving budget";
+          errorCallback(_lastError);
+        }
+      })
+      .withFailureHandler(function(error) {
+        _lastError = error;
+        errorCallback(error);
+      })
+      .saveBudgetData(budgetData);
+  } catch (e) {
+    _lastError = e.message || String(e);
+    errorCallback(_lastError);
+  }
+},
+
+/**
+ * Get categories with timestamp from server
+ * @param {Function} successCallback - Called with {success, categories, activeCategories, timestamp}
+ * @param {Function} errorCallback - Called on error
+ */
+getCategoriesWithTimestamp: function(successCallback, errorCallback) {
+  try {
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result && result.success) {
+          successCallback(result);
+        } else {
+          _lastError = result && result.error ? result.error : "Unknown error getting categories with timestamp";
+          errorCallback(_lastError);
+        }
+      })
+      .withFailureHandler(function(error) {
+        _lastError = error;
+        errorCallback(error);
+      })
+      .getCategoriesWithTimestamp();
+  } catch (e) {
+    _lastError = e.message || String(e);
+    errorCallback(_lastError);
+  }
+},
+
+/**
+ * Update categories timestamp on server
+ * @param {Function} successCallback - Called on success
+ * @param {Function} errorCallback - Called on error
+ */
+updateCategoriesTimestamp: function(successCallback, errorCallback) {
+  try {
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result && result.success) {
+          successCallback(result);
+        } else {
+          _lastError = result && result.error ? result.error : "Unknown error updating categories timestamp";
+          errorCallback(_lastError);
+        }
+      })
+      .withFailureHandler(function(error) {
+        _lastError = error;
+        errorCallback(error);
+      })
+      .updateCategoriesTimestamp();
+  } catch (e) {
+    _lastError = e.message || String(e);
+    errorCallback(_lastError);
+  }
+},
+
+
+
+
+
+
+// ======== INCOME API FUNCTIONS ========
+
+/**
+ * Get income data from server
+ * @param {Function} successCallback - Called with { success, income, meta }
+ * @param {Function} errorCallback - Called on error
+ */
+getIncomeData: function(successCallback, errorCallback) {
+  try {
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result && result.success) {
+          successCallback(result);
+        } else {
+          const err = result && result.error || 'Unknown error';
+          console.error('API.getIncomeData error:', err);
+          errorCallback(err);
+        }
+      })
+      .withFailureHandler(function(error) {
+        console.error('API.getIncomeData failure:', error);
+        errorCallback(error);
+      })
+      .getIncomeData();
+  } catch (e) {
+    console.error('API.getIncomeData exception:', e);
+    errorCallback(e.toString());
+  }
+},
+
+/**
+ * Save batch income transactions
+ * @param {Array} income - Array of income transaction objects
+ * @param {Function} successCallback - Called on success
+ * @param {Function} errorCallback - Called on error
+ */
+saveBatchIncome: function(income, successCallback, errorCallback) {
+  try {
+    
+    if (!Array.isArray(income) || income.length === 0) {
+      const error = "Invalid income array";
+      console.error('API.saveBatchIncome:', error);
+      errorCallback(error);
+      return;
+    }
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result && result.success) {
+          successCallback(result);
+        } else {
+          const err = result && result.error || 'Unknown error';
+          console.error('API.saveBatchIncome error:', err);
+          errorCallback(err);
+        }
+      })
+      .withFailureHandler(function(error) {
+        console.error('API.saveBatchIncome failure:', error);
+        errorCallback(error);
+      })
+      .saveBatchIncome(income);
+  } catch (e) {
+    console.error('API.saveBatchIncome exception:', e);
+    errorCallback(e.toString());
+  }
+},
+
+/**
+ * Clear income transaction row
+ * @param {string} transactionId - Transaction ID to clear
+ * @param {Function} successCallback - Called on success
+ * @param {Function} errorCallback - Called on error
+ */
+clearIncomeRow: function(transactionId, successCallback, errorCallback) {
+  try {
+    
+    if (!transactionId) {
+      const error = "Transaction ID is required";
+      console.error('API.clearIncomeRow:', error);
+      errorCallback(error);
+      return;
+    }
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result && result.success) {
+          successCallback(result);
+        } else {
+          const err = result && result.error || 'Unknown error';
+          console.error('API.clearIncomeRow error:', err);
+          errorCallback(err);
+        }
+      })
+      .withFailureHandler(function(error) {
+        console.error('API.clearIncomeRow failure:', error);
+        errorCallback(error);
+      })
+      .clearIncomeRow(transactionId);
+  } catch (e) {
+    console.error('API.clearIncomeRow exception:', e);
+    errorCallback(e.toString());
+  }
+},
+
+
+/**
+ * Update a category name and/or emoji
+ * @param {string} oldFullName - Current full category name "Food 🍕"
+ * @param {string} newName - New category name "Groceries" 
+ * @param {string} newEmoji - New emoji "🛒"
+ * @param {Function} successCallback - Called on success
+ * @param {Function} errorCallback - Called on error
+ */
+updateCategoryName: function(oldFullName, newName, newEmoji, successCallback, errorCallback) {
+  try {
+    
+    if (!oldFullName || !newName || !newEmoji) {
+      const error = "Missing required parameters for category update";
+      console.error('API.updateCategoryName:', error);
+      if (errorCallback) errorCallback(error);
+      return;
+    }
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result && result.success) {
+          if (successCallback) successCallback(result);
+        } else {
+          const err = result && result.error || 'Unknown error updating category';
+          console.error('API.updateCategoryName error:', err);
+          if (errorCallback) errorCallback(err);
+        }
+      })
+      .withFailureHandler(function(error) {
+        console.error('API.updateCategoryName failure:', error);
+        if (errorCallback) errorCallback(error);
+      })
+      .updateCategoryName(oldFullName, newName, newEmoji);
+  } catch (e) {
+    console.error('API.updateCategoryName exception:', e);
+    if (errorCallback) errorCallback(e.toString());
+  }
+},
+
+
+// ======== NET WORTH API FUNCTIONS ========
+
+/**
+ * Get net worth data from server
+ * @param {Function} successCallback - Called with { success, entries, timestamp, meta }
+ * @param {Function} errorCallback - Called on error
+ */
+getNetWorthData: function(successCallback, errorCallback) {
+  try {
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result && result.success) {
+          successCallback(result);
+        } else {
+          const err = result && result.error || 'Unknown error';
+          console.error('API.getNetWorthData error:', err);
+          errorCallback(err);
+        }
+      })
+      .withFailureHandler(function(error) {
+        console.error('API.getNetWorthData failure:', error);
+        errorCallback(error);
+      })
+      .getNetWorthData();
+  } catch (e) {
+    console.error('API.getNetWorthData exception:', e);
+    errorCallback(e.toString());
+  }
+},
+
+/**
+ * Get net worth data with timestamp for caching
+ * @param {Function} successCallback - Called with { success, entries, timestamp }
+ * @param {Function} errorCallback - Called on error
+ */
+getNetWorthWithTimestamp: function(successCallback, errorCallback) {
+  try {
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result && result.success) {
+          successCallback(result);
+        } else {
+          const err = result && result.error || 'Unknown error getting net worth with timestamp';
+          console.error('API.getNetWorthWithTimestamp error:', err);
+          errorCallback(err);
+        }
+      })
+      .withFailureHandler(function(error) {
+        console.error('API.getNetWorthWithTimestamp failure:', error);
+        errorCallback(error);
+      })
+      .getNetWorthWithTimestamp();
+  } catch (e) {
+    console.error('API.getNetWorthWithTimestamp exception:', e);
+    errorCallback(e.toString());
+  }
+},
+
+/**
+ * Save batch net worth entries
+ * @param {Array} entries - Array of net worth entry objects
+ * @param {Function} successCallback - Called on success
+ * @param {Function} errorCallback - Called on error
+ */
+saveBatchNetWorth: function(entries, successCallback, errorCallback) {
+  try {
+    
+    if (!Array.isArray(entries) || entries.length === 0) {
+      const error = "Invalid net worth entries array";
+      console.error('API.saveBatchNetWorth:', error);
+      errorCallback(error);
+      return;
+    }
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result && result.success) {
+          successCallback(result);
+        } else {
+          const err = result && result.error || 'Unknown error';
+          console.error('API.saveBatchNetWorth error:', err);
+          errorCallback(err);
+        }
+      })
+      .withFailureHandler(function(error) {
+        console.error('API.saveBatchNetWorth failure:', error);
+        errorCallback(error);
+      })
+      .saveBatchNetWorth(entries);
+  } catch (e) {
+    console.error('API.saveBatchNetWorth exception:', e);
+    errorCallback(e.toString());
+  }
+},
+
+/**
+ * Clear net worth entry row
+ * @param {string} identifier - Entry ID or identifier to clear
+ * @param {Function} successCallback - Called on success
+ * @param {Function} errorCallback - Called on error
+ */
+clearNetWorthRow: function(identifier, successCallback, errorCallback) {
+  try {
+    
+    if (!identifier) {
+      const error = "Entry identifier is required";
+      console.error('API.clearNetWorthRow:', error);
+      errorCallback(error);
+      return;
+    }
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result && result.success) {
+          successCallback(result);
+        } else {
+          const err = result && result.error || 'Unknown error';
+          console.error('API.clearNetWorthRow error:', err);
+          errorCallback(err);
+        }
+      })
+      .withFailureHandler(function(error) {
+        console.error('API.clearNetWorthRow failure:', error);
+        errorCallback(error);
+      })
+      .clearNetWorthRow(identifier);
+  } catch (e) {
+    console.error('API.clearNetWorthRow exception:', e);
+    errorCallback(e.toString());
+  }
+},
+
+/**
+ * Update the NetWorth timestamp on the server
+ * @param {string} timestamp - ISO timestamp to set on server
+ */
+updateNetWorthTimestamp: function(timestamp, onSuccess, onFailure) {
+  google.script.run
+    .withSuccessHandler(onSuccess)
+    .withFailureHandler(onFailure)
+    .updateNetWorthTimestamp(timestamp);
+},
+
+
+
+/**
+ * Get monthly income and expense totals from Dontedit sheet for saving rate calculation
+ * @param {Function} successCallback - Called with { success, monthlyData }
+ * @param {Function} errorCallback - Called on error
+ */
+getMonthlyIncomeAndExpenses: function(successCallback, errorCallback) {
+  try {
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result && result.success) {
+          successCallback(result);
+        } else {
+          const err = result && result.error || 'Unknown error getting monthly data';
+          console.error('API.getMonthlyIncomeAndExpenses error:', err);
+          errorCallback(err);
+        }
+      })
+      .withFailureHandler(function(error) {
+        console.error('API.getMonthlyIncomeAndExpenses failure:', error);
+        errorCallback(error);
+      })
+      .getMonthlyIncomeAndExpenses();
+  } catch (e) {
+    console.error('API.getMonthlyIncomeAndExpenses exception:', e);
+    errorCallback(e.toString());
+  }
+},
+
+
+
+/**
+ * Fix missing transaction IDs - user-triggered
+ */
+fixMissingTransactionIds: function(successCallback, errorCallback) {
+  try {
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result && result.success) {
+          successCallback(result);
+        } else {
+          const err = result && result.error || 'Unknown error';
+          errorCallback(err);
+        }
+      })
+      .withFailureHandler(function(error) {
+        errorCallback(error);
+      })
+      .fixMissingTransactionIds();
+  } catch (e) {
+    errorCallback(e.toString());
+  }
+},
+
+/**
+ * Check data health
+ */
+checkDataHealth: function(successCallback, errorCallback) {
+  try {
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result && result.success) {
+          successCallback(result);
+        } else {
+          const err = result && result.error || 'Unknown error';
+          errorCallback(err);
+        }
+      })
+      .withFailureHandler(function(error) {
+        errorCallback(error);
+      })
+      .checkDataHealth();
+  } catch (e) {
+    errorCallback(e.toString());
+  }
+},
+
+
+
+/**
+ * Get all data timestamps for cache validation
+ * @param {Function} successCallback - Called with result object containing timestamps
+ * @param {Function} errorCallback - Called on error
+ */
+getAllTimestamps: function(successCallback, errorCallback) {
+  google.script.run
+    .withSuccessHandler(function(result) {
+      if (result && result.success) {
+        if (successCallback) successCallback(result);
+      } else {
+        console.error('API: Failed to get timestamps:', result ? result.error : 'Unknown error');
+        if (errorCallback) errorCallback(result ? result.error : 'Failed to get timestamps');
+      }
+    })
+    .withFailureHandler(function(error) {
+      console.error('API: Error getting timestamps:', error);
+      if (errorCallback) errorCallback(error.toString());
+    })
+    .getAllTimestamps();
+},
+
+ 
+
+    /**
+     * TRIAL SYSTEM API FUNCTIONS
+     */
+
+    /**
+     * Record first use and start trial when user connects template
+     * @param {string} email - User email
+     * @param {Function} successCallback - Called on success
+     * @param {Function} errorCallback - Called on error
+     */
+    recordFirstUse: function(email, successCallback, errorCallback) {
+      try {
+        google.script.run
+          .withSuccessHandler(function(result) {
+            if (result && result.status !== 'error') {
+              successCallback(result);
+            } else {
+              _lastError = result && result.error ? result.error : "Unknown error recording first use";
+              errorCallback(_lastError);
+            }
+          })
+          .withFailureHandler(function(error) {
+            _lastError = error;
+            errorCallback(error);
+          })
+          .recordFirstUse(email);
+      } catch (e) {
+        _lastError = e.message || String(e);
+        errorCallback(_lastError);
+      }
+    },
+
+    /**
+     * Check current trial status for user
+     * @param {string} email - User email
+     * @param {Function} successCallback - Called on success
+     * @param {Function} errorCallback - Called on error
+     */
+    checkTrialStatus: function(email, successCallback, errorCallback) {
+      try {
+        google.script.run
+          .withSuccessHandler(function(result) {
+            if (result && result.status && result.status !== 'error') {
+              successCallback(result);
+            } else {
+              // If status is 'new' or missing, default to 30 days trial
+              if (!result || result.status === 'new') {
+                successCallback({ status: 'trial', daysLeft: 30 });
+              } else {
+                _lastError = result && result.error ? result.error : "Trial check failed";
+                errorCallback(_lastError);
+              }
+            }
+          })
+          .withFailureHandler(function(error) {
+            _lastError = error.message || error.toString();
+            errorCallback(_lastError);
+          })
+          .checkTrialStatus(email);
+      } catch (e) {
+        _lastError = e.message || String(e);
+        errorCallback(_lastError);
+      }
+    },
+
+    /**
+     * Gets the last error that occurred in any API call
+     * @return {string} Last error message
+     */
+    getLastError: function() {
+      return _lastError;
+    }
+  };
+})();
+
+
+
+
+</script>

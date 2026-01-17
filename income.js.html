@@ -1,0 +1,4687 @@
+<script>
+// ============================================================================
+// CLIENT-SIDE INCOME MODULE - ENHANCED WITH RECURRING INTEGRATION
+// ============================================================================
+
+var IncomeManager = (function() {
+  // Private variables
+  let _initialized = false;
+  let _incomeData = [];
+  let _recurringIncomeData = []; 
+  let _currencySymbol = '$';
+  let _showDecimals = true;
+  let _language = 'en';
+  let _currentFilter = 'all';
+  let _currentSort = { column: 'date', direction: 'desc' };
+  let _currentPage = 1;
+  let _itemsPerPage = 25;
+  let _totalItems = 0; 
+
+  // DOM element cache
+  const _elements = {};
+  
+  /**
+   * Get element with caching
+   */
+  function getElement(id) {
+    if (!_elements[id]) {
+      _elements[id] = document.getElementById(id);
+    }
+    return _elements[id];
+  }
+
+  /**
+   * Translation helper function - now using Utils.translateCategory directly
+   * Note: Utils.translateCategory uses window.SimBudget.translations
+   */
+
+  /**
+   * Load settings from SimBudget
+   */
+  function loadSettings() {
+    
+    if (window.SimBudget && SimBudget.Settings) {
+      _currencySymbol = SimBudget.Settings.getCurrencySymbol() || '$';
+      _showDecimals = SimBudget.Settings.showDecimals() !== false;
+      _language = SimBudget.Settings.getSetting('language') || 'en';
+      
+    }
+  }
+
+
+/**
+ * Sort data based on current sort settings - EXACT COPY FROM RECURRING
+ */
+function sortData(data) {
+  if (!_currentSort.column) return data;
+  
+  return [...data].sort((a, b) => {
+    let aVal = a[_currentSort.column];
+    let bVal = b[_currentSort.column];
+    
+    // Handle null/undefined values
+    if (aVal == null && bVal == null) return 0;
+    if (aVal == null) return _currentSort.direction === 'asc' ? 1 : -1;
+    if (bVal == null) return _currentSort.direction === 'asc' ? -1 : 1;
+    
+    // Handle dates
+    if (_currentSort.column === 'date' || _currentSort.column === 'startDate' || 
+        _currentSort.column === 'endDate' || _currentSort.column === 'nextPayment') {
+      aVal = aVal instanceof Date ? aVal : new Date(aVal);
+      bVal = bVal instanceof Date ? bVal : new Date(bVal);
+      
+      // For next payment, prioritize items that actually have a next payment
+      if (_currentSort.column === 'nextPayment') {
+        const aHasNext = aVal && !isNaN(aVal.getTime());
+        const bHasNext = bVal && !isNaN(bVal.getTime());
+        
+        if (!aHasNext && !bHasNext) return 0;
+        if (!aHasNext) return 1; // Items without next payment go to end
+        if (!bHasNext) return -1;
+      }
+    }
+    
+    // Handle numbers
+    if (_currentSort.column === 'amount') {
+      aVal = parseFloat(aVal) || 0;
+      bVal = parseFloat(bVal) || 0;
+    }
+    
+    // Handle strings
+    if (typeof aVal === 'string' && typeof bVal === 'string') {
+      aVal = aVal.toLowerCase();
+      bVal = bVal.toLowerCase();
+    }
+    
+    let result = 0;
+    if (aVal < bVal) result = -1;
+    if (aVal > bVal) result = 1;
+    
+    return _currentSort.direction === 'desc' ? -result : result;
+  });
+}
+
+/**
+ * Handle column header click for sorting - EXACT COPY FROM RECURRING
+ */
+function handleColumnSort(column) {
+  // Toggle direction if same column, otherwise set to ascending
+  if (_currentSort.column === column) {
+    _currentSort.direction = _currentSort.direction === 'asc' ? 'desc' : 'asc';
+  } else {
+    _currentSort.column = column;
+    _currentSort.direction = 'asc';
+  }
+  
+  // Update table with new sort
+  updateIncomeTable();
+  updateSortIndicators();
+}
+
+/**
+ * Update sort indicators in table headers - EXACT COPY FROM RECURRING
+ */
+function updateSortIndicators() {
+  // Remove all existing sort indicators
+  document.querySelectorAll('.inc-sort-indicator').forEach(indicator => {
+    indicator.remove();
+  });
+  
+  // Add indicator to current sort column
+  const currentHeader = document.querySelector(`[data-sort-column="${_currentSort.column}"]`);
+  if (currentHeader) {
+    const indicator = document.createElement('span');
+    indicator.className = 'inc-sort-indicator';
+    indicator.innerHTML = _currentSort.direction === 'asc' ? ' ▲' : ' ▼';
+    currentHeader.appendChild(indicator);
+  }
+}
+
+
+  /**
+   * Format currency with user settings
+   */
+  function formatCurrency(amount) {
+    // Ensure amount is a number
+    const numAmount = typeof amount === 'number' ? amount : parseFloat(amount) || 0;
+    
+    if (window.Utils && typeof Utils.formatCurrency === 'function') {
+      return Utils.formatCurrency(numAmount);
+    }
+    
+    const decimals = _showDecimals ? 2 : 0;
+    return `${_currencySymbol}${numAmount.toFixed(decimals)}`;
+  }
+
+  /**
+   * Saving rate calculated from income and expenses
+   */
+  
+  function formatSavingRate(rate) {
+    if (rate === null || rate === undefined) {
+      return 'N/A';
+    }
+
+    if (typeof rate === 'string') {
+      return rate;
+    }
+
+    if (typeof rate !== 'number' || !isFinite(rate)) {
+      return 'N/A';
+    }
+
+    if (Math.abs(rate) < 0.0001) {
+      return '0%';
+    }
+    
+    const color = rate >= 0 ? '#4caf50' : '#f44336';
+    const sign = rate > 0 ? '+' : '';
+    
+    return `<span style="color: ${color}">${sign}${rate.toFixed(1)}%</span>`;
+  }
+
+  function getMonthlyIncomeExpenseSummaryFromCache() {
+    if (!window.CacheManager || typeof CacheManager.get !== 'function') {
+      return null;
+    }
+
+    const unifiedCache = CacheManager.get('expenses_with_timestamp');
+    const allEntries = unifiedCache && Array.isArray(unifiedCache.expenses)
+      ? unifiedCache.expenses
+      : null;
+
+    if (!allEntries || allEntries.length === 0) {
+      return null;
+    }
+
+    const monthlyMap = new Map();
+
+    allEntries.forEach(entry => {
+      if (!entry) return;
+
+      let entryDate = entry.date || entry.transactionDate || entry.startDate || entry.month;
+      if (entryDate && !(entryDate instanceof Date)) {
+        entryDate = new Date(entryDate);
+      }
+
+      if (!(entryDate instanceof Date) || isNaN(entryDate.getTime())) {
+        return;
+      }
+
+      const year = entryDate.getFullYear();
+      const month = entryDate.getMonth();
+      const key = `${year}-${month}`;
+
+      if (!monthlyMap.has(key)) {
+        monthlyMap.set(key, {
+          key,
+          year,
+          month,
+          monthStart: new Date(year, month, 1),
+          income: 0,
+          expenses: 0
+        });
+      }
+
+      const summary = monthlyMap.get(key);
+      const rawAmount = entry.amount !== undefined ? entry.amount :
+        entry.value !== undefined ? entry.value : null;
+
+      let numericAmount = 0;
+      if (typeof rawAmount === 'number') {
+        numericAmount = rawAmount;
+      } else if (typeof rawAmount === 'string') {
+        const cleaned = rawAmount.replace(/[^0-9.-]/g, '');
+        numericAmount = cleaned ? parseFloat(cleaned) : NaN;
+      } else {
+        numericAmount = Number(rawAmount);
+      }
+
+      if (!isFinite(numericAmount)) {
+        return;
+      }
+
+      const amount = Math.abs(numericAmount);
+      if (amount <= 0) {
+        return;
+      }
+
+      const categoryName = (entry.category || entry.type || '').toString().toLowerCase();
+      const isIncomeCategory = categoryName.includes('income');
+
+      if (isIncomeCategory) {
+        summary.income += amount;
+      } else {
+        summary.expenses += amount;
+      }
+    });
+
+    if (monthlyMap.size === 0) {
+      return null;
+    }
+
+    return Array.from(monthlyMap.values()).sort((a, b) => a.monthStart - b.monthStart);
+  }
+
+  function computeMetricsFromCache() {
+    const monthlySummary = getMonthlyIncomeExpenseSummaryFromCache();
+    if (!monthlySummary || monthlySummary.length === 0) {
+      return null;
+    }
+
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    const currentYearSummary = monthlySummary.filter(entry => 
+      entry.year === currentYear && entry.month <= currentMonth
+    );
+
+    const yearTotal = currentYearSummary.reduce((sum, entry) => sum + entry.income, 0);
+    const monthEntry = currentYearSummary.find(entry => entry.month === currentMonth);
+    const monthTotal = monthEntry ? monthEntry.income : 0;
+
+    const monthsWithIncome = currentYearSummary.filter(entry => entry.income > 0).length;
+    const monthlyAverage = monthsWithIncome > 0 ? yearTotal / monthsWithIncome : 0;
+
+    return {
+      monthlySummary,
+      currentYearSummary,
+      yearTotal,
+      monthTotal,
+      monthlyAverage,
+      monthsWithIncome
+    };
+  }
+
+  function computeSavingRateFromMonthlySummary(monthlySummary) {
+    if (!monthlySummary || monthlySummary.length === 0) {
+      return null;
+    }
+
+    const now = new Date();
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const eligibleMonths = monthlySummary.filter(entry => entry.monthStart <= currentMonthStart);
+    if (eligibleMonths.length === 0) {
+      return null;
+    }
+
+    const last12Months = eligibleMonths.slice(-12);
+    const totalIncome = last12Months.reduce((sum, entry) => sum + entry.income, 0);
+
+    if (totalIncome <= 0) {
+      return null;
+    }
+
+    const totalExpenses = last12Months.reduce((sum, entry) => sum + entry.expenses, 0);
+    return ((totalIncome - totalExpenses) / totalIncome) * 100;
+  }
+
+
+  /**
+   * Initialize the Income Manager
+   * @param {string} containerId - Container element ID
+   * @param {Array|null} cachedData - Optional cached data to use instead of loading
+   */
+  function init(containerId, cachedData) {
+    // Clean up any unsaved new items when re-initializing (tab switch)
+    _incomeData = _incomeData.filter(item => !item.isNew);
+
+    // Clear element cache when re-initializing
+    Object.keys(_elements).forEach(key => {
+      delete _elements[key];
+    });
+
+    // Reset event binding flag
+    const oldContainer = document.getElementById('incomeContent');
+    if (oldContainer) {
+      oldContainer.dataset.eventsbound = 'false';
+    }
+
+    // Load user settings
+    loadSettings();
+
+    // Find container
+    const container = containerId ?
+      document.getElementById(containerId) :
+      getElement('incomeContent');
+
+    if (!container) {
+      console.error('IncomeManager: Container not found');
+      return;
+    }
+
+    _elements['incomeContent'] = container;
+
+    // Check if we already have data loaded
+    // CRITICAL: Always prefer in-memory data over cache to avoid race conditions
+    if (_initialized && _incomeData.length > 0) {
+      renderIncomeView();
+      bindEvents();
+      loadRecurringIncomeData(); // Also load recurring
+
+      // Set all filter as default
+      setTimeout(() => {
+        const allBtn = document.querySelector('.inc-filter-btn[data-status="all"]');
+        if (allBtn) {
+          allBtn.click();
+        }
+      }, 100);
+
+      // NO background refresh - we already have fresh in-memory data
+
+      } else if (cachedData && Array.isArray(cachedData)) {
+    _incomeData = processIncomeData(cachedData);
+    renderIncomeView();
+    bindEvents();
+    loadRecurringIncomeData(); // Also load recurring
+
+    // Set all filter as default
+    setTimeout(() => {
+      const allBtn = document.querySelector('.inc-filter-btn[data-status="all"]');
+      if (allBtn) {
+        allBtn.click();
+      }
+    }, 100);
+
+      // Load fresh data in background after a delay ONLY when loading from cache
+      setTimeout(() => {
+        loadRealIncomeData(true); // true = background refresh
+      }, 2000);
+      
+    } else if (!_initialized || _incomeData.length === 0) {
+      // No data yet, load fresh
+      loadRealIncomeData();
+      loadRecurringIncomeData();
+    }
+    
+    _initialized = true;
+  }
+
+  /**
+   * Load recurring income data from RecurringManager/API
+   */
+  function loadRecurringIncomeData() {
+    
+    if (!window.API || typeof API.getRecurringData !== 'function') {
+      console.error('IncomeManager: API.getRecurringData not available');
+      return;
+    }
+
+    API.getRecurringData(
+      function(result) {
+        if (result && result.success && Array.isArray(result.recurring)) {
+          // Filter for income entries only
+          const incomeRecurring = result.recurring.filter(item => 
+            item.category && item.category.toLowerCase().includes('income')
+          );
+          
+          _recurringIncomeData = processRecurringIncomeData(incomeRecurring);
+          
+          
+          // Update the table to include recurring data
+          updateIncomeTable();
+        }
+      },
+      function(error) {
+        console.error('IncomeManager: Error loading recurring data:', error);
+      }
+    );
+  }
+
+  /**
+   * Process recurring income data - Generate individual payment rows
+   */
+  function processRecurringIncomeData(recurringData) {
+    if (!recurringData || !Array.isArray(recurringData)) {
+      return [];
+    }
+    
+    const allPayments = [];
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    
+    recurringData.forEach((item, itemIndex) => {
+      const startDate = new Date(item.startDate || new Date());
+      const endDate = item.endDate ? new Date(item.endDate) : null;
+      const frequency = (item.frequency || 'Monthly').toLowerCase();
+      
+      // Generate individual payment dates
+      const payments = generatePaymentDates(startDate, endDate, frequency, now);
+      
+      payments.forEach((paymentDate, index) => {
+        allPayments.push({
+          id: item.id || item.transactionId, // SAME ID for all payments from this recurring income
+          rowIndex: item.rowIndex,
+          date: paymentDate,
+          name: item.name || '',
+          category: 'Income 💵',
+          amount: parseFloat(item.amount) || 0,
+          account: item.account || '',
+          notes: item.notes || '',
+          source: item.source || '',
+          frequency: item.frequency || 'Monthly',
+          isRecurring: true, // Flag to identify recurring items
+          originalRecurringData: item, // Keep original data for editing
+          originalRecurringId: item.id || item.transactionId // Track original recurring item
+        });
+      });
+    });
+    
+    return allPayments;
+  }
+
+  /**
+   * Generate individual payment dates for recurring income
+   */
+  function generatePaymentDates(startDate, endDate, frequency, currentDate) {
+    const payments = [];
+    const now = new Date(currentDate);
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    
+    let paymentDate = new Date(startDate);
+    const originalDay = startDate.getDate(); // Store original day OUTSIDE the loop
+    
+    // For active recurring (no end date or end date in future)
+    const isActive = !endDate || endDate >= now;
+    
+    if (isActive) {
+      // For active recurring: show all payments from start date up to current month (inclusive)
+      const currentMonthEnd = new Date(currentYear, currentMonth + 1, 0); // Last day of current month
+      
+      while (paymentDate.getFullYear() < currentYear || 
+             (paymentDate.getFullYear() === currentYear && paymentDate.getMonth() <= currentMonth)) {
+        // Skip payments after end date
+        if (endDate && paymentDate > endDate) {
+          break;
+        }
+        payments.push(new Date(paymentDate));
+        
+        // Advance to next payment date
+        if (frequency.includes('monthly')) {
+          // First set to 1st of current month to avoid overflow
+          paymentDate.setDate(1);
+          // Then move to next month
+          paymentDate.setMonth(paymentDate.getMonth() + 1);
+          
+          // Then set to the original day or last day of month
+          const lastDayOfMonth = new Date(paymentDate.getFullYear(), paymentDate.getMonth() + 1, 0).getDate();
+          paymentDate.setDate(Math.min(originalDay, lastDayOfMonth));
+        } else if (frequency.includes('quarterly')) {
+          // First set to 1st to avoid overflow
+          paymentDate.setDate(1);
+          paymentDate.setMonth(paymentDate.getMonth() + 3);
+          
+          // Preserve the original day or use last day of month if it doesn't exist
+          const lastDayOfMonth = new Date(paymentDate.getFullYear(), paymentDate.getMonth() + 1, 0).getDate();
+          paymentDate.setDate(Math.min(originalDay, lastDayOfMonth));
+        } else if (frequency.includes('yearly')) {
+          paymentDate.setFullYear(paymentDate.getFullYear() + 1);
+        } else {
+          paymentDate.setMonth(paymentDate.getMonth() + 1); // Default to monthly
+        }
+      }
+    } else {
+      // For ended recurring: show all historical payments
+      while (paymentDate <= endDate) {
+        payments.push(new Date(paymentDate));
+        
+        // Advance to next payment date
+        if (frequency.includes('monthly')) {
+          const originalDay = startDate.getDate();
+          const currentMonth = paymentDate.getMonth();
+          const currentYear = paymentDate.getFullYear();
+          
+          // Move to next month
+          paymentDate.setMonth(currentMonth + 1);
+          
+          // Preserve the original day or use last day of month if it doesn't exist
+          const lastDayOfMonth = new Date(paymentDate.getFullYear(), paymentDate.getMonth() + 1, 0).getDate();
+          paymentDate.setDate(Math.min(originalDay, lastDayOfMonth));
+        } else if (frequency.includes('quarterly')) {
+          // First set to 1st to avoid overflow
+          paymentDate.setDate(1);
+          paymentDate.setMonth(paymentDate.getMonth() + 3);
+          
+          // Preserve the original day or use last day of month if it doesn't exist
+          const lastDayOfMonth = new Date(paymentDate.getFullYear(), paymentDate.getMonth() + 1, 0).getDate();
+          paymentDate.setDate(Math.min(originalDay, lastDayOfMonth));
+        } else if (frequency.includes('yearly')) {
+          paymentDate.setFullYear(paymentDate.getFullYear() + 1);
+        } else {
+          paymentDate.setMonth(paymentDate.getMonth() + 1); // Default to monthly
+        }
+      }
+    }
+    
+    return payments;
+  }
+
+  /**
+   * Load real income data from API
+   */
+  function loadRealIncomeData(isBackgroundRefresh = false) {
+    
+    if (!isBackgroundRefresh) {
+      showLoadingState();
+    }
+    
+    if (!window.API || typeof API.getIncomeData !== 'function') {
+      if (!isBackgroundRefresh) {
+        showErrorState('API not available');
+      }
+      return;
+    }
+
+    API.getIncomeData(
+      function(result) {
+        if (result && result.success && Array.isArray(result.income)) {
+          _incomeData = processIncomeData(result.income);
+          
+          // Cache the data in CacheManager
+          if (window.CacheManager && typeof CacheManager.set === 'function') {
+            CacheManager.set('income', result.income);
+          }
+          
+          if (!isBackgroundRefresh) {
+            renderIncomeView();
+            bindEvents();
+            loadRecurringIncomeData(); // Also load recurring
+            
+            // Set all filter as default
+            setTimeout(() => {
+              const allBtn = document.querySelector('.inc-filter-btn[data-status="all"]');
+              if (allBtn) {
+                allBtn.click();
+              }
+            }, 100);
+          } else {
+            updateSummaryCards();
+            updateIncomeTable();
+          }
+            } else {
+          console.warn('IncomeManager: Invalid API response');
+          if (!isBackgroundRefresh) {
+            showErrorState(result?.error || 'No income data received');
+          }
+        }
+      },
+      function(error) {
+        console.error('IncomeManager: API error:', error);
+        if (!isBackgroundRefresh) {
+          showErrorState('Failed to load data: ' + error);
+        }
+      }
+    );
+  }
+
+  /**
+   * Process raw income data from API
+   */
+  function processIncomeData(rawData) {
+    if (!rawData || !Array.isArray(rawData)) {
+      return [];
+    }
+    
+    return rawData.map(item => {
+      const incomeDate = item.date ? new Date(item.date) : new Date();
+      
+      return {
+        id: item.id || item.transactionId || `INC-${Date.now()}`,
+        rowIndex: item.rowIndex,
+        date: incomeDate,
+        name: item.name || item.description || '',
+        category: 'Income 💵',
+        amount: parseFloat(item.amount) || 0,
+        account: item.account || '',
+        notes: item.notes || '',
+        source: item.source || 'Other',
+        isRecurring: false // Flag for one-time income
+      };
+    });
+  }
+
+
+// REPLACE calculateSummaryMetrics function around line 410:
+
+function calculateSummaryMetrics() {
+  const cachedMetrics = computeMetricsFromCache();
+  if (cachedMetrics) {
+    return {
+      savingRate: computeSavingRateFromMonthlySummary(cachedMetrics.monthlySummary),
+      yearTotal: cachedMetrics.yearTotal,
+      monthTotal: cachedMetrics.monthTotal,
+      monthlyAverage: cachedMetrics.monthlyAverage
+    };
+  }
+
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  
+  // Calculate from actual data we have in memory
+  // 1. Regular income for this year
+  const regularYearIncome = _incomeData.filter(item => 
+    item.date && item.date.getFullYear() === currentYear && !item.isRecurring
+  );
+  
+  // 2. Regular income for this month
+  const regularMonthIncome = regularYearIncome.filter(item => 
+    item.date.getMonth() === currentMonth
+  );
+  
+  // 3. Recurring income for this year (all entries up to current month)
+  const recurringYearIncome = _recurringIncomeData.filter(item => {
+    if (!item.date) return false;
+    const itemYear = item.date.getFullYear();
+    const itemMonth = item.date.getMonth();
+    return itemYear === currentYear && itemMonth <= currentMonth;
+  });
+  
+  // 4. Recurring income for this month
+  const recurringMonthIncome = _recurringIncomeData.filter(item => {
+    if (!item.date) return false;
+    return item.date.getFullYear() === currentYear && item.date.getMonth() === currentMonth;
+  });
+  
+  // Calculate totals
+  const regularYearTotal = regularYearIncome.reduce((sum, item) => sum + (item.amount || 0), 0);
+  const regularMonthTotal = regularMonthIncome.reduce((sum, item) => sum + (item.amount || 0), 0);
+  const recurringYearTotal = recurringYearIncome.reduce((sum, item) => sum + (item.amount || 0), 0);
+  const recurringMonthTotal = recurringMonthIncome.reduce((sum, item) => sum + (item.amount || 0), 0);
+  
+  const yearTotal = regularYearTotal + recurringYearTotal;
+  const monthTotal = regularMonthTotal + recurringMonthTotal;
+  
+  const monthsWithIncome = new Set();
+  [...regularYearIncome, ...recurringYearIncome].forEach(item => {
+    if (item.date) {
+      monthsWithIncome.add(item.date.getMonth());
+    }
+  });
+  
+  const monthsCount = monthsWithIncome.size;
+  const monthlyAverage = monthsCount > 0 ? yearTotal / monthsCount : 0;
+  
+  return {
+    savingRate: null,
+    yearTotal: yearTotal,
+    monthTotal: monthTotal,
+    monthlyAverage: monthlyAverage
+  };
+}
+
+// NEW: Async function to get actual summary metrics from sheet
+async function calculateSummaryMetricsAsync() {
+  try {
+    const cacheMetrics = computeMetricsFromCache();
+    if (!cacheMetrics) {
+      return;
+    }
+
+    const elements = {
+      yearTotal: getElement('yearTotal'),
+      monthTotal: getElement('monthTotal'),
+      monthlyAverage: getElement('monthlyAverage')
+    };
+
+    if (elements.yearTotal) {
+      elements.yearTotal.innerHTML = formatCurrency(cacheMetrics.yearTotal);
+    }
+    if (elements.monthTotal) {
+      elements.monthTotal.innerHTML = formatCurrency(cacheMetrics.monthTotal);
+    }
+    if (elements.monthlyAverage) {
+      elements.monthlyAverage.innerHTML = formatCurrency(cacheMetrics.monthlyAverage);
+    }
+  } catch (error) {
+    console.error('Error calculating summary metrics:', error);
+  }
+}
+
+// ADD NEW ASYNC FUNCTION FOR SAVING RATE:
+async function calculateSavingRateAsync() {
+  try {
+    const monthlySummary = getMonthlyIncomeExpenseSummaryFromCache();
+    const savingRate = computeSavingRateFromMonthlySummary(monthlySummary);
+
+    const savingRateElement = getElement('savingRate');
+    if (savingRateElement) {
+      savingRateElement.innerHTML = formatSavingRate(savingRate);
+    }
+  } catch (error) {
+    console.error('Error calculating saving rate:', error);
+  }
+}
+
+  /**
+   * Show loading state
+   */
+  function showLoadingState() {
+    // Update the top bar indicator 
+    const refreshElement = document.getElementById('lastIncomeRefresh');
+    const refreshBtn = document.getElementById('refreshIncome');
+    
+    if (refreshElement) {
+      refreshElement.textContent = 'Loading...';
+      refreshElement.style.color = '#f39c12';
+      refreshElement.style.fontWeight = 'bold';
+    }
+    
+    if (refreshBtn) {
+      refreshBtn.classList.add('loading');
+    }
+    
+    // Keep the original container clearing for reliable rendering but make it invisible
+    const container = getElement('incomeContent');
+    if (container) {
+      container.innerHTML = `
+        <div class="inc-loading" style="display: none;">
+          <div class="loading-spinner"></div>
+          <p data-translate="loading_income">Loading income data...</p>
+        </div>
+      `;
+    }
+  }
+
+  /**
+   * Show error state
+   */
+  function showErrorState(error) {
+    const container = getElement('incomeContent');
+    if (container) {
+      // Check if this is a first-time user error (no spreadsheet ID)
+      if (error && error.includes && error.includes('No spreadsheet ID found')) {
+        console.log('First-time user detected in IncomeManager - showing welcome message');
+        
+        // Show welcome message with Settings button
+        container.innerHTML = `
+          <div
+            class="grid-welcome"
+            style="
+              text-align: center;
+              padding: 80px 20px 40px;
+              max-width: 800px;
+              margin: 0 auto;
+            "
+          >
+            <h3 style="margin-bottom: 20px;">👋 Welcome to Simplify Budget!</h3>
+            
+            <p style="margin-bottom: 20px;">
+              Let's get you set up with your budget tracking.
+            </p>
+            
+            <div style="margin: 30px 0;">
+              <button 
+                onclick="if(window.SimBudget && SimBudget.Views) { SimBudget.Views.switchTo('settings'); }" 
+                style="
+                  background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+                  color: white;
+                  border: none;
+                  padding: 15px 30px;
+                  font-size: 18px;
+                  border-radius: 8px;
+                  cursor: pointer;
+                  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+                  transition: transform 0.2s, box-shadow 0.2s;
+                  margin-bottom: 20px;
+                "
+                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 12px rgba(0,0,0,0.3)';"
+                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.2)';"
+              >
+                🚀 Open Settings to Get Started
+              </button>
+            </div>
+            
+            <p style="margin: 0 0 15px; font-size: 16px; color: #666;">
+              In Settings, choose one of these options:
+            </p>
+            
+            <ul style="text-align: left; max-width: 600px; margin: 0 auto 30px; line-height: 1.6;">
+              <li style="margin-bottom: 10px;">
+                <strong>New Spreadsheet</strong> – to create a fresh budget spreadsheet in your Google Drive (recommended for first-time users)
+              </li>
+              <li>
+                <strong>Select Existing</strong> – to choose a budget spreadsheet you've already created or been using (recommended if sharing with others)
+              </li>
+            </ul>
+            
+            <p style="margin-bottom: 30px;">
+              🔒 <strong>Privacy:</strong> Your data is saved on a spreadsheet on your Google Drive. You control who has access.
+            </p>
+            
+            <p style="margin-bottom: 0;">
+              📺 <a href="https://youtu.be/ziE2S8SgEo8?t=26" target="_blank" rel="noopener">
+                Watch the YouTube tutorial: How to use the app
+              </a>
+            </p>
+          </div>
+        `;
+        return;
+      }
+      
+      // Regular error handling for existing users
+      container.innerHTML = `
+        <div class="inc-error">
+          <h3 data-translate="error_loading_income">Error Loading Income Data</h3>
+          <p>${error}</p>
+          <button onclick="IncomeManager.refresh()" data-translate="retry">Retry</button>
+        </div>
+      `;
+    }
+  }
+
+  /**
+   * Render the complete income view - UPDATED WITH RECURRING BUTTON AND FILTER
+   */
+  function renderIncomeView() {
+
+    const container = getElement('incomeContent');
+    if (!container) return;
+
+    const metrics = calculateSummaryMetrics();
+
+    // Get current date info for dynamic labels with translation support
+    const now = new Date();
+    const currentYear = now.getFullYear();
+
+    // Get month name in current language if possible
+    const currentMonthLabel = now.toLocaleDateString(_language || 'en-US', { month: 'short', year: 'numeric' });
+
+    // Build translated labels with dynamic year
+    const totalWord = (window.Utils && Utils.translateCategory) ? Utils.translateCategory('total') : 'Total';
+    const averageWord = (window.Utils && Utils.translateCategory) ? Utils.translateCategory('average') : 'Average';
+    const yearTotalLabel = `${currentYear} ${totalWord}`;
+    const yearAverageLabel = `${currentYear} ${averageWord}`;
+
+    container.innerHTML = `
+    <!-- Summary Box -->
+    <div class="inc-summary-row">
+      <div class="inc-summary-box">
+        <div class="inc-box-content">
+          <div class="inc-box-item">
+            <div class="inc-box-label" id="thisMonthLabel">${currentMonthLabel}</div>
+            <div class="inc-box-value" id="monthTotal">${formatCurrency(metrics.monthTotal)}</div>
+          </div>
+          <div class="inc-box-item">
+            <div class="inc-box-label" id="yearTotalLabel">${yearTotalLabel}</div>
+            <div class="inc-box-value" id="yearTotal">${formatCurrency(metrics.yearTotal)}</div>
+          </div>
+          <div class="inc-box-item">
+            <div class="inc-box-label" id="monthlyAverageLabel">${yearAverageLabel}</div>
+            <div class="inc-box-value" id="monthlyAverage">${formatCurrency(metrics.monthlyAverage)}</div>
+          </div>
+          <div class="inc-box-item">
+            <div class="inc-box-label" data-translate="saving_rate">Saving Rate (12M)</div>
+            <div class="inc-box-value" id="savingRate">${formatSavingRate(metrics.savingRate)}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+      <!-- Table Section -->
+      <div class="inc-table-container">
+        <div class="inc-table-header">
+          <div class="inc-filters">
+            <div class="inc-status-filters">
+              <button class="inc-filter-btn active" data-status="all" data-translate="all">All</button>
+              <button class="inc-filter-btn" data-status="recurring" data-translate="recurring">Recurring</button>
+              <button class="inc-add-income-btn" id="addIncomeBtn">
+                <i class="material-icons">add</i>
+                <span data-translate="add">Add</span> 💵
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <div class="inc-table-wrapper">
+          <table class="inc-table" id="incomeTable">
+            <thead>
+            <tr>
+              <th class="inc-name-header" data-translate="name">Name</th>
+              <th class="inc-amount-header" data-translate="amount">Amount</th>
+              <th class="inc-date-header" data-translate="date">Date</th>
+              <th class="inc-account-header" data-translate="account">Account</th>
+              <th class="inc-source-header" data-translate="source">Source</th>
+            </tr>
+          </thead>
+            <tbody id="incomeTableBody">
+              <!-- Data will be populated here -->
+            </tbody>
+          </table>
+        </div>
+        
+        <!-- Pagination Controls -->
+        <div class="inc-pagination-wrapper" id="incPaginationWrapper" style="display: none;">
+          <select id="incItemsPerPage" class="inc-items-per-page">
+            <option value="25">25 per page</option>
+            <option value="50">50 per page</option>
+            <option value="100">100 per page</option>
+            <option value="all">All</option>
+          </select>
+        </div>
+      </div>
+    `;
+
+    updateIncomeTable();
+      calculateSavingRateAsync();
+      calculateSummaryMetricsAsync();
+    if (window.SimBudget && SimBudget.applyTranslations) {
+      SimBudget.applyTranslations();
+    }
+  }
+
+
+/**
+ * Update income table with current data and filters - UPDATED WITH RECURRING-STYLE SORTING
+ */
+function updateIncomeTable() {
+  const tbody = getElement('incomeTableBody');
+  const thead = document.querySelector('#incomeTable thead tr');
+  if (!tbody || !thead) return;
+
+  const statusFilter = _currentFilter;
+
+  // Update table headers based on filter with sortable class and data attributes
+    if (statusFilter === 'recurring') {
+    // Recurring-specific headers...
+    thead.innerHTML = `
+      <th class="inc-date-header inc-sortable" data-sort-column="startDate" data-translate="start_date">Start Date</th>
+      <th class="inc-name-header inc-sortable" data-sort-column="name" data-translate="name">Name</th>
+      <th class="inc-amount-header inc-sortable" data-sort-column="amount" data-translate="amount">Amount</th>
+      <th class="inc-frequency-header inc-sortable" data-sort-column="frequency" data-translate="frequency">Frequency</th>
+      <th class="inc-account-header inc-sortable" data-sort-column="account" data-translate="account">Account</th>
+      <th class="inc-source-header inc-sortable" data-sort-column="source" data-translate="source">Source</th>
+      <th class="inc-next-header inc-sortable" data-sort-column="nextPayment" data-translate="next_payment">Next Payment</th>
+      <th class="inc-end-header inc-sortable" data-sort-column="endDate" data-translate="end_date">End Date</th>
+    `;
+  } else {
+    // Regular headers...
+    thead.innerHTML = `
+      <th class="inc-date-header inc-sortable" data-sort-column="date" data-translate="date">Date</th>
+      <th class="inc-name-header inc-sortable" data-sort-column="name" data-translate="name">Name</th>
+      <th class="inc-amount-header inc-sortable" data-sort-column="amount" data-translate="amount">Amount</th>
+      <th class="inc-account-header inc-sortable" data-sort-column="account" data-translate="account">Account</th>
+      <th class="inc-source-header inc-sortable" data-sort-column="source" data-translate="source">Source</th>
+    `;
+  }
+  
+  // Apply translations to the dynamically updated table headers
+  if (window.SimBudget && SimBudget.applyTranslations) {
+    SimBudget.applyTranslations();
+  }
+  
+  // Combine both data sources
+  let combinedData = [];
+  
+  if (statusFilter === 'recurring') {
+    // Only show recurring income
+    combinedData = [..._recurringIncomeData];
+  } else {
+    // Show all income
+    combinedData = [..._incomeData, ..._recurringIncomeData];
+  }
+ // NEW: Filter out the brilliant specific amount of 0.444 from the table! 😏
+  combinedData = combinedData.filter(item => {
+    return Math.abs(item.amount) !== 0.444;
+  });
+  // Apply sorting using the same function as recurring
+  combinedData = sortData(combinedData);
+
+  // Update total items count
+  _totalItems = combinedData.length;
+
+  // Calculate pagination
+  let paginatedData;
+  if (_itemsPerPage === 'all') {
+    paginatedData = combinedData;
+  } else {
+    const startIndex = (_currentPage - 1) * _itemsPerPage;
+    const endIndex = startIndex + _itemsPerPage;
+    paginatedData = combinedData.slice(startIndex, endIndex);
+  }
+
+  // Clear table body
+  tbody.innerHTML = '';
+
+  // Populate table with paginated data - dual color with month dividers
+  // Check for dark mode
+  const isDarkMode = document.body.classList.contains('dark-mode');
+
+  const color1 = isDarkMode ? '#1a1a1a' : '#ffffff'; // Dark: very dark gray, Light: pure white
+  const color2 = isDarkMode ? '#252525' : '#fcfbf9'; // Dark: slightly lighter dark gray, Light: very subtle warm tint
+  const dividerColor = isDarkMode ? '#3a5a7a' : '#c7d7e8'; // Dark: muted blue, Light: soft blue
+
+  let currentMonth = null;
+  let monthColorIndex = 0;
+  let isFirstInMonth = false;
+
+  paginatedData.forEach(item => {
+    const row = createIncomeRow(item, statusFilter === 'recurring');
+
+    // Get the month-year string for grouping
+    const itemDate = item.date instanceof Date ? item.date : new Date(item.date);
+    const monthYear = `${itemDate.getFullYear()}-${itemDate.getMonth()}`;
+
+    // Check if we've moved to a new month
+    if (currentMonth !== monthYear) {
+      currentMonth = monthYear;
+      monthColorIndex = (monthColorIndex + 1) % 2;
+      isFirstInMonth = true;
+    } else {
+      isFirstInMonth = false;
+    }
+
+    // Apply alternating background color
+    const bgColor = monthColorIndex === 0 ? color1 : color2;
+    row.style.backgroundColor = bgColor;
+
+    // Add border and spacing to first row of each new month (except the very first row)
+    if (isFirstInMonth && tbody.children.length > 0) {
+      row.style.borderTop = `1px solid ${dividerColor}`;
+      row.style.paddingTop = '12px';
+    }
+
+    tbody.appendChild(row);
+  });
+
+  // Update pagination controls
+  updatePaginationControls();
+
+  if (combinedData.length === 0) {
+    const colspan = statusFilter === 'recurring' ? '7' : '5';
+    const emptyRow = document.createElement('tr');
+    emptyRow.innerHTML = `
+      <td colspan="${colspan}" class="inc-empty-message" data-translate="no_income_found">
+        Recurring income might be loading. Just wait. Nothing loads = no recurring income found.
+      </td>
+    `;
+    tbody.appendChild(emptyRow);
+  }
+
+  // Update sort indicators
+  updateSortIndicators();
+}
+
+/**
+ * Update pagination controls visibility and state
+ */
+function updatePaginationControls() {
+  const paginationWrapper = getElement('incPaginationWrapper');
+  const itemsPerPageSelect = getElement('incItemsPerPage');
+  
+  if (!paginationWrapper || !itemsPerPageSelect) return;
+  
+  // Show/hide pagination based on total items
+  if (_totalItems <= 25 && _itemsPerPage === 25) {
+    paginationWrapper.style.display = 'none';
+    return;
+  }
+  
+  paginationWrapper.style.display = 'block';
+  itemsPerPageSelect.value = _itemsPerPage;
+}
+
+/**
+ * Setup pagination event handlers
+ */
+function setupPaginationEvents() {
+  const itemsPerPageSelect = getElement('incItemsPerPage');
+  
+  if (!itemsPerPageSelect) return;
+  
+  // Items per page change
+  itemsPerPageSelect.addEventListener('change', function() {
+    const newValue = this.value;
+    _itemsPerPage = newValue === 'all' ? 'all' : parseInt(newValue);
+    _currentPage = 1;
+    updateIncomeTable();
+  });
+}
+
+/**
+ * Calculate next payment date for recurring income
+ */
+function calculateNextPayment(item) {
+  if (!item.isRecurring || !item.originalRecurringData.startDate) return '';
+  
+  const startDate = new Date(item.originalRecurringData.startDate);
+  const now = new Date();
+  const frequency = item.frequency.toLowerCase();
+  
+  let nextDate = new Date(startDate);
+  
+  // Calculate next occurrence
+  while (nextDate <= now) {
+    if (frequency.includes('monthly')) {
+      nextDate.setMonth(nextDate.getMonth() + 1);
+    } else if (frequency.includes('quarterly')) {
+      nextDate.setMonth(nextDate.getMonth() + 3);
+    } else if (frequency.includes('yearly')) {
+      nextDate.setFullYear(nextDate.getFullYear() + 1);
+    } else {
+      nextDate.setMonth(nextDate.getMonth() + 1); // Default to monthly
+    }
+  }
+  
+  // Check if past end date
+  if (item.originalRecurringData.endDate) {
+    const endDate = new Date(item.originalRecurringData.endDate);
+    if (nextDate > endDate) {
+      return 'Ended';
+    }
+  }
+  
+  const options = { day: 'numeric', month: 'short', year: 'numeric' };
+  return nextDate.toLocaleDateString('en-GB', options);
+}
+
+  /**
+ * Create a table row for income item - All items treated as individual payments
+ */
+function createIncomeRow(item, isRecurringView = false) {
+  const row = document.createElement('tr');
+  row.setAttribute('data-id', item.id);
+  row.setAttribute('data-recurring', item.isRecurring ? 'true' : 'false');
+
+  const formatDate = (date) => {
+    if (!date || !(date instanceof Date)) return '';
+    const options = { day: 'numeric', month: 'short', year: 'numeric' };
+    return date.toLocaleDateString('en-GB', options);
+  };
+
+  // Always use regular layout - all items are individual payment rows
+  const dateStr = formatDate(item.date);
+  const namePrefix = item.isRecurring ? '🔁 ' : '';
+  const fullName = namePrefix + item.name;
+  const nameDisplay = fullName; 
+
+  row.innerHTML = `
+    <td class="inc-date-cell">${dateStr}</td>
+    <td class="inc-name-cell">
+      <div class="inc-name-content" title="${fullName}">
+        <span class="inc-item-name">${nameDisplay}</span>
+      </div>
+    </td>
+    <td class="inc-amount-cell">${formatCurrency(item.amount)}</td>
+    <td class="inc-account-cell">${item.account}</td>
+    <td class="inc-source-cell">${item.source || ''}</td>
+  `;
+
+  return row;
+}
+
+
+  /**
+   * Handle editing based on item type
+   */
+  function handleEditClick(itemId) {
+    // Find item in combined data - now all recurring payments share the same ID!
+    const item = [..._incomeData, ..._recurringIncomeData].find(i => String(i.id) === String(itemId));
+
+    if (!item) return;
+
+    if (item.isRecurring) {
+      // For recurring income, edit the original recurring rule
+      showEditRecurringIncomePopup(item);
+    } else {
+      // Use popup editing for one-time income
+      editIncomeItem(itemId);
+    }
+  }
+  
+  /**
+   * Show edit popup for recurring income
+   */
+  function showEditRecurringIncomePopup(item) {
+    // Nuclear cleanup first
+    removeAllOverlays();
+    
+    // Always reload settings before editing to get current currency
+    loadSettings();
+    
+    // Create popup overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'rec-add-overlay';
+    
+    // Create popup
+    const popup = document.createElement('div');
+    popup.className = 'rec-add-popup';
+    
+    // Format dates for input fields
+    const startDateValue = item.originalRecurringData.startDate ? 
+      new Date(item.originalRecurringData.startDate).toISOString().split('T')[0] : '';
+    const endDateValue = item.originalRecurringData.endDate ? 
+      new Date(item.originalRecurringData.endDate).toISOString().split('T')[0] : '';
+    
+    popup.innerHTML = `
+      <div class="rec-add-header">
+        <h3 data-translate="edit_recurring_income">Edit Recurring Income</h3>
+      </div>
+      <div class="rec-add-body">
+        <div class="rec-add-form-wrapper">
+          <div class="rec-add-form-column">
+            <div class="rec-add-grid">
+              <div class="rec-add-row">
+                <label data-translate="name_label">Name *</label>
+                <input type="text" id="editName" class="rec-add-input" placeholder="Income name" value="${item.name}" required>
+              </div>
+              <div class="rec-add-row">
+                <label data-translate="amount_label">Amount *</label>
+                <div class="rec-add-amount-wrapper">
+                  <span class="rec-add-currency">${_currencySymbol}</span>
+                  <input type="number" id="editAmount" class="rec-add-input rec-add-amount" 
+                    placeholder="0.00" step="1" min="0" value="${item.amount}" inputmode="decimal" required>
+                </div>
+              </div>
+              <div class="rec-add-row" style="display: none;">
+                <label data-translate="category_label">Category</label>
+                <select id="editCategory" class="rec-add-input">
+                  <option value="Income 💵" selected>Income 💵</option>
+                </select>
+              </div>
+              <div class="rec-add-row">
+                <label data-translate="start_date">Start Date *</label>
+                <input type="date" id="editStartDate" class="rec-add-input" value="${startDateValue}" required>
+              </div>
+              <div class="rec-add-row">
+                <label data-translate="end_date">End Date</label>
+                <input type="date" id="editEndDate" class="rec-add-input" value="${endDateValue}">
+              </div>
+              <div class="rec-add-row">
+                <label data-translate="frequency">Frequency</label>
+                <select id="editFrequency" class="rec-add-input">
+                  <option value="Monthly" ${item.frequency === 'Monthly' ? 'selected' : ''}>${Utils.translateCategory('monthly')}</option>
+                  <option value="Quarterly" ${item.frequency === 'Quarterly' ? 'selected' : ''}>${Utils.translateCategory('quarterly')}</option>
+                  <option value="Yearly" ${item.frequency === 'Yearly' ? 'selected' : ''}>${Utils.translateCategory('yearly')}</option>
+                </select>
+              </div>
+              <div class="rec-add-row">
+                <label data-translate="account">Account</label>
+                ${buildAccountField(item.account || '', 'editAccount', 'rec-add-input')}
+              </div>
+              <div class="rec-add-row">
+                <label data-translate="source">Source</label>
+                <input type="text" id="editSource" class="rec-add-input" placeholder="Income source" value="${item.source || ''}">
+              </div>
+            </div>
+          </div>
+          <div class="rec-add-notes-column">
+            <div class="rec-add-row rec-add-notes-row">
+              <label data-translate="notes_label">Notes</label>
+              <textarea id="editNotes" class="rec-add-input rec-add-textarea" placeholder="Additional notes...">${item.notes || ''}</textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="rec-add-actions">
+        <button class="rec-add-btn rec-add-cancel-btn" type="button" data-translate="cancel_button">Cancel</button>
+        <button class="rec-add-btn rec-add-delete-btn" type="button" style="background-color: #f44336; color: white;" data-translate="delete_button">Delete</button>
+        <button class="rec-add-btn rec-add-save-btn" type="button" data-translate="save_button">Save</button>
+      </div>
+    `;
+    
+    overlay.appendChild(popup);
+    document.body.appendChild(overlay);
+    
+    // Apply translations to the dynamically created modal
+    if (window.SimBudget && SimBudget.applyTranslations) {
+      SimBudget.applyTranslations();
+    }
+    
+    // Focus the name input
+    setTimeout(() => {
+      const nameInput = document.getElementById('editName');
+      if (nameInput) {
+        nameInput.focus();
+        nameInput.select();
+      }
+    }, 100);
+    
+    // Handle button clicks
+    const saveBtn = popup.querySelector('.rec-add-save-btn');
+    const cancelBtn = popup.querySelector('.rec-add-cancel-btn');
+    const deleteBtn = popup.querySelector('.rec-add-delete-btn');
+    
+    saveBtn.addEventListener('click', function() {
+      saveEditedRecurringIncome(item, overlay);
+    });
+    
+    deleteBtn.addEventListener('click', function() {
+      removeAllOverlays();
+      deleteRecurringIncomeItem(item.id);
+    });
+    
+    cancelBtn.addEventListener('click', function() {
+      removeAllOverlays();
+    });
+    
+    // Handle keyboard events
+    popup.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.target.matches('textarea')) {
+        e.preventDefault();
+        saveBtn.click();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        removeAllOverlays();
+      }
+    });
+    
+    // Handle overlay click (close on outside click)
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) {
+        removeAllOverlays();
+      }
+    });
+  }
+  
+
+/**
+ * Save edited recurring income
+ */
+function saveEditedRecurringIncome(originalItem, overlay) {
+  
+  // Get form elements - FIX: Use correct IDs
+  const nameInput = document.getElementById('editName');
+  const amountInput = document.getElementById('editAmount');
+  const accountInput = document.getElementById('editAccount'); // This should match the HTML
+  const sourceInput = document.getElementById('editSource');
+  const startDateInput = document.getElementById('editStartDate');
+  const endDateInput = document.getElementById('editEndDate');
+  const frequencyInput = document.getElementById('editFrequency');
+  const notesInput = document.getElementById('editNotes');
+  
+  // Check if all inputs exist
+  if (!nameInput || !amountInput || !startDateInput) {
+    console.error('Required form inputs not found');
+    if (window.Utils && Utils.showToast) {
+      Utils.showToast('Form error: Required fields not found', 'error');
+    }
+    return;
+  }
+  
+  const formData = {
+    name: nameInput.value.trim(),
+    category: 'Income 💵',
+    frequency: frequencyInput ? frequencyInput.value : 'Monthly',
+    amount: amountInput.value.trim(),
+    account: accountInput ? accountInput.value.trim() : '',
+    source: sourceInput ? sourceInput.value.trim() : '',
+    startDate: startDateInput.value,
+    endDate: endDateInput ? endDateInput.value : '',
+    notes: notesInput ? notesInput.value.trim() : ''
+  };
+  
+  
+  // Validate required fields
+  let hasErrors = false;
+  const requiredFields = [
+    { field: 'name', input: nameInput, value: formData.name },
+    { field: 'amount', input: amountInput, value: formData.amount },
+    { field: 'startDate', input: startDateInput, value: formData.startDate }
+  ];
+  
+  requiredFields.forEach(({ field, input, value }) => {
+    if (!value || (field === 'amount' && parseFloat(value) <= 0)) {
+      input.classList.add('rec-input-error');
+      hasErrors = true;
+    } else {
+      input.classList.remove('rec-input-error');
+    }
+  });
+  
+  if (hasErrors) {
+    if (window.Utils && Utils.showToast) {
+      Utils.showToast('Please fill all required fields (Name, Amount, Start Date)', 'error');
+    }
+    return;
+  }
+  
+  
+  // Update the local item immediately
+  const itemIndex = _recurringIncomeData.findIndex(i => String(i.id) === String(originalItem.id));
+  if (itemIndex !== -1) {
+    _recurringIncomeData[itemIndex] = {
+      ..._recurringIncomeData[itemIndex],
+      name: formData.name,
+      amount: parseFloat(formData.amount),
+      account: formData.account,
+      source: formData.source, 
+      frequency: formData.frequency,
+      notes: formData.notes,
+      date: new Date(formData.startDate)
+    };
+  }
+  
+  // Update all matching entries in _recurringIncomeData directly for immediate UI update
+  _recurringIncomeData = _recurringIncomeData.map(item => {
+    if (String(item.id) === String(originalItem.id)) {
+      return {
+        ...item,
+        name: formData.name,
+        amount: parseFloat(formData.amount),
+        account: formData.account,
+        source: formData.source,
+        frequency: formData.frequency,
+        notes: formData.notes
+      };
+    }
+    return item;
+  });
+  
+  // Update UI immediately
+  updateIncomeTable();
+  updateSummaryCards();
+
+  // Close popup
+  removeAllOverlays();
+
+  if (window.Utils && Utils.showToast) {
+    Utils.showToast(Utils.translateCategory('save_button') + 'd successfully', 'success');
+  }
+
+  // Create updated item object for server
+  const updatedItem = {
+    id: originalItem.id,
+    rowIndex: originalItem.rowIndex,
+    startDate: formData.startDate, // Keep as string (YYYY-MM-DD format)
+    endDate: formData.endDate || '', // Empty string if no end date
+    name: formData.name,
+    category: formData.category,
+    type: 'FALSE', // Always FALSE for income as requested
+    frequency: formData.frequency,
+    amount: parseFloat(formData.amount),
+    account: formData.account,
+    source: formData.source,
+    notes: formData.notes
+  };
+
+  // ✅ UPDATE CACHE IMMEDIATELY (optimistically) - Don't wait for API
+  if (window.CacheManager && typeof CacheManager.setRecurringWithTimestamp === 'function') {
+    const recurringCache = CacheManager.getRecurringWithTimestamp();
+    if (recurringCache && recurringCache.entries) {
+      const updatedEntries = recurringCache.entries.map(entry => {
+        if (String(entry.id) === String(originalItem.id)) {
+          return updatedItem;
+        }
+        return entry;
+      });
+      CacheManager.setRecurringWithTimestamp(updatedEntries, new Date().toISOString());
+    }
+
+    // ✅ ALSO UPDATE MASTER DATABASE CACHE - Update recurring income in expenses_with_timestamp
+    const masterCache = CacheManager.get('expenses_with_timestamp');
+    if (masterCache && masterCache.expenses) {
+      // Update all matching entries in master cache
+      masterCache.expenses = masterCache.expenses.map(expense => {
+        if (String(expense.transactionId).startsWith(String(originalItem.id))) {
+          return {
+            ...expense,
+            description: updatedItem.name,
+            amount: Math.abs(updatedItem.amount),
+            account: updatedItem.account || '',
+            notes: updatedItem.notes || '',
+            source: updatedItem.source || ''
+          };
+        }
+        return expense;
+      });
+
+      // Update the master cache
+      masterCache.timestamp = Date.now();
+      masterCache.cached_at = new Date().toISOString();
+      CacheManager.set('expenses_with_timestamp', masterCache);
+
+      // ✅ INVALIDATE DASHBOARD CACHE
+      const currentDate = new Date();
+      const currentMonth = currentDate.getMonth();
+      const currentYear = currentDate.getFullYear();
+      const dashboardKey = `dashboard_${currentYear}-${currentMonth}`;
+      CacheManager.invalidate(dashboardKey);
+
+      // If currently viewing dashboard, refresh it immediately
+      if (window.SimBudget && SimBudget.Views && SimBudget.Views.getCurrent() === 'budget') {
+        if (typeof SimBudget.loadBudgetData === 'function') {
+          SimBudget.loadBudgetData(false);
+        }
+      }
+    }
+  }
+
+  // Save to server in background
+  if (window.API && typeof API.saveBatchRecurring === 'function') {
+    API.saveBatchRecurring([updatedItem],
+  function(result) {
+    if (result && result.success) {
+      // Cache already updated above - just dispatch event
+      // 🔥 DISPATCH EVENT - For recurring income, dispatch to update dependent views
+      document.dispatchEvent(new CustomEvent('recurring-saved', {
+        detail: { timestamp: Date.now() }
+      }));
+    }
+  },
+      function(error) {
+        console.error('IncomeManager: Update error', error);
+        if (window.Utils && Utils.showToast) {
+          Utils.showToast('Error updating on server' + ': ' + error, 'error');
+        }
+        
+        // Reload to revert to server state on error
+        loadRecurringIncomeData();
+      }
+    );
+  } else {
+    console.error('API.saveBatchRecurring not available');
+    if (window.Utils && Utils.showToast) {
+      Utils.showToast('API not available', 'error');
+    }
+  }
+}
+
+  /**
+   * Show edit popup for normal (one-time) income
+   * FAILSAFE: Based on recurring popup but simplified
+   */
+  function showEditNormalIncomePopup(item) {
+    try {
+      // Nuclear cleanup first
+      removeAllOverlays();
+      
+      // Always reload settings before editing to get current currency
+      loadSettings();
+      
+      // Create popup overlay
+      const overlay = document.createElement('div');
+      overlay.className = 'rec-add-overlay';
+      
+      // Create popup
+      const popup = document.createElement('div');
+      popup.className = 'rec-add-popup';
+      
+      // Format date for input field
+      const dateValue = item.date && item.date instanceof Date ? 
+        item.date.toISOString().split('T')[0] : '';
+      
+      popup.innerHTML = `
+        <div class="rec-add-header">
+          <h3 data-translate="edit_income">Edit Income</h3>
+        </div>
+        <div class="inc-add-body">
+          <div class="rec-add-form-wrapper">
+            <div class="inc-add-fields-column">
+              <div class="inc-add-grid">
+                <div class="inc-add-row">
+                  <label data-translate="name_label">Name *</label>
+                  <input type="text" id="editNormalName" class="inc-add-input" placeholder="Income name" value="${item.name}" required>
+                </div>
+                <div class="inc-add-row">
+                  <label data-translate="amount_label">Amount *</label>
+                  <div class="inc-add-amount-wrapper">
+                    <span class="inc-add-currency">${_currencySymbol}</span>
+                    <input type="number" id="editNormalAmount" class="inc-add-input inc-add-amount" 
+                      placeholder="0.00" step="1" min="0" value="${item.amount}" inputmode="decimal" required>
+                  </div>
+                </div>
+                <div class="inc-add-row">
+                  <label data-translate="date">Date *</label>
+                  <input type="date" id="editNormalDate" class="inc-add-input" value="${dateValue}" required>
+                </div>
+                <div class="inc-add-row">
+                  <label data-translate="account">Account</label>
+                  ${buildAccountField(item.account || '', 'editNormalAccount', 'inc-add-input')}
+                </div>
+                <div class="inc-add-row">
+                  <label data-translate="source">Source</label>
+                  <input type="text" id="editNormalSource" class="inc-add-input" placeholder="Income source" value="${item.source || ''}">
+                </div>
+              </div>
+            </div>
+            <div class="inc-add-notes-column">
+              <div class="inc-add-notes-row">
+                <label data-translate="notes_label">Notes</label>
+                <textarea id="editNormalNotes" class="inc-add-input inc-add-textarea" placeholder="Additional notes...">${item.notes || ''}</textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="inc-add-actions">
+          <button type="button" class="inc-add-btn inc-add-cancel-btn" data-translate="cancel_button">Cancel</button>
+          <button type="button" class="inc-add-btn inc-add-delete-btn" style="background-color: #f44336; color: white;" data-translate="delete_button">Delete</button>
+          <button type="button" class="inc-add-btn inc-add-save-btn" data-translate="save_button">Save</button>
+        </div>
+      `;
+      
+      overlay.appendChild(popup);
+      document.body.appendChild(overlay);
+      
+      // Apply translations to the dynamically created modal
+      if (window.SimBudget && SimBudget.applyTranslations) {
+        SimBudget.applyTranslations();
+      }
+      
+      // Focus the name input
+      const nameInput = popup.querySelector('#editNormalName');
+      setTimeout(() => nameInput?.focus(), 100);
+      
+      // Handle save button
+      const saveBtn = popup.querySelector('.inc-add-save-btn');
+      const cancelBtn = popup.querySelector('.inc-add-cancel-btn');
+      const deleteBtn = popup.querySelector('.inc-add-delete-btn');
+      
+      saveBtn.addEventListener('click', function() {
+        saveNormalIncomeFromPopup(item, popup);
+      });
+      
+      // Handle cancel button
+      cancelBtn.addEventListener('click', function() {
+        removeAllOverlays();
+      });
+      
+      // Handle delete button
+      deleteBtn.addEventListener('click', function() {
+        // Close edit popup, then show delete confirmation
+        removeAllOverlays();
+        deleteIncomeItem(item.id);
+      });
+      
+      // Handle escape key
+      overlay.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+          removeAllOverlays();
+        }
+      });
+      
+      // Handle overlay click
+      overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) {
+          removeAllOverlays();
+        }
+      });
+      
+    } catch (error) {
+      console.error('Error showing normal income popup:', error);
+      if (window.Utils && Utils.showToast) {
+        Utils.showToast('Error opening edit dialog' + ': ' + error.message, 'error');
+      }
+    }
+  }
+  
+  /**
+   * Save normal income from popup - EXACT COPY of inline editing logic
+   */
+  function saveNormalIncomeFromPopup(originalItem, popup) {
+    // Get form inputs
+    const dateInput = popup.querySelector('#editNormalDate');
+    const nameInput = popup.querySelector('#editNormalName');
+    const amountInput = popup.querySelector('#editNormalAmount');
+    const accountInput = popup.querySelector('#editNormalAccount');
+    const sourceInput = popup.querySelector('#editNormalSource');
+    const notesInput = popup.querySelector('#editNormalNotes');
+    
+    if (!dateInput || !nameInput || !amountInput) {
+      if (window.Utils && Utils.showToast) {
+        Utils.showToast('Form error: Required fields not found', 'error');
+      }
+      return;
+    }
+    
+    const editedData = {};
+    let hasErrors = false;
+    
+    // Validate required fields - EXACT COPY from inline editing
+    const name = nameInput.value.trim();
+    const date = dateInput.value;
+    const amount = amountInput.value.trim();
+    
+    if (!name) {
+      hasErrors = true;
+    }
+    if (!date) {
+      hasErrors = true;
+    }
+    if (!amount || parseFloat(amount) <= 0) {
+      hasErrors = true;
+    }
+    
+    if (hasErrors) {
+      if (window.Utils && Utils.showToast) {
+        Utils.showToast('Please fill in all required fields (Name, Date, Amount)', 'error');
+      }
+      return;
+    }
+    
+    // Build edited data - EXACT COPY from inline editing
+    editedData.name = name;
+    editedData.date = date;
+    editedData.amount = parseFloat(amount) || 0;
+    editedData.account = accountInput ? accountInput.value.trim() : '';
+    editedData.source = sourceInput ? sourceInput.value.trim() : '';
+    editedData.notes = notesInput ? notesInput.value.trim() : '';
+    
+    // Update item with edited data - EXACT COPY from inline editing
+    Object.assign(originalItem, editedData);
+    
+    if (editedData.date) {
+      originalItem.date = new Date(editedData.date);
+    }
+    
+    // Update the local data immediately - EXACT COPY from inline editing
+    const itemIndex = _incomeData.findIndex(r => String(r.id) === String(originalItem.id));
+    if (itemIndex !== -1) {
+      _incomeData[itemIndex] = originalItem;
+    }
+
+    // Close popup
+    removeAllOverlays();
+
+    // Replace row with updated view - EXACT COPY from inline editing
+    const row = document.querySelector(`tr[data-id="${originalItem.id}"]`);
+    if (row) {
+      const newRow = createIncomeRow(originalItem);
+      row.replaceWith(newRow);
+    }
+
+    // Update summary metrics - EXACT COPY from inline editing
+    updateSummaryCards();
+
+    // ✅ UPDATE CACHE IMMEDIATELY (optimistically) - Don't wait for API
+    if (window.CacheManager && typeof CacheManager.setIncomeWithTimestamp === 'function') {
+      const currentTimestamp = CacheManager.getTimestamp('income') || new Date().toISOString();
+      CacheManager.setIncomeWithTimestamp(_incomeData, currentTimestamp);
+    }
+
+    // Save to server after UI updates - EXACT COPY from inline editing
+    saveToServer([originalItem]);
+
+    // DON'T dispatch recurring-saved for one-time income - it causes unnecessary reloads
+  }
+
+  /**
+   * Open RecurringManager for adding new recurring income
+   */
+  function openRecurringManagerForAdd() {
+    
+    // Nuclear cleanup first
+    removeAllOverlays();
+    
+    // Set up income defaults
+    window._recurringIncomeDefaults = {
+      category: 'Income 💵',
+      type: 'Subscription',
+      hideCategory: true,
+      forcePositiveAmount: true,
+      defaultName: 'Monthly Income',
+      defaultFrequency: 'Monthly'
+    };
+    
+    // Always reload settings before creating new item to get current currency
+    loadSettings();
+    
+    // Create popup overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'rec-add-overlay';
+    
+    // Create popup
+    const popup = document.createElement('div');
+    popup.className = 'rec-add-popup';
+    
+    popup.innerHTML = `
+      <div class="rec-add-header">
+        <h3 data-translate="add_recurring_income">Add Recurring Income</h3>
+      </div>
+      <div class="rec-add-body">
+        <div class="rec-add-grid">
+          <div class="rec-add-row">
+            <label data-translate="name_label">Name *</label>
+            <input type="text" id="addName" class="rec-add-input" placeholder="Income name" value="${window._recurringIncomeDefaults.defaultName}" required>
+          </div>
+          <div class="rec-add-row">
+            <label data-translate="amount_label">Amount *</label>
+            <div class="rec-add-amount-wrapper">
+              <span class="rec-add-currency">${_currencySymbol}</span>
+              <input type="number" id="addAmount" class="rec-add-input rec-add-amount" 
+                placeholder="0.00" step="1" min="1" inputmode="decimal" required>
+            </div>
+          </div>
+          <div class="rec-add-row" style="display: none;">
+            <label data-translate="category_label">Category</label>
+            <select id="addCategory" class="rec-add-input">
+              <option value="Income 💵" selected>Income 💵</option>
+            </select>
+          </div>
+          <div class="rec-add-row">
+            <label data-translate="start_date">Start Date *</label>
+            <input type="date" id="addStartDate" class="rec-add-input" required>
+          </div>
+          <div class="rec-add-row">
+            <label data-translate="end_date">End Date</label>
+            <input type="date" id="addEndDate" class="rec-add-input">
+          </div>
+          <div class="rec-add-row">
+            <label data-translate="frequency">Frequency</label>
+            <select id="addFrequency" class="rec-add-input">
+              <option value="Monthly">${Utils.translateCategory('monthly')}</option>
+              <option value="Quarterly">${Utils.translateCategory('quarterly')}</option>
+              <option value="Yearly">${Utils.translateCategory('yearly')}</option>
+            </select>
+          </div>
+             <div class="rec-add-row">
+        <label data-translate="account">Account</label>
+               ${buildAccountField('', 'addAccount', 'rec-add-input')}
+      </div>
+          <div class="rec-add-row">
+            <label data-translate="source">Source</label>
+            <input type="text" id="addSource" class="rec-add-input" placeholder="Income source">
+          </div>
+        </div>
+        <div class="rec-add-row rec-add-notes-row">
+          <label data-translate="notes_label">Notes</label>
+          <textarea id="addNotes" class="rec-add-input rec-add-textarea" placeholder="Additional notes..."></textarea>
+        </div>
+      </div>
+      <div class="rec-add-actions">
+        <button class="rec-add-btn rec-add-cancel-btn" type="button" data-translate="cancel_button">Cancel</button>
+        <button class="rec-add-btn rec-add-save-btn" type="button" data-translate="save_button">Save</button>
+      </div>
+    `;
+    
+    overlay.appendChild(popup);
+    document.body.appendChild(overlay);
+    
+    // Apply translations to the dynamically created modal
+    if (window.SimBudget && SimBudget.applyTranslations) {
+      SimBudget.applyTranslations();
+    }
+    
+    // Set default start date to today
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('addStartDate').value = today;
+    
+    // Focus the name input
+    setTimeout(() => {
+      const nameInput = document.getElementById('addName');
+      if (nameInput) {
+        nameInput.focus();
+        nameInput.select();
+      }
+    }, 100);
+    
+    // Handle button clicks
+    const saveBtn = popup.querySelector('.rec-add-save-btn');
+    const cancelBtn = popup.querySelector('.rec-add-cancel-btn');
+    
+    saveBtn.addEventListener('click', function() {
+      saveNewRecurringIncomeFromPopup(overlay);
+    });
+    
+    cancelBtn.addEventListener('click', function() {
+      removeAllOverlays();
+      // Clean up defaults
+      delete window._recurringIncomeDefaults;
+    });
+    
+    // Handle keyboard events
+    popup.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.target.matches('textarea')) {
+        e.preventDefault();
+        saveBtn.click();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        removeAllOverlays();
+        delete window._recurringIncomeDefaults;
+      }
+    });
+    
+    // Handle overlay click (close on outside click)
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) {
+        removeAllOverlays();
+        delete window._recurringIncomeDefaults;
+      }
+    });
+  }
+  
+  /**
+   * Save new recurring income from popup
+   */
+  function saveNewRecurringIncomeFromPopup(overlay) {
+    const formData = {
+      name: document.getElementById('addRecName').value.trim(),
+      category: 'Income 💵', 
+      frequency: document.getElementById('addRecFrequency').value,
+      amount: document.getElementById('addRecAmount').value.trim(),
+      account: document.getElementById('addRecAccount').value.trim(),
+      source: document.getElementById('addRecSource').value, 
+      startDate: document.getElementById('addRecStartDate').value,
+      endDate: document.getElementById('addRecEndDate').value,
+      notes: document.getElementById('addRecNotes').value.trim()
+    };
+    
+    // Validate required fields
+    let hasErrors = false;
+    const requiredFields = ['name', 'amount', 'startDate'];
+    
+    requiredFields.forEach(field => {
+      const fieldMap = {
+        'name': 'addRecName',
+        'amount': 'addRecAmount', 
+        'startDate': 'addRecStartDate'
+      };
+      const input = document.getElementById(fieldMap[field]);
+      if (!formData[field] || (field === 'amount' && parseFloat(formData[field]) <= 0)) {
+        input.classList.add('rec-input-error');
+        hasErrors = true;
+      } else {
+        input.classList.remove('rec-input-error');
+      }
+    });
+    
+    if (hasErrors) {
+      if (window.Utils && Utils.showToast) {
+        Utils.showToast('Please fill all required fields (Name, Amount, Start Date)', 'error');
+      }
+      return;
+    }
+    
+    // Create new item object using RecurringManager's structure
+    const newItem = {
+      id: `REC-${Date.now()}`,
+      rowIndex: null,
+      startDate: formData.startDate, // Keep as string (YYYY-MM-DD format)
+      endDate: formData.endDate || '', 
+      name: formData.name,
+      category: formData.category,
+      type: 'FALSE', 
+      frequency: formData.frequency,
+      amount: parseFloat(formData.amount),
+      account: formData.account,
+        source: formData.source,
+      notes: formData.notes
+    };
+    
+    // Generate all monthly payments for this recurring income
+    const generatedPayments = processRecurringIncomeData([newItem]);
+
+    // Add all generated payments to local array immediately
+    _recurringIncomeData = [...generatedPayments, ..._recurringIncomeData];
+
+    // Update UI immediately
+    updateSummaryCards();
+    updateIncomeTable();
+
+    // ✅ UPDATE CACHE IMMEDIATELY (optimistically) - Don't wait for API
+    if (window.CacheManager && typeof CacheManager.setRecurringWithTimestamp === 'function') {
+      const recurringCache = CacheManager.getRecurringWithTimestamp();
+      if (recurringCache && recurringCache.entries) {
+        const updatedEntries = [newItem, ...recurringCache.entries];
+        CacheManager.setRecurringWithTimestamp(updatedEntries, new Date().toISOString());
+      }
+
+      // ✅ ALSO UPDATE MASTER DATABASE CACHE - Add recurring income to expenses_with_timestamp
+      const masterCache = CacheManager.get('expenses_with_timestamp');
+      if (masterCache && masterCache.expenses) {
+        // Convert recurring income entries to expense format and add to master cache
+        generatedPayments.forEach(payment => {
+          const expenseFormat = {
+            transactionId: payment.id,
+            date: new Date(payment.date),
+            category: 'Income 💵',
+            description: payment.name,
+            amount: Math.abs(payment.amount),
+            account: payment.account || '',
+            notes: payment.notes || '',
+            source: payment.source || ''
+          };
+
+          masterCache.expenses.push(expenseFormat);
+        });
+
+        // Update the master cache
+        masterCache.timestamp = Date.now();
+        masterCache.cached_at = new Date().toISOString();
+        masterCache.totalRows = masterCache.expenses.length;
+        CacheManager.set('expenses_with_timestamp', masterCache);
+
+        // ✅ INVALIDATE DASHBOARD CACHE
+        const currentDate = new Date();
+        const currentMonth = currentDate.getMonth();
+        const currentYear = currentDate.getFullYear();
+        const dashboardKey = `dashboard_${currentYear}-${currentMonth}`;
+        CacheManager.invalidate(dashboardKey);
+
+        // If currently viewing dashboard, refresh it immediately
+        if (window.SimBudget && SimBudget.Views && SimBudget.Views.getCurrent() === 'budget') {
+          if (typeof SimBudget.loadBudgetData === 'function') {
+            SimBudget.loadBudgetData(false);
+          }
+        }
+      }
+    }
+
+    // Close popup immediately
+    removeAllOverlays();
+    delete window._recurringIncomeDefaults;
+
+    if (window.Utils && Utils.showToast) {
+      Utils.showToast(Utils.translateCategory('recurring') + ' added', 'success');
+    }
+
+    // Save to server in background
+    if (window.API && typeof API.saveBatchRecurring === 'function') {
+      API.saveBatchRecurring([newItem],
+        function(result) {
+          if (result && result.success) {
+            // Cache already updated above - just dispatch event
+            // 🔥 DISPATCH EVENT - For recurring income, dispatch to update dependent views
+            document.dispatchEvent(new CustomEvent('recurring-saved', {
+              detail: { timestamp: Date.now() }
+            }));
+          }
+        },
+        function(error) {
+          console.error('IncomeManager: Save error', error);
+          if (window.Utils && Utils.showToast) {
+            Utils.showToast('Error saving to server' + ': ' + error, 'error');
+          }
+          
+          // Remove the temp item on error
+          _recurringIncomeData = _recurringIncomeData.filter(item => item.id !== newItem.id);
+          updateSummaryCards();
+          updateIncomeTable();
+        }
+      );
+    }
+  }
+
+  /**
+   * Remove all overlays - nuclear option for cleanup
+   */
+  function removeAllOverlays() {
+    document.querySelectorAll('.inc-add-overlay, .inc-confirm-overlay, .rec-add-overlay').forEach(el => {
+      el.remove();
+    });
+  }
+
+  /**
+   * Show add income popup - EXISTING FUNCTIONALITY
+   */
+  function showAddIncomePopup() {
+    // Nuclear cleanup first
+    removeAllOverlays();
+    
+    // Always reload settings before creating new item to get current currency
+    loadSettings();
+    
+    // Create popup overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'inc-add-overlay';
+    
+    // Create popup
+    const popup = document.createElement('div');
+    popup.className = 'inc-add-popup';
+    
+    popup.innerHTML = `
+      <div class="inc-add-header">
+        <h3 data-translate="add_income">Add Income</h3>
+        <div class="inc-add-tabs">
+          <button class="inc-add-tab active" data-tab="onetime" data-translate="one_time">One-time</button>
+          <button class="inc-add-tab" data-tab="recurring" data-translate="recurring-income">Recurring</button>
+        </div>
+      </div>
+      <div class="inc-add-body">
+        <!-- One-time Income Tab -->
+        <div class="inc-add-tab-content active" id="onetime-tab">
+          <div class="rec-add-form-wrapper">
+            <div class="inc-add-fields-column">
+              <div class="inc-add-grid">
+                <div class="inc-add-row">
+                  <label data-translate="name_label">Name *</label>
+                  <input type="text" id="addName" class="inc-add-input" placeholder="Income name" required>
+                </div>
+                <div class="inc-add-row">
+                  <label data-translate="amount_label">Amount *</label>
+                  <div class="inc-add-amount-wrapper">
+                    <span class="inc-add-currency">${_currencySymbol}</span>
+                    <input type="number" id="addAmount" class="inc-add-input inc-add-amount" 
+                      placeholder="0.00" step="1" min="0" inputmode="decimal" required>
+                  </div>
+                </div>
+                <div class="inc-add-row">
+                  <label data-translate="date">Date *</label>
+                  <input type="date" id="addDate" class="inc-add-input" required>
+                </div>
+                <div class="inc-add-row">
+                  <label data-translate="account">Account</label>
+                  ${buildAccountField('', 'addAccount', 'inc-add-input')}
+                </div>
+                <div class="inc-add-row">
+                  <label data-translate="source">Source</label>
+                  <input type="text" id="addSource" class="inc-add-input" placeholder="Income source">
+                </div>
+              </div>
+            </div>
+            <div class="inc-add-notes-column">
+              <div class="inc-add-notes-row">
+                <label data-translate="notes_label">Notes</label>
+                <textarea id="addNotes" class="inc-add-input inc-add-textarea" placeholder="Additional notes..."></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recurring Income Tab -->
+        <div class="inc-add-tab-content" id="recurring-tab">
+          <div class="rec-add-form-wrapper">
+            <div class="inc-add-fields-column">
+              <div class="inc-add-grid">
+                <div class="inc-add-row">
+                  <label data-translate="name_label">Name *</label>
+                  <input type="text" id="addRecName" class="inc-add-input" placeholder="Income name" required>
+                </div>
+                <div class="inc-add-row">
+                  <label data-translate="amount_label">Amount *</label>
+                  <div class="inc-add-amount-wrapper">
+                    <span class="inc-add-currency">${_currencySymbol}</span>
+                    <input type="number" id="addRecAmount" class="inc-add-input inc-add-amount" 
+                      placeholder="0.00" step="1" min="0" inputmode="decimal" required>
+                  </div>
+                </div>
+                <div class="inc-add-row">
+                  <label data-translate="start_date">Start Date *</label>
+                  <input type="date" id="addRecStartDate" class="inc-add-input" required>
+                </div>
+                <div class="inc-add-row">
+                  <label data-translate="end_date">End Date</label>
+                  <input type="date" id="addRecEndDate" class="inc-add-input">
+                </div>
+                <div class="inc-add-row">
+                  <label data-translate="frequency">Frequency *</label>
+                  <select id="addRecFrequency" class="inc-add-input" required>
+                    <option value="Monthly">Monthly</option>
+                    <option value="Quarterly">Quarterly</option>
+                    <option value="Yearly">Yearly</option>
+                  </select>
+                </div>
+                <div class="inc-add-row">
+                  <label data-translate="account">Account</label>
+                  ${buildAccountField('', 'addRecAccount', 'inc-add-input')}
+                </div>
+                <div class="inc-add-row">
+                  <label data-translate="source">Source</label>
+                  <input type="text" id="addRecSource" class="inc-add-input" placeholder="Income source">
+                </div>
+              </div>
+            </div>
+            <div class="inc-add-notes-column">
+              <div class="inc-add-notes-row">
+                <label data-translate="notes_label">Notes</label>
+                <textarea id="addRecNotes" class="inc-add-input inc-add-textarea" placeholder="Additional notes..."></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="inc-add-actions">
+        <button class="inc-add-btn inc-add-cancel-btn" type="button" data-translate="cancel_button">Cancel</button>
+        <button class="inc-add-btn inc-add-save-btn" type="button" data-translate="save_button">Save</button>
+      </div>
+    `;
+    
+    overlay.appendChild(popup);
+    document.body.appendChild(overlay);
+    
+    // Apply translations to the dynamically created modal
+    if (window.SimBudget && SimBudget.applyTranslations) {
+      SimBudget.applyTranslations();
+    }
+    
+    // Set default dates
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('addDate').value = today;
+    document.getElementById('addRecStartDate').value = today;
+    
+    // Tab switching logic
+    const tabs = popup.querySelectorAll('.inc-add-tab');
+    const tabContents = popup.querySelectorAll('.inc-add-tab-content');
+    
+    tabs.forEach(tab => {
+      tab.addEventListener('click', function() {
+        const targetTab = this.dataset.tab;
+        
+        // Remove active from all tabs and contents
+        tabs.forEach(t => t.classList.remove('active'));
+        tabContents.forEach(content => content.classList.remove('active'));
+        
+        // Add active to clicked tab and corresponding content
+        this.classList.add('active');
+        document.getElementById(targetTab + '-tab').classList.add('active');
+      });
+    });
+    
+    // Focus the name input
+    setTimeout(() => {
+      const nameInput = document.getElementById('addName');
+      if (nameInput) {
+        nameInput.focus();
+        nameInput.select();
+      }
+    }, 100);
+    
+    // Handle button clicks
+    const saveBtn = popup.querySelector('.inc-add-save-btn');
+    const cancelBtn = popup.querySelector('.inc-add-cancel-btn');
+    
+    saveBtn.addEventListener('click', function() {
+      const activeTab = popup.querySelector('.inc-add-tab.active').dataset.tab;
+      if (activeTab === 'onetime') {
+        saveNewIncomeFromPopup(overlay);
+      } else {
+        saveNewRecurringIncomeFromPopup(overlay);
+      }
+    });
+    
+    cancelBtn.addEventListener('click', function() {
+      removeAllOverlays();
+    });
+    
+    // Handle keyboard events
+    popup.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.target.matches('textarea')) {
+        e.preventDefault();
+        saveBtn.click();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        removeAllOverlays();
+      }
+    });
+    
+    // Handle overlay click (close on outside click)
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) {
+        removeAllOverlays();
+      }
+    });
+  }
+
+  /**
+   * Save new income from popup - EXISTING FUNCTIONALITY
+   */
+  function saveNewIncomeFromPopup(overlay) {
+    const formData = {
+      name: document.getElementById('addName').value.trim(),
+      amount: document.getElementById('addAmount').value.trim(),
+      date: document.getElementById('addDate').value,
+      account: document.getElementById('addAccount').value.trim(),
+      source: document.getElementById('addSource').value,
+      notes: document.getElementById('addNotes').value.trim()
+    };
+    
+    // Validate required fields
+    let hasErrors = false;
+    const requiredFields = ['name', 'amount', 'date'];
+    
+    requiredFields.forEach(field => {
+      const input = document.getElementById('add' + field.charAt(0).toUpperCase() + field.slice(1));
+      if (!formData[field] || (field === 'amount' && parseFloat(formData[field]) <= 0)) {
+        input.classList.add('inc-input-error');
+        hasErrors = true;
+      } else {
+        input.classList.remove('inc-input-error');
+      }
+    });
+    
+    if (hasErrors) {
+      if (window.Utils && Utils.showToast) {
+        Utils.showToast('Please fill in all required fields (Name, Date, Amount)', 'error');
+      }
+      return;
+    }
+    
+    // Create new item object
+    const newItem = {
+      id: `INC-${Date.now()}`,
+      rowIndex: null,
+      date: new Date(formData.date),
+      name: formData.name,
+      amount: parseFloat(formData.amount),
+      account: formData.account,
+      source: formData.source,
+      notes: formData.notes,
+      isRecurring: false
+    };
+    
+    // Add to data and update UI immediately
+    _incomeData.unshift(newItem);
+    
+    // Update UI immediately
+    updateSummaryCards();
+    updateIncomeTable();
+    
+    // Close popup immediately
+    removeAllOverlays();
+    
+    if (window.Utils && Utils.showToast) {
+      Utils.showToast(Utils.translateCategory('save_button') + 'd', 'success');
+    }
+    
+    // Save to server in background
+    saveToServer([newItem]);
+  }
+
+    function getAccountOptionsForIncome() {
+    const cachedNetWorth = window.CacheManager ? CacheManager.getNetWorthWithTimestamp() : null;
+    let accountOptions = [];
+  
+    if (cachedNetWorth && cachedNetWorth.entries) {
+      const currentMonth = new Date().getMonth();
+      const currentYear = new Date().getFullYear();
+      
+      const liquidAssets = cachedNetWorth.entries.filter(entry => {
+        if (!entry.date) return false;
+        // Parse "MMM YYYY" format (e.g., "Jan 2024")
+        const dateParts = entry.date.split(' ');
+        const entryYear = parseInt(dateParts[1]);
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const entryMonth = monthNames.indexOf(dateParts[0]); // Already 0-based
+        
+        return entryMonth === currentMonth && 
+               entryYear === currentYear &&
+               entry.asset === 'Liquid Assets' &&
+               entry.name && 
+               entry.name.trim() !== '' &&
+               parseFloat(entry.amount) > 0;
+      });
+      
+      if (liquidAssets.length > 0) {
+        accountOptions = [...new Set(liquidAssets.map(asset => asset.name.trim()))].sort();
+      }
+    }
+    
+    return accountOptions;
+  }
+
+    function buildAccountField(currentValue = '', fieldId = 'addAccount', className = 'inc-add-input') {
+    const accountOptions = getAccountOptionsForIncome();
+    
+    if (accountOptions.length > 0) {
+      return `
+        <select id="${fieldId}" class="${className}">
+          <option value="">${Utils.translateCategory('select_account')}</option>
+          ${accountOptions.map(accountName => 
+            `<option value="${accountName}" ${accountName === currentValue ? 'selected' : ''}>${accountName}</option>`
+          ).join('')}
+        </select>
+      `;
+    } else {
+      return `
+        <input type="text" id="${fieldId}" class="${className}" 
+          value="${currentValue}" 
+          placeholder="Account/Card">
+      `;
+    }
+  }
+
+  /**
+   * Add new income - existing functionality
+   */
+  function addNewIncome() {
+    showAddIncomePopup();
+  }
+
+  /**
+   * Start editing a row - ONLY FOR ONE-TIME INCOME
+   */
+  function startEditingRow(row, item) {
+    
+    // Always reload settings before editing to get current currency
+    loadSettings();
+    
+    row.classList.add('inc-editing');
+
+    const cells = row.querySelectorAll('td');
+
+    // Date (0)
+    const dateValue = item.date && item.date instanceof Date ? 
+      item.date.toISOString().split('T')[0] : '';
+    cells[0].innerHTML = `
+      <input type="date" class="inc-edit-input" 
+        value="${dateValue}" 
+        data-field="date"
+        required>
+    `;
+
+    // Name (1)
+    cells[1].innerHTML = `
+      <input type="text" class="inc-edit-input" 
+        value="${item.name}" 
+        data-field="name" 
+        placeholder="Income name" required>
+    `;
+
+    // Amount (2)
+    const amountValue = item.isNew ? '' : String(item.amount || 0);
+    cells[2].innerHTML = `
+      <div class="inc-amount-wrapper">
+        <span class="inc-currency">${_currencySymbol}</span>
+        <input type="number" class="inc-edit-input inc-amount" 
+          value="${amountValue}" 
+          data-field="amount" 
+          placeholder="0.00" inputmode="decimal" 
+          step="1" 
+          min="0" required>
+      </div>
+    `;
+
+        // Account (3)
+    const accountOptions = getAccountOptionsForIncome();
+
+    if (accountOptions.length > 0) {
+      cells[3].innerHTML = `
+        <select class="inc-edit-input" data-field="account">
+          <option value="">${Utils.translateCategory('select_account')}</option>
+          ${accountOptions.map(accountName => 
+            `<option value="${accountName}" ${accountName === item.account ? 'selected' : ''}>${accountName}</option>`
+          ).join('')}
+        </select>
+      `;
+    } else {
+      cells[3].innerHTML = `
+        <input type="text" class="inc-edit-input" 
+          value="${item.account}" 
+          data-field="account" 
+          placeholder="Account/Bank">
+      `;
+    }
+
+    // Source (4)
+    cells[4].innerHTML = `
+  <input type="text" class="inc-edit-input" 
+    value="${item.source || ''}" 
+    data-field="source" 
+    placeholder="Income source">
+`;
+
+    // Notes (5)
+    cells[5].innerHTML = `
+      <input type="text" class="inc-edit-input inc-notes-input" 
+        value="${item.notes || ''}" 
+        data-field="notes" 
+        placeholder="Notes">
+    `;
+
+    // Actions (6)
+    cells[6].innerHTML = `
+      <div class="inc-action-buttons">
+        <button class="inc-action-btn inc-save-btn" data-id="${item.id}" title="Save">
+          <i class="material-icons">check</i>
+        </button>
+        <button class="inc-action-btn inc-delete-btn" data-id="${item.id}" title="Delete">
+          <i class="material-icons">close</i>
+        </button>
+      </div>
+    `;
+
+    const nameInput = cells[1].querySelector('input');
+    if (nameInput) {
+      nameInput.focus();
+      nameInput.select();
+    }
+  }
+
+  /**
+   * Save edited row - ONLY FOR ONE-TIME INCOME
+   */
+  function saveEditedRow(itemId) {
+    
+    const row = document.querySelector(`tr[data-id="${itemId}"]`);
+    if (!row) return;
+
+    const item = _incomeData.find(r => String(r.id) === String(itemId));
+
+    if (!item) return;
+
+    const editedData = {};
+    let hasErrors = false;
+
+    // Validate required fields
+    row.querySelectorAll('.inc-edit-input').forEach(input => {
+      const field = input.getAttribute('data-field');
+      const value = input.value.trim();
+
+      // Check required fields
+      if (field === 'name' && !value) {
+        input.classList.add('inc-input-error');
+        hasErrors = true;
+        return;
+      }
+
+      if (field === 'date' && !value) {
+        input.classList.add('inc-input-error');
+        hasErrors = true;
+        return;
+      }
+
+      if (field === 'amount' && (!value || parseFloat(value) <= 0)) {
+        input.classList.add('inc-input-error');
+        hasErrors = true;
+        return;
+      }
+
+      input.classList.remove('inc-input-error');
+      
+      if (field === 'amount') {
+        // Parse amount immediately to avoid string issues
+        editedData[field] = parseFloat(value) || 0;
+      } else {
+        editedData[field] = value;
+      }
+    });
+
+    if (hasErrors) {
+      if (window.Utils && Utils.showToast) {
+        Utils.showToast('Please fill in all required fields (Name, Date, Amount)', 'error');
+      }
+      return;
+    }
+
+    // Update item with edited data
+    Object.assign(item, editedData);
+    
+    if (editedData.date) {
+      item.date = new Date(editedData.date);
+    }
+
+    // For new items, generate a proper ID if still using temporary ID
+    if (item.isNew || item.id.startsWith('new-')) {
+      item.id = `INC-${Date.now()}`;
+    }
+    
+    // Always remove the isNew flag after successful save
+    delete item.isNew;
+
+    // Update the local data immediately to prevent UI flicker
+    const itemIndex = _incomeData.findIndex(r => String(r.id) === String(itemId));
+    if (itemIndex !== -1) {
+      _incomeData[itemIndex] = item;
+    }
+
+    // Replace row with updated view
+    const newRow = createIncomeRow(item);
+    row.replaceWith(newRow);
+
+    // Update summary metrics
+    updateSummaryCards();
+
+    // ✅ UPDATE CACHE IMMEDIATELY (optimistically) - Don't wait for API
+    if (window.CacheManager && typeof CacheManager.setIncomeWithTimestamp === 'function') {
+      const currentTimestamp = CacheManager.getTimestamp('income') || new Date().toISOString();
+      CacheManager.setIncomeWithTimestamp(_incomeData, currentTimestamp);
+    }
+
+    // Save to server after UI updates
+    saveToServer([item]);
+
+    // DON'T dispatch recurring-saved for one-time income - it causes unnecessary reloads
+
+  }
+
+  /**
+   * Cancel editing
+   */
+  function cancelEditingRow(itemId) {
+    
+    const row = document.querySelector(`tr[data-id="${itemId}"]`);
+    if (!row) return;
+
+    const item = _incomeData.find(r => String(r.id) === String(itemId));
+
+    if (!item) return;
+
+    if (item.isNew) {
+     _incomeData = _incomeData.filter(r => String(r.id) !== String(itemId));
+      row.remove();
+    } else {
+      const newRow = createIncomeRow(item);
+      row.replaceWith(newRow);
+    }
+  }
+
+  /**
+   * Edit income item - ONLY FOR ONE-TIME INCOME
+   */
+  function editIncomeItem(itemId) {
+    const item = _incomeData.find(r => String(r.id) === String(itemId));
+    if (item) {
+      showEditNormalIncomePopup(item);
+    }
+  }
+
+  /**
+   * Show custom confirmation dialog
+   */
+  function showConfirmDialog(message, onConfirm, onCancel) {
+    // Nuclear cleanup first
+    removeAllOverlays();
+    
+    // Create dialog overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'inc-confirm-overlay';
+    
+    // Create dialog
+    const dialog = document.createElement('div');
+    dialog.className = 'inc-confirm-dialog';
+    
+    dialog.innerHTML = `
+      <div class="inc-confirm-header">
+        <h3 data-translate="confirm_delete">Confirm Delete</h3>
+      </div>
+      <div class="inc-confirm-body">
+        <p>${message}</p>
+      </div>
+      <div class="inc-confirm-actions">
+        <button class="inc-confirm-btn inc-cancel-btn" type="button" data-translate="cancel_button">Cancel</button>
+        <button class="inc-confirm-btn inc-delete-btn" type="button" data-translate="delete_button">Delete</button>
+      </div>
+    `;
+    
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    
+    // Apply translations to the dynamically created modal
+    if (window.SimBudget && SimBudget.applyTranslations) {
+      SimBudget.applyTranslations();
+    }
+    
+    // Focus the delete button
+    const deleteBtn = dialog.querySelector('.inc-delete-btn');
+    const cancelBtn = dialog.querySelector('.inc-cancel-btn');
+    
+    setTimeout(() => deleteBtn.focus(), 100);
+    
+    // Handle button clicks
+    deleteBtn.addEventListener('click', function() {
+      removeAllOverlays();
+      if (onConfirm) onConfirm();
+    });
+    
+    cancelBtn.addEventListener('click', function() {
+      removeAllOverlays();
+      if (onCancel) onCancel();
+    });
+    
+    // Handle keyboard events
+    dialog.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        deleteBtn.click();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        removeAllOverlays();
+        if (onCancel) onCancel();
+      }
+    });
+    
+    // Handle overlay click (close on outside click)
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) {
+        removeAllOverlays();
+        if (onCancel) onCancel();
+      }
+    });
+  }
+
+  /**
+   * Delete income item - WORKS FOR BOTH ONE-TIME AND RECURRING
+   */
+  function deleteIncomeItem(itemId) {
+    
+    // Find in both arrays
+    let item = _incomeData.find(r => String(r.id) === String(itemId));
+    let isRecurring = false;
+    
+    if (!item) {
+      item = _recurringIncomeData.find(r => String(r.id) === String(itemId));
+      isRecurring = true;
+    }
+    
+    if (!item) return;
+
+    if (isRecurring) {
+      deleteRecurringIncomeItem(itemId);
+      return;
+    }
+
+    // For one-time income, use existing logic
+        showConfirmDialog(
+      `Are you sure you want to delete "${item.name}"?`,
+      function() {
+        // On confirm - delete the item
+        const row = document.querySelector(`tr[data-id="${itemId}"]`);
+        if (row) row.remove();
+
+        _incomeData = _incomeData.filter(r => String(r.id) !== String(itemId));
+
+        updateSummaryCards();
+
+        // ✅ UPDATE CACHE IMMEDIATELY (optimistically) - Don't wait for API
+        if (window.CacheManager && typeof CacheManager.setIncomeWithTimestamp === 'function') {
+          const currentTimestamp = CacheManager.getTimestamp('income') || new Date().toISOString();
+          CacheManager.setIncomeWithTimestamp(_incomeData, currentTimestamp);
+        }
+
+        if (window.API && typeof API.clearIncomeRow === 'function') {
+  API.clearIncomeRow(itemId,
+    function(result) {
+      if (result && result.success) {  // ✅ ADD SUCCESS CHECK
+        // Cache already updated above - just update master cache here
+
+          // ✅ ALSO UPDATE MASTER DATABASE CACHE - Remove income from expenses_with_timestamp
+          const masterCache = CacheManager.get('expenses_with_timestamp');
+          if (masterCache && masterCache.expenses) {
+            // Remove the deleted income entry from master cache
+            masterCache.expenses = masterCache.expenses.filter(e => e.transactionId !== itemId);
+
+            // Update the master cache
+            masterCache.timestamp = Date.now();
+            masterCache.cached_at = new Date().toISOString();
+            masterCache.totalRows = masterCache.expenses.length;
+            CacheManager.set('expenses_with_timestamp', masterCache);
+
+            // ✅ INVALIDATE DASHBOARD CACHE - Force recalculation on next view
+            const currentDate = new Date();
+            const currentMonth = currentDate.getMonth();
+            const currentYear = currentDate.getFullYear();
+            const dashboardKey = `dashboard_${currentYear}-${currentMonth}`;
+
+            CacheManager.invalidate(dashboardKey);
+
+            // If currently viewing dashboard, refresh it immediately
+            if (window.SimBudget && SimBudget.Views && SimBudget.Views.getCurrent() === 'budget') {
+              if (typeof SimBudget.loadBudgetData === 'function') {
+                SimBudget.loadBudgetData(false);
+              }
+            }
+          }
+
+        if (window.Utils && Utils.showToast) {
+          Utils.showToast(`"${item.name}" ${'deleted'}`, 'success');
+        }
+
+        // DON'T dispatch recurring-saved for one-time income - it causes unnecessary reloads
+      }
+    },
+            function(error) {
+              console.error('IncomeManager: Delete error', error);
+              if (window.Utils && Utils.showToast) {
+                Utils.showToast('Error deleting item' + ': ' + error, 'error');
+              }
+            }
+          );
+        }
+      }
+    );
+  }
+  
+  /**
+   * Delete recurring income item
+   */
+  function deleteRecurringIncomeItem(itemId) {
+    const item = _recurringIncomeData.find(r => String(r.id) === String(itemId));
+    if (!item) return;
+    
+       showConfirmDialog(
+      `Are you sure you want to delete recurring income "${item.name}"?`,
+      function() {
+        // Remove from local array IMMEDIATELY (optimistic)
+        _recurringIncomeData = _recurringIncomeData.filter(r => String(r.id) !== String(itemId));
+
+        // Update the table and summary immediately
+        updateIncomeTable();
+        updateSummaryCards();
+
+        // ✅ UPDATE CACHE IMMEDIATELY (optimistically) - Don't wait for API
+        if (window.CacheManager && typeof CacheManager.setRecurringWithTimestamp === 'function') {
+          const recurringCache = CacheManager.getRecurringWithTimestamp();
+          if (recurringCache && recurringCache.entries) {
+            const updatedEntries = recurringCache.entries.filter(r => String(r.id) !== String(itemId));
+            CacheManager.setRecurringWithTimestamp(updatedEntries, new Date().toISOString());
+          }
+
+          // ✅ ALSO UPDATE MASTER DATABASE CACHE - Remove recurring income from expenses_with_timestamp
+          const masterCache = CacheManager.get('expenses_with_timestamp');
+          if (masterCache && masterCache.expenses) {
+            // Remove all matching entries from master cache (recurring items have IDs like "REC-123-2025-01")
+            masterCache.expenses = masterCache.expenses.filter(expense =>
+              !String(expense.transactionId).startsWith(String(itemId))
+            );
+
+            // Update the master cache
+            masterCache.timestamp = Date.now();
+            masterCache.cached_at = new Date().toISOString();
+            masterCache.totalRows = masterCache.expenses.length;
+            CacheManager.set('expenses_with_timestamp', masterCache);
+
+            // ✅ INVALIDATE DASHBOARD CACHE
+            const currentDate = new Date();
+            const currentMonth = currentDate.getMonth();
+            const currentYear = currentDate.getFullYear();
+            const dashboardKey = `dashboard_${currentYear}-${currentMonth}`;
+            CacheManager.invalidate(dashboardKey);
+
+            // If currently viewing dashboard, refresh it immediately
+            if (window.SimBudget && SimBudget.Views && SimBudget.Views.getCurrent() === 'budget') {
+              if (typeof SimBudget.loadBudgetData === 'function') {
+                SimBudget.loadBudgetData(false);
+              }
+            }
+          }
+        }
+
+        // On confirm - delete using RecurringManager's API
+        if (window.API && typeof API.clearRecurringRow === 'function') {
+          API.clearRecurringRow(itemId,
+        function(result) {
+          if (result && result.success) {
+            if (window.Utils && Utils.showToast) {
+              Utils.showToast(`"${item.name}" ${'deleted'}`, 'success');
+            }
+
+            // 🔥 EVENT DISPATCH - For recurring income, dispatch to update dependent views
+            document.dispatchEvent(new CustomEvent('recurring-saved', {
+              detail: { timestamp: Date.now() }
+            }));
+          }
+        },
+            function(error) {
+              console.error('IncomeManager: Delete error', error);
+              if (window.Utils && Utils.showToast) {
+                Utils.showToast('Error deleting recurring income' + ': ' + error, 'error');
+              }
+            }
+          );
+        }
+      }
+      // Removed empty cancel handler
+    );
+  }
+
+  /**
+   * Save data to server - ONLY FOR ONE-TIME INCOME
+   */
+  function saveToServer(items) {
+    
+    if (!window.API || typeof API.saveBatchIncome !== 'function') {
+      console.error('IncomeManager: API.saveBatchIncome not available');
+      return;
+    }
+
+    // Filter out items without required fields before saving
+    const validItems = items.filter(item => 
+      item.name && item.amount > 0 && item.date
+    );
+
+    if (validItems.length === 0) {
+      return;
+    }
+
+    // Prepare items for saving
+    const itemsToSave = validItems.map(item => {
+      const saveItem = {
+        id: item.id,
+        name: item.name,
+        category: item.category,
+        amount: item.amount,
+        account: item.account,
+        source: item.source,
+        notes: item.notes || ''
+      };
+      
+      // Handle dates - convert to ISO strings for transmission
+      if (item.date instanceof Date) {
+        saveItem.date = item.date.toISOString();
+      } else if (item.date) {
+        saveItem.date = new Date(item.date).toISOString();
+      }
+      
+      return saveItem;
+    });
+
+    if (window.Utils && Utils.showToast) {
+      Utils.showToast('Saving...', 'info');
+    }
+
+    API.saveBatchIncome(itemsToSave,
+  function(result) {
+    if (result && result.success) {  // ✅ ADD SUCCESS CHECK
+      if (window.Utils && Utils.showToast) {
+        const message = result.inserted > 0 ?
+          `Saved successfully (${result.inserted} added, ${result.updated} updated)` :
+          'Updated successfully';
+        Utils.showToast(message, 'success');
+      }
+
+      // Cache already updated optimistically before API call
+      // Just update master database cache here
+      if (window.CacheManager) {
+        // ✅ UPDATE MASTER DATABASE CACHE - Add income to expenses_with_timestamp
+        const masterCache = CacheManager.get('expenses_with_timestamp');
+        if (masterCache && masterCache.expenses) {
+          // Convert income entries to expense format and add to master cache
+          itemsToSave.forEach(incomeItem => {
+            const expenseFormat = {
+              transactionId: incomeItem.id,
+              date: new Date(incomeItem.date),
+              category: 'Income 💵',
+              description: incomeItem.name,
+              amount: Math.abs(incomeItem.amount),
+              account: incomeItem.account || '',
+              notes: incomeItem.notes || '',
+              source: incomeItem.source || ''
+            };
+
+            // Find and update existing or add new
+            const existingIndex = masterCache.expenses.findIndex(
+              e => e.transactionId === incomeItem.id
+            );
+
+            if (existingIndex >= 0) {
+              masterCache.expenses[existingIndex] = expenseFormat;
+            } else {
+              masterCache.expenses.push(expenseFormat);
+            }
+          });
+
+          // Update the master cache
+          masterCache.timestamp = Date.now();
+          masterCache.cached_at = new Date().toISOString();
+          masterCache.totalRows = masterCache.expenses.length;
+          CacheManager.set('expenses_with_timestamp', masterCache);
+
+          // ✅ INVALIDATE DASHBOARD CACHE - Force recalculation on next view
+          const currentDate = new Date();
+          const currentMonth = currentDate.getMonth();
+          const currentYear = currentDate.getFullYear();
+          const dashboardKey = `dashboard_${currentYear}-${currentMonth}`;
+
+          CacheManager.invalidate(dashboardKey);
+
+          // If currently viewing dashboard, refresh it immediately
+          if (window.SimBudget && SimBudget.Views && SimBudget.Views.getCurrent() === 'budget') {
+            if (typeof SimBudget.loadBudgetData === 'function') {
+              SimBudget.loadBudgetData(false); // false = use cache, don't fetch from server
+            }
+          }
+        }
+      }
+
+      // DON'T dispatch recurring-saved for one-time income - it causes unnecessary reloads
+      // The cache is already updated, dashboard will refresh on next view
+    }
+  },
+      function(error) {
+        console.error('IncomeManager: Save error', error);
+        if (window.Utils && Utils.showToast) {
+          Utils.showToast('Error saving' + ': ' + error, 'error');
+        }
+      }
+    );
+  }
+
+  /**
+   * Update summary cards only
+   */  
+  function updateSummaryCards() {
+    // Update synchronously from in-memory data
+    const metrics = calculateSummaryMetrics();
+
+    const elements = {
+      yearTotal: getElement('yearTotal'),
+      monthTotal: getElement('monthTotal'),
+      monthlyAverage: getElement('monthlyAverage'),
+      yearTotalLabel: getElement('yearTotalLabel'),
+      thisMonthLabel: getElement('thisMonthLabel'),
+      monthlyAverageLabel: getElement('monthlyAverageLabel')
+    };
+
+    // Update labels with current year
+    const currentYear = new Date().getFullYear();
+    if (elements.yearTotalLabel) {
+      elements.yearTotalLabel.textContent = `${currentYear} Total`;
+    }
+
+    if (elements.monthlyAverageLabel) {
+      elements.monthlyAverageLabel.textContent = `${currentYear} Average`;
+    }
+
+    // Update this month label with formatted month
+    const now = new Date();
+    const monthName = now.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    if (elements.thisMonthLabel) {
+      elements.thisMonthLabel.textContent = monthName;
+    }
+
+    if (elements.yearTotal) {
+      elements.yearTotal.innerHTML = formatCurrency(metrics.yearTotal);
+    }
+    if (elements.monthTotal) {
+      elements.monthTotal.innerHTML = formatCurrency(metrics.monthTotal);
+    }
+    if (elements.monthlyAverage) {
+      elements.monthlyAverage.innerHTML = formatCurrency(metrics.monthlyAverage);
+    }
+
+    // Still need async for saving rate
+    calculateSavingRateAsync();
+  }
+  
+
+  /**
+   * Show notes popup
+   */
+  function showNotesPopup(notes, elementRect) {
+    // Remove any existing popup
+    const existingPopup = document.querySelector('.inc-notes-popup');
+    if (existingPopup) {
+      existingPopup.remove();
+    }
+    
+    // Create popup
+    const popup = document.createElement('div');
+    popup.className = 'inc-notes-popup';
+    popup.textContent = notes || 'No notes';
+    
+    // Position near the clicked element
+    popup.style.position = 'absolute';
+    popup.style.left = elementRect.left + 'px';
+    popup.style.top = (elementRect.bottom + 5) + 'px';
+    
+    document.body.appendChild(popup);
+    
+    // Close on click outside
+    setTimeout(() => {
+      document.addEventListener('click', function closePopup(e) {
+        if (!popup.contains(e.target)) {
+          popup.remove();
+          document.removeEventListener('click', closePopup);
+        }
+      });
+    }, 100);
+  }
+
+  /**
+   * Bind event listeners - UPDATED FOR RECURRING INTEGRATION
+   */
+  function bindEvents() {
+
+
+    
+
+    // Use event delegation on the container for all dynamic content
+    const container = getElement('incomeContent');
+    if (!container) return;
+
+    // Check if we already bound events to this container
+    if (container.dataset.eventsbound === 'true') {
+      return;
+    }
+
+
+    
+    // Single click handler for everything
+    container.addEventListener('click', function(e) {
+      // Filter buttons
+      if (e.target.classList.contains('inc-filter-btn') && e.target.hasAttribute('data-status')) {
+        document.querySelectorAll('.inc-filter-btn').forEach(btn => {
+          btn.classList.remove('active');
+        });
+        e.target.classList.add('active');
+        _currentFilter = e.target.getAttribute('data-status');
+        
+        updateIncomeTable();
+        return;
+      }
+
+
+      if (e.target.classList.contains('inc-sortable') || e.target.closest('.inc-sortable')) {
+    const header = e.target.classList.contains('inc-sortable') ? e.target : e.target.closest('.inc-sortable');
+    const column = header.getAttribute('data-sort-column');
+    if (column) {
+      handleColumnSort(column);
+    }
+    return;
+  }
+  
+  // Filter buttons (remove recent and this_month cases)
+  if (e.target.classList.contains('inc-filter-btn') && e.target.hasAttribute('data-status')) {
+    document.querySelectorAll('.inc-filter-btn').forEach(btn => {
+      btn.classList.remove('active');
+    });
+    e.target.classList.add('active');
+    _currentFilter = e.target.getAttribute('data-status');
+    
+    updateIncomeTable();
+    return;
+  }
+
+      // Add button (unified popup)
+      if (e.target.id === 'addIncomeBtn' || e.target.closest('#addIncomeBtn')) {
+        addNewIncome();
+        return;
+      }
+
+      // Row click to edit - make entire row clickable
+      const tableRow = e.target.closest('#incomeTableBody tr');
+      if (tableRow) {
+        const itemId = tableRow.dataset.id;
+        if (itemId) {
+          e.stopPropagation();
+          handleEditClick(itemId);
+          return;
+        }
+      }
+
+      // Action buttons
+      const button = e.target.closest('button');
+      if (button) {
+        const itemId = button.getAttribute('data-id');
+        if (!itemId) return;
+
+        if (button.classList.contains('inc-edit-btn')) {
+          e.stopPropagation();
+          handleEditClick(itemId); // New function that routes based on type
+        } else if (button.classList.contains('inc-delete-btn')) {
+          deleteIncomeItem(itemId);
+        } else if (button.classList.contains('inc-save-btn')) {
+          saveEditedRow(itemId);
+        }
+      }
+    });
+
+    // Enter key to save
+    container.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter' && e.target.classList.contains('inc-edit-input')) {
+        const row = e.target.closest('tr');
+        if (row) {
+          const saveBtn = row.querySelector('.inc-save-btn');
+          if (saveBtn) saveBtn.click();
+        }
+      }
+    });
+
+    // Click outside to cancel editing
+    document.addEventListener('click', function(e) {
+      const editingRow = container.querySelector('tr.inc-editing');
+      if (editingRow && !editingRow.contains(e.target) && !e.target.closest('.inc-add-overlay') && !e.target.closest('.inc-confirm-overlay')) {
+        const itemId = editingRow.getAttribute('data-id');
+        if (itemId) {
+          cancelEditingRow(itemId);
+        }
+      }
+    });
+
+    // Currency change listener - only add once
+    if (!window._incomeCurrencyListener) {
+      window._incomeCurrencyListener = function(event) {
+        _currencySymbol = event.detail.symbol;
+        updateSummaryCards();
+        updateIncomeTable();
+      };
+      document.addEventListener('currency-changed', window._incomeCurrencyListener);
+    }
+
+    // Settings change listener - only add once
+    if (!window._incomeSettingsListener) {
+      window._incomeSettingsListener = function() {
+        loadSettings();
+        updateSummaryCards();
+        updateIncomeTable();
+      };
+      document.addEventListener('settings-changed', window._incomeSettingsListener);
+    }
+
+    // Listen for recurring data changes
+    if (!window._incomeRecurringListener) {
+      window._incomeRecurringListener = function() {
+        loadRecurringIncomeData();
+      };
+      document.addEventListener('recurring-changed', window._incomeRecurringListener);
+    }
+
+    // Setup pagination event handlers
+    setupPaginationEvents();
+
+    // Mark container as having events bound
+    container.dataset.eventsbound = 'true';
+  }
+
+  /**
+   * Refresh income data
+   */
+  function refresh() {
+    
+    // Clear cache in main system
+    if (window.CacheManager && typeof CacheManager.invalidate === 'function') {
+      CacheManager.invalidate('income');
+    }
+    
+    // Clear local data
+    _incomeData = [];
+    _recurringIncomeData = [];
+    
+    // Reset initialization flag
+    _initialized = false;
+    
+    // Clear element cache
+    Object.keys(_elements).forEach(key => {
+      delete _elements[key];
+    });
+    
+    // Re-initialize without cached data to force fresh load
+    init('incomeContent', null);
+  }
+
+  /**
+   * Set income data from external source
+   */
+  function setIncomeData(incomeData) {
+    if (!incomeData || !Array.isArray(incomeData)) {
+      console.warn('IncomeManager: Invalid income data');
+      return;
+    }
+
+    _incomeData = processIncomeData(incomeData);
+    
+    if (_initialized) {
+      updateSummaryCards();
+      updateIncomeTable();
+    }
+  }
+
+  // Public API
+      return {
+        init: init,
+        refresh: refresh,
+        isInitialized: function() { return _initialized; },
+        
+        // ADD THIS NEW METHOD:
+        updateDataSilently: function(entries) {
+          if (!entries || !Array.isArray(entries)) return;
+          
+          _incomeData = processIncomeData(entries);
+          
+          // Update table without showing loading
+          updateIncomeTable();
+          
+          // Update any totals/metrics if they exist
+          const metrics = calculateIncomeMetrics();
+          updateMetricsDisplay(metrics);
+        }
+      };
+})();
+
+// Expose globally
+window.IncomeManager = IncomeManager;
+</script>
+
+<style>
+/* ==============================================================
+   INCOME MANAGEMENT - ENHANCED STYLES WITH RECURRING INTEGRATION
+   ==============================================================
+*/
+
+/* ======== LOADING & ERROR STATES ======== */
+.inc-loading, .inc-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  text-align: center;
+}
+
+.inc-loading-text {
+  margin-top: 16px;
+  color: var(--text-secondary, #666);
+}
+
+.inc-error {
+  background-color: #ffebee;
+  border-radius: 0px;
+  border-top: 1px solid rgba(0, 0, 0, 0.5);
+  border-left: 1px solid rgba(0, 0, 0, 0.5);
+  border-right: 4px solid #334a60;
+  border-bottom: 4px solid #334a60;
+}
+
+/* ======== NOTES POPUP ======== */
+.inc-notes-popup {
+  position: absolute;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 10px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  max-width: 300px;
+  z-index: 1000;
+  font-size: 14px;
+  word-wrap: break-word;
+}
+
+body.dark-mode .inc-notes-popup {
+  background: var(--dark-surface, #1e1e1e);
+  color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
+  border-color: var(--dark-border, rgba(255, 255, 255, 0.12));
+}
+
+/* ======== PROFESSIONAL 2-COLUMN POPUP STYLES ======== */
+.inc-add-overlay, .rec-add-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  backdrop-filter: blur(2px);
+}
+
+.inc-add-popup, .rec-add-popup {
+  background: white;
+  border-radius: 0px;
+  border-top: 1px solid rgba(0, 0, 0, 0.5);
+  border-left: 1px solid rgba(0, 0, 0, 0.5);
+  border-right: 4px solid #334a60;
+  border-bottom: 4px solid #334a60;
+  min-width: 800px;
+  max-width: 1000px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  animation: inc-dialog-appear 0.2s ease-out;
+}
+
+@keyframes inc-dialog-appear {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.inc-add-header, .rec-add-header {
+  background-color: #d6f1f5;
+  padding: 16px 20px;
+  border-bottom: 1px solid #eee;
+}
+
+.inc-add-header h3, .rec-add-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #2c3e50;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+/* Tab styles */
+.inc-add-tabs {
+  display: flex;
+  margin-top: 12px;
+  border-bottom: 1px solid #ddd;
+}
+
+.inc-add-tab {
+  background: none;
+  border: none;
+  padding: 8px 16px;
+  cursor: pointer;
+  color: #666;
+  font-size: 14px;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.inc-add-tab:hover {
+  color: #2c3e50;
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.inc-add-tab.active {
+  color: #2c3e50;
+  border-bottom-color: #2c3e50;
+  font-weight: 600;
+}
+
+/* Tab content */
+.inc-add-tab-content {
+  display: none;
+}
+
+.inc-add-tab-content.active {
+  display: block;
+}
+
+/* Popup body with 2-column layout on desktop */
+.inc-add-body, .rec-add-body {
+  padding: 20px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.rec-add-form-wrapper {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  min-height: 400px;
+}
+
+/* Fields column (left side) */
+.inc-add-fields-column, .rec-add-fields-column, .rec-add-form-column {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Notes column (right side) */
+.inc-add-notes-column, .rec-add-notes-column {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Field grid within left column */
+.inc-add-grid, .rec-add-grid {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 0;
+}
+
+/* Input row containers */
+.inc-add-row, .rec-add-row {
+  display: contents;
+  margin-bottom: 0;
+}
+
+/* Labels - Right aligned */
+.inc-add-row label, .rec-add-row label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: #2c3e50;
+  margin-bottom: 0;
+  text-align: right;
+  padding-right: 12px;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+  grid-column: 1;
+}
+
+/* All inputs, selects, textareas */
+.inc-add-input, .rec-add-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 0px;
+  font-size: 14px;
+  background-color: white;
+  color: #2c3e50;
+  box-sizing: border-box;
+  grid-column: 2;
+}
+
+.inc-add-input:focus, .rec-add-input:focus {
+  border-color: #2c3e50;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(44, 62, 80, 0.2);
+}
+
+/* Special handling for amount wrapper */
+.inc-add-amount-wrapper, .rec-add-amount-wrapper {
+  position: relative;
+  width: 100%;
+  grid-column: 2;
+}
+
+.inc-add-currency, .rec-add-currency {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #666;
+  z-index: 1;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+.inc-add-amount, .rec-add-amount {
+  padding-left: 36px !important;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+/* Notes section in column 2 */
+.inc-add-notes-row, .rec-add-notes-row {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* Notes label styling */
+.inc-add-notes-row label, .rec-add-notes-row label {
+  font-size: 14px;
+  font-weight: 700;
+  color: #2c3e50;
+  margin-bottom: 8px;
+  font-family: 'Lato', sans-serif;
+}
+
+/* Notes textarea takes full height */
+.inc-add-notes-row textarea, .rec-add-notes-row textarea {
+  flex: 1;
+  min-height: 200px;
+  resize: vertical;
+}
+
+/* Textarea - same initial height as inputs */
+.inc-add-textarea, .rec-add-textarea {
+  min-height: 42px;
+  max-height: 120px;
+  resize: vertical;
+  font-family: inherit;
+  padding: 10px 12px;
+  line-height: 1.4;
+}
+
+/* Actions section */
+.inc-add-actions, .rec-add-actions {
+  padding: 16px 20px;
+  padding-right: 32px;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  border-top: 1px solid #eee;
+  background-color: #fafafa;
+}
+
+.inc-add-btn, .rec-add-btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 0px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 80px;
+}
+
+.inc-add-cancel-btn, .rec-add-cancel-btn {
+  background-color: #f5f5f5;
+  color: #666;
+  border: 1px solid #ddd;
+}
+
+.inc-add-cancel-btn:hover, .rec-add-cancel-btn:hover {
+  background-color: #e8e8e8;
+  color: #2c3e50;
+}
+
+.inc-add-save-btn, .rec-add-save-btn {
+  background-color: #2c3e50;
+  color: white;
+}
+
+.inc-add-save-btn:hover, .rec-add-save-btn:hover {
+  background-color: #1984c5;
+}
+
+.inc-add-btn:focus, .rec-add-btn:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(44, 62, 80, 0.3);
+}
+
+/* Delete button for edit popups */
+.rec-add-delete-btn {
+  margin-right: auto;
+  background-color: #f44336;
+  color: white;
+}
+
+.rec-add-delete-btn:hover {
+  background-color: #d32f2f;
+}
+
+/* Error states */
+.inc-input-error, .rec-input-error {
+  border-color: #f44336 !important;
+  background-color: rgba(244, 67, 54, 0.1) !important;
+}
+
+/* Dark mode for popups */
+body.dark-mode .inc-add-popup, body.dark-mode .rec-add-popup {
+  background: var(--dark-surface, #1e1e1e);
+  color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
+}
+
+body.dark-mode .inc-add-header, body.dark-mode .rec-add-header {
+  background-color: var(--dark-surface, #1e1e1e);
+  border-color: var(--dark-border, rgba(255, 255, 255, 0.12));
+}
+
+body.dark-mode .inc-add-header h3, body.dark-mode .rec-add-header h3 {
+  color: #DDA15E;
+}
+
+body.dark-mode .inc-add-row label, body.dark-mode .rec-add-row label {
+  color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
+}
+
+body.dark-mode .inc-add-input, body.dark-mode .rec-add-input {
+  background-color: var(--dark-surface, #1e1e1e);
+  color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
+  border-color: var(--dark-border, rgba(255, 255, 255, 0.12));
+}
+
+body.dark-mode .inc-add-input:focus, body.dark-mode .rec-add-input:focus {
+  border-color: #DDA15E;
+  box-shadow: 0 0 0 2px rgba(221, 161, 94, 0.3);
+}
+
+body.dark-mode .inc-add-currency, body.dark-mode .rec-add-currency {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+body.dark-mode .inc-add-actions, body.dark-mode .rec-add-actions {
+  border-color: var(--dark-border, rgba(255, 255, 255, 0.12));
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+body.dark-mode .inc-add-notes-row, body.dark-mode .rec-add-notes-row {
+  border-top-color: var(--dark-border, rgba(255, 255, 255, 0.12));
+}
+
+body.dark-mode .inc-add-cancel-btn, body.dark-mode .rec-add-cancel-btn {
+  background-color: var(--dark-surface, #1e1e1e);
+  color: var(--dark-text-secondary, rgba(255, 255, 255, 0.6));
+  border-color: var(--dark-border, rgba(255, 255, 255, 0.12));
+}
+
+body.dark-mode .inc-add-cancel-btn:hover, body.dark-mode .rec-add-cancel-btn:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
+}
+
+body.dark-mode .inc-add-save-btn, body.dark-mode .rec-add-save-btn {
+  background-color: #DDA15E;
+  color: #1e1e1e;
+}
+
+body.dark-mode .inc-add-save-btn:hover, body.dark-mode .rec-add-save-btn:hover {
+  background-color: #c9955a;
+}
+
+body.dark-mode .inc-add-btn:focus, body.dark-mode .rec-add-btn:focus {
+  box-shadow: 0 0 0 2px rgba(221, 161, 94, 0.3);
+}
+
+body.dark-mode .rec-add-delete-btn {
+  background-color: #ef5350;
+  color: #1e1e1e;
+}
+
+body.dark-mode .rec-add-delete-btn:hover {
+  background-color: #f44336;
+}
+
+/* Mobile responsive for popups */
+@media (max-width: 768px) {
+  .inc-add-popup, .rec-add-popup {
+    width: 95%;
+    max-width: 95%;
+    min-width: auto;
+    margin: 10px;
+  }
+  
+  /* Stack to single column on mobile */
+  .inc-add-grid, .rec-add-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  
+  /* Labels above inputs on mobile */
+  .inc-add-row label, .rec-add-row label {
+    text-align: left;
+    padding-right: 0;
+    padding-bottom: 4px;
+    margin-bottom: 4px;
+  }
+  
+  /* Inputs take full row */
+  .inc-add-input, .rec-add-input,
+  .inc-add-amount-wrapper, .rec-add-amount-wrapper {
+    grid-column: 1;
+  }
+  
+  /* Mobile: Single column layout */
+  .inc-add-body, .rec-add-body {
+    display: block;
+    grid-template-columns: none;
+    gap: 0;
+  }
+  
+  .rec-add-form-wrapper {
+    display: block;
+    grid-template-columns: none;
+    gap: 0;
+    min-height: auto;
+  }
+  
+  .inc-add-fields-column, .rec-add-fields-column, .rec-add-form-column,
+  .inc-add-notes-column, .rec-add-notes-column {
+    display: block;
+  }
+  
+  /* Notes section on mobile */
+  .inc-add-notes-row, .rec-add-notes-row {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #eee;
+    height: auto;
+  }
+  
+  .inc-add-notes-row textarea, .rec-add-notes-row textarea {
+    min-height: 80px;
+    flex: none;
+  }
+  
+  /* Reduce padding on mobile */
+  .inc-add-body, .rec-add-body {
+    padding: 16px;
+    padding-right: 16px;
+  }
+  
+  .inc-add-actions, .rec-add-actions {
+    padding: 12px 16px;
+    padding-right: 16px;
+    flex-direction: column;
+  }
+  
+  .inc-add-btn, .rec-add-btn {
+    width: 100%;
+  }
+  
+  /* Delete button full width on mobile */
+  .rec-add-delete-btn {
+    margin-right: 0;
+    order: 2;
+  }
+}
+
+/* Mobile 2-column layout for income popups */
+@media (max-width: 768px) {
+  /* Override single column layout for one-time income fields */
+  .inc-add-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr); /* 2 equal columns */
+    gap: 12px 8px; /* Row gap, column gap */
+  }
+  
+  /* Each field takes up one cell by default */
+  .inc-add-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  /* Make source field span full width (2 columns) */
+  .inc-add-row:has(#addSource),
+  .inc-add-row:has(#addRecSource),
+  .inc-add-row:has(#editNormalSource) {
+    grid-column: 1 / -1;
+  }
+  
+  /* Labels stay above inputs */
+  .inc-add-row label {
+    text-align: left;
+    padding-right: 0;
+    margin-bottom: 4px;
+  }
+  
+  /* Inputs take full width of their cell */
+  .inc-add-input,
+  .inc-add-amount-wrapper {
+    width: 100%;
+  }
+  
+  /* Notes section remains full width below the grid */
+  .inc-add-notes-column {
+    margin-top: 16px;
+  }
+  
+  /* Remove the border from notes row to avoid double border */
+  .inc-add-notes-row {
+    border-top: none !important;
+    padding-top: 0 !important;
+  }
+  
+  /* Add single border to fields column */
+  .inc-add-fields-column {
+    padding-bottom: 16px;
+    border-bottom: 1px solid #eee;
+  }
+  
+  /* Ensure popup body uses block layout */
+  .inc-add-body {
+    display: block;
+    overflow-x: hidden; /* Prevent horizontal scroll */
+  }
+  
+  /* Ensure popup doesn't cause horizontal scroll */
+  .inc-add-popup {
+    max-width: calc(100vw - 20px);
+    overflow-x: hidden;
+  }
+  
+  /* Override mobile button layout to show side-by-side instead of stacked */
+  .inc-add-actions {
+    flex-direction: row !important; /* Override column layout */
+    gap: 12px;
+  }
+  
+  .inc-add-btn, .rec-add-btn {
+    width: auto !important; /* Override 100% width */
+    flex: 1; /* Equal width buttons */
+  }
+  
+  /* Force correct button order on mobile */
+  .inc-add-cancel-btn, .rec-add-cancel-btn { order: 1; }
+  .inc-add-delete-btn, .rec-add-delete-btn { order: 2; }
+  .inc-add-save-btn, .rec-add-save-btn { order: 3; }
+  
+  /* Dark mode border for form column separator */
+  body.dark-mode .inc-add-fields-column {
+    border-bottom-color: var(--dark-border, rgba(255, 255, 255, 0.12));
+  }
+}
+
+/* ======== CONFIRMATION DIALOG ======== */
+.inc-confirm-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  backdrop-filter: blur(2px);
+}
+
+.inc-confirm-dialog {
+  background: white;
+  border-radius: 0px;
+  border-top: 1px solid rgba(0, 0, 0, 0.5);
+  border-left: 1px solid rgba(0, 0, 0, 0.5);
+  border-right: 4px solid #334a60;
+  border-bottom: 4px solid #334a60;
+  min-width: 320px;
+  max-width: 480px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  animation: inc-dialog-appear 0.2s ease-out;
+}
+
+.inc-confirm-header {
+  background-color: #d6f1f5;
+  padding: 16px 20px;
+  border-bottom: 1px solid #eee;
+}
+
+.inc-confirm-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #2c3e50;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+.inc-confirm-body {
+  padding: 20px;
+  padding-right: 32px;
+}
+
+.inc-confirm-body p {
+  margin: 0;
+  font-size: 15px;
+  color: #2c3e50;
+  line-height: 1.4;
+}
+
+.inc-confirm-actions {
+  padding: 16px 20px;
+  padding-right: 32px;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  border-top: 1px solid #eee;
+  background-color: #fafafa;
+}
+
+.inc-confirm-btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 0px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 80px;
+}
+
+.inc-confirm-btn.inc-cancel-btn {
+  background-color: #f5f5f5;
+  color: #666;
+  border: 1px solid #ddd;
+}
+
+.inc-confirm-btn.inc-cancel-btn:hover {
+  background-color: #e8e8e8;
+  color: #2c3e50;
+}
+
+
+.inc-confirm-btn:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(244, 67, 54, 0.3);
+}
+
+/* Dark mode for confirmation dialog */
+body.dark-mode .inc-confirm-dialog {
+  background: var(--dark-surface, #1e1e1e);
+  color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
+}
+
+body.dark-mode .inc-confirm-header {
+  background-color: var(--dark-surface, #1e1e1e);
+  border-color: var(--dark-border, rgba(255, 255, 255, 0.12));
+}
+
+body.dark-mode .inc-confirm-header h3 {
+  color: #DDA15E;
+}
+
+body.dark-mode .inc-confirm-body p {
+  color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
+}
+
+body.dark-mode .inc-confirm-actions {
+  border-color: var(--dark-border, rgba(255, 255, 255, 0.12));
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+body.dark-mode .inc-confirm-btn.inc-cancel-btn {
+  background-color: var(--dark-surface, #1e1e1e);
+  color: var(--dark-text-secondary, rgba(255, 255, 255, 0.6));
+  border-color: var(--dark-border, rgba(255, 255, 255, 0.12));
+}
+
+body.dark-mode .inc-confirm-btn.inc-cancel-btn:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
+}
+
+
+/* ======== SUMMARY BOX ======== */
+.inc-summary-row {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: center;
+}
+
+.inc-summary-box {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 0px;
+  padding: 10px 20px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+  width: 100%;
+}
+
+.inc-box-content {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.inc-box-item {
+  flex: 1 0 calc(50% - 10px);
+  padding: 8px;
+  text-align: center;
+  margin-bottom: 5px;
+}
+
+.inc-box-label {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 4px;
+  font-family: sans-serif;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.inc-box-value {
+  font-size: 22px;
+  font-weight: 800;
+  color: white;
+  font-family: 'Lato', sans-serif;
+}
+
+/* Show summary on mobile too */
+
+/* Add button styling */
+.inc-add-income-btn {
+  background-color: #2c3e50;
+  color: white;
+  border: none;
+  border-radius: 0px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  margin-left: 8px;
+}
+
+.inc-add-income-btn:hover {
+  background-color: #1984c5;
+}
+
+.inc-add-income-btn i {
+  font-size: 18px;
+}
+
+/* ======== ADD RECURRING BUTTON ======== */
+.inc-add-recurring-btn {
+  background-color: #1984c5;
+  color: white;
+  border: none;
+  border-radius: 0px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  margin-left: 8px;
+}
+
+.inc-add-recurring-btn:hover {
+  background-color: #156ba0;
+}
+
+.inc-add-recurring-btn i {
+  font-size: 18px;
+}
+
+/* Dark mode for recurring button */
+body.dark-mode .inc-add-recurring-btn {
+  background-color: #c9955a;
+  color: #1e1e1e;
+}
+
+body.dark-mode .inc-add-recurring-btn:hover {
+  background-color: #b08549;
+}
+
+/* ======== TABLE SECTION ======== */
+.inc-table-container {
+  background-color: #ffffff;
+  border-radius: 0px;
+  padding: 20px;
+  border-top: 1px solid rgb(51 74 96 / 20%);
+  border-left: 1px solid rgb(51 74 96 / 20%);
+  border-right: 4px solid rgb(51 74 96 / 20%);
+  border-bottom: 4px solid rgb(51 74 96 / 20%);
+}
+
+.inc-table-header {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 16px;
+}
+
+.inc-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.inc-status-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Hide tab filter buttons */
+.inc-filter-btn[data-status="all"],
+.inc-filter-btn[data-status="recurring"] {
+  display: none;
+}
+
+.inc-filter-btn {
+  background-color: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 0px;
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.inc-filter-btn.active {
+  background-color: #2c3e50;
+  color: white;
+  border-color: #2c3e50;
+}
+
+.inc-filter-select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 0px;
+  font-size: 14px;
+}
+
+.inc-table-wrapper {
+  overflow-x: auto;
+  margin-bottom: 16px;
+}
+
+.inc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.inc-table th,
+.inc-table td {
+  padding: 6px 5px;
+  text-align: center;
+  border-bottom: 0.5px solid #f0f0f0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.inc-table th {
+  font-weight: 500;
+  color: #607d8b;
+  position: sticky;
+  top: 0;
+  background-color: white;
+  z-index: 10;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+/* Name cell - prevent wrapping */
+.inc-name-cell {
+  text-align: left !important;
+}
+
+.inc-name-content {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+  width: 100% !important; /* CRITICAL - make content use 100% of cell width */
+  max-width: 100% !important; /* Ensure no max-width constraints */
+  display: block !important; /* Ensure it's block-level for proper width */
+}
+
+/* Notes cell styling */
+.inc-notes-cell {
+  width: 40px;
+  text-align: center;
+  cursor: pointer;
+  color: #666;
+}
+
+.inc-notes-cell:hover {
+  color: #2c3e50;
+  background-color: rgba(0,0,0,0.05);
+}
+
+.inc-notes-header {
+  width: 40px !important;
+  text-align: center !important;
+  padding: 6px 5px !important;
+}
+
+.inc-notes-input {
+  max-width: 100px;
+}
+
+.inc-table tbody tr {
+  transition: background-color 0.2s;
+}
+
+.inc-table tbody tr {
+  cursor: pointer;
+}
+
+.inc-table tbody tr:hover {
+  filter: brightness(0.92);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+}
+
+.inc-table tbody tr.inc-editing {
+  box-shadow: 0 0 0 2px #2c3e50;
+  position: relative;
+  z-index: 5;
+}
+
+/* ======== RECURRING INCOME ROW STYLING ======== */
+.inc-table tbody tr[data-recurring="true"] {
+  background-color: rgba(25, 132, 197, 0.05);
+}
+
+.inc-table tbody tr[data-recurring="true"]:hover {
+  background-color: rgba(25, 132, 197, 0.1);
+}
+
+body.dark-mode .inc-table tbody tr[data-recurring="true"] {
+  background-color: rgba(201, 149, 90, 0.1);
+}
+
+body.dark-mode .inc-table tbody tr[data-recurring="true"]:hover {
+  background-color: rgba(201, 149, 90, 0.15);
+}
+
+.inc-amount-cell {
+  min-width: 100px !important; 
+  font-weight: 500;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+  color: #2c3e50;
+}
+
+
+.inc-edit-input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #ddd;
+  border-radius: 0px;
+  font-size: 14px;
+}
+
+/* Currency input wrapper */
+.inc-amount-wrapper {
+  position: relative;
+  width: 100%;
+  min-width: 100px !important;
+}
+
+.inc-currency {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #666;
+  z-index: 1;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+.inc-amount {
+  padding-left: 36px !important;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  .inc-table-container {
+    max-width: 100vw;
+    overflow-x: auto;
+    overflow-y: visible !important;
+    height: fit-content !important;
+  }
+  
+  .inc-table {
+    font-size: 12px;
+    min-width: 500px;
+    table-layout: fixed;
+    width: 500px !important;
+  }
+  
+  .inc-table th,
+  .inc-table td {
+    padding: 6px 2px; /* Reduce horizontal padding from 5px to 2px */
+  }
+  
+  
+  /* Date column - first column */
+  .inc-date-cell,
+  .inc-table th:nth-child(1) {
+    width: 20% !important;
+  }
+
+  /* Name column - second column */
+  .inc-name-cell,
+  .inc-table th:nth-child(2) {
+    width: 25% !important;
+  }
+
+  /* Amount column - third column */
+  .inc-amount-cell,
+  .inc-table th:nth-child(3) {
+    width: 15% !important;
+  }
+
+  /* Account column - fourth column */
+  .inc-account-cell,
+  .inc-table th:nth-child(4) {
+     width: 25% !important;
+  }
+
+  /* Source column - fifth column */
+  .inc-source-cell,
+  .inc-table th:nth-child(5) {
+     width: 25% !important;
+  }
+  
+
+  /* Filter adjustments */
+  .inc-filter-btn {
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+  
+  /* Stack add buttons on mobile */
+  .inc-add-income-btn,
+  .inc-add-recurring-btn {
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+  
+  .inc-add-income-btn i,
+  .inc-add-recurring-btn i {
+    font-size: 16px;
+  }
+}
+
+/* iOS-specific fix for date inputs */
+input[type="date"].inc-edit-input {
+  width: 100% !important;
+  min-width: 100% !important;
+  max-width: 100% !important;
+  -webkit-appearance: none;
+  appearance: none;
+  display: block !important;
+}
+
+/* ======== DARK MODE SUPPORT ======== */
+body.dark-mode .inc-summary-box {
+  background: linear-gradient(135deg, #4c1d95 0%, #5b21b6 100%) !important;
+  box-shadow: 0 4px 12px rgba(76, 29, 149, 0.3);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+}
+
+body.dark-mode .inc-table-container {
+  background-color: var(--dark-surface, #1e1e1e);
+  color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
+}
+
+body.dark-mode .inc-box-label {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+body.dark-mode .inc-table th {
+  color: var(--dark-text-secondary, rgba(255, 255, 255, 0.6)) !important;
+}
+
+body.dark-mode .inc-box-value {
+  color: white !important;
+}
+
+body.dark-mode .inc-amount-cell {
+  color: #DDA15E !important;
+}
+
+body.dark-mode .inc-currency {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+body.dark-mode .inc-filter-select,
+body.dark-mode .inc-filter-btn,
+body.dark-mode .inc-edit-input {
+  background-color: var(--dark-surface, #1e1e1e);
+  color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
+  border-color: var(--dark-border, rgba(255, 255, 255, 0.12));
+}
+
+body.dark-mode .inc-table td {
+  border-color: var(--dark-border, rgba(255, 255, 255, 0.12));
+}
+
+body.dark-mode .inc-table th {
+  background-color: var(--dark-surface, #1e1e1e);
+}
+
+
+body.dark-mode .inc-filter-btn.active {
+  background-color: #DDA15E;
+  border-color: #DDA15E;
+  color: #1e1e1e;
+}
+
+body.dark-mode .inc-add-income-btn {
+  background-color: #DDA15E;
+  color: #1e1e1e;
+}
+
+body.dark-mode .inc-add-income-btn:hover {
+  background-color: #c9955a;
+}
+
+body.dark-mode .inc-notes-cell {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+body.dark-mode .inc-notes-cell:hover {
+  color: #DDA15E;
+}
+
+
+
+/* ======== DESKTOP STYLES ======== */
+@media (min-width: 769px) {
+  .inc-box-item {
+    flex: 1;
+  }
+  
+  .inc-box-label {
+    font-size: 14px;
+  }
+  
+  .inc-box-value {
+    font-size: 22px;
+  }
+  
+  .inc-filters {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .inc-status-filters {
+    flex: 3;
+  }
+  
+  .inc-category-filter {
+    flex: 1;
+    max-width: 200px;
+  }
+  
+  .inc-table {
+    font-size: 15px;
+  }
+  
+  /* ======== DESKTOP PADDING ======== */
+  .inc-table-container {
+    padding: 20px 150px;
+    margin-left: auto;
+    margin-right: auto;
+    max-width: 70%;
+  }
+  
+  .inc-summary-box {
+    margin-left: auto;
+    margin-right: auto;
+    max-width: 70%;
+    margin-top: 10px;
+    
+  }
+}
+
+/* Empty message styling */
+.inc-empty-message {
+  text-align: center;
+  color: #999;
+  font-style: italic;
+  padding: 20px !important;
+}
+
+/* New column styling for recurring view */
+.inc-frequency-cell,
+.inc-next-cell,
+.inc-end-cell {
+  text-align: center;
+  font-size: 13px;
+}
+
+.inc-frequency-cell {
+  color: #1984c5;
+  font-weight: 500;
+}
+
+.inc-next-cell {
+  color: #4caf50;
+  font-weight: 500;
+}
+
+.inc-end-cell {
+  color: #666;
+}
+
+/* Mobile adjustments for recurring view */
+@media (max-width: 768px) {
+  /* Hide some columns on mobile in recurring view */
+  .inc-end-cell,
+  .inc-table th:nth-child(7) {
+    display: none;
+  }
+  
+  .inc-account-cell,
+  .inc-table th:nth-child(4) {
+    display: none;
+  }
+}
+
+/* Dark mode support for new columns */
+body.dark-mode .inc-frequency-cell {
+  color: #c9955a;
+}
+
+body.dark-mode .inc-next-cell {
+  color: #4caf50;
+}
+
+body.dark-mode .inc-end-cell {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* ======== SORTABLE TABLE ENHANCEMENTS ======== */
+.inc-sortable {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.inc-sortable:hover {
+  background-color: rgba(44, 62, 80, 0.1);
+  color: #2c3e50;
+}
+
+.inc-sort-indicator {
+  font-size: 12px;
+  color: #2c3e50;
+  margin-left: 4px;
+  display: inline-block;
+  opacity: 0.8;
+}
+
+/* Dark mode sort indicators */
+body.dark-mode .inc-sortable:hover {
+  background-color: rgba(221, 161, 94, 0.1);
+  color: #DDA15E;
+}
+
+body.dark-mode .inc-sort-indicator {
+  color: #DDA15E;
+}
+
+/* Pagination Styles */
+.inc-pagination-wrapper {
+  display: flex;
+  justify-content: flex-end;
+  padding: 15px 0;
+  margin-top: 10px;
+  width: 100%;
+  text-align: right;
+}
+
+.inc-items-per-page {
+  background-color: #5a7a96;
+  color: white;
+  border: none;
+  border-radius: 0px;
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  margin-left: auto;
+}
+
+.inc-items-per-page:hover {
+  background-color: #4a6a86;
+}
+
+/* Dark mode */
+body.dark-mode .inc-items-per-page {
+  background-color: #9db8c8;
+  color: #1e1e1e;
+}
+
+body.dark-mode .inc-items-per-page:hover {
+  background-color: #8da6b6;
+}
+</style>

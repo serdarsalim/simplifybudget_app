@@ -1,0 +1,279 @@
+
+
+
+<!DOCTYPE html>
+<html>
+  <head>
+
+
+    <base target="_top">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap">
+    
+    <!-- Chart.js for data visualization -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    
+    <!-- Google APIs for Picker -->
+    <script src="https://apis.google.com/js/api.js"></script>
+    
+    <!-- Emoji Picker Element -->
+    <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js"></script>
+    
+  <?!= include('Styles.html'); ?>
+    
+ <title data-translate="app_title">Simplify</title>
+  </head>
+  <body>
+
+
+    <div class="app-container">
+      <!-- SIDEBAR -->
+      <?!= include('Sidebar.html'); ?>
+      
+      <!-- MAIN CONTENT AREA -->
+      <div id="contentArea" class="content-area">
+        <!-- Default content on load - Budget View -->
+        <?!= include('dashboard.html'); ?>
+        
+       <!-- Income View - Initially Hidden -->
+        <div id="incomeView" class="view">
+          <div class="view-header">
+            <div class="view-actions">
+              <!-- Unified Refresh Banner -->
+              <div class="month-banner">
+                <div class="month-banner-inner">
+                  <div class="refresh-info">
+                    <span id="lastRefreshTimeIncome" class="last-refresh" data-translate="updated_just_now">Updated just now</span>
+                    <button id="refreshIncome" class="btn refresh-btn" data-translate-title="refresh_income_data">
+                      <i class="material-icons">refresh</i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="incomeContent" class="view-content">
+            <!-- Income data will be loaded here -->
+          </div>
+        </div>
+        
+        <!-- Recurring View - Initially Hidden -->
+        <div id="recurringView" class="view">
+        <div class="view-header">
+          <div class="view-actions">
+            <!-- Unified Refresh Banner -->
+            <div class="month-banner">
+              <div class="month-banner-inner">
+                <div class="refresh-info">
+                  <span id="lastRefreshTimeRecurring" class="last-refresh" data-translate="updated_just_now">Updated just now</span>
+                  <button id="refreshRecurring" class="btn refresh-btn" data-translate-title="refresh_recurring_transactions">
+                    <i class="material-icons">refresh</i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="recurringContent" class="view-content">
+          <!-- Recurring data will be loaded here by RecurringManager -->
+        </div>
+      </div>
+              
+            <!-- Net Worth View - FIXED STRUCTURE -->
+      <div id="netWorthView" class="view">
+        <div class="view-header">
+          <div class="view-actions">
+            <!-- Unified Month/Year Banner -->
+            <div class="month-banner">
+              <div class="month-banner-inner">
+                <div class="month-selector">
+                  <button id="prevMonthNetWorth" class="month-nav-btn" data-translate-aria-label="previous_month">
+                    <i class="material-icons">chevron_left</i>
+                  </button>
+                  <div id="monthYearDisplayNetWorth" class="month-year-display editable" data-translate-title="click_edit_month_year">
+                    <!-- Will be populated by JS -->
+                  </div>
+                  <button id="nextMonthNetWorth" class="month-nav-btn" data-translate-aria-label="next_month">
+                    <i class="material-icons">chevron_right</i>
+                  </button>
+                </div>
+                <div id="netWorthBannerSummary" class="networth-banner-summary hidden">
+                  <span class="networth-banner-label" data-translate="net_worth">Net Worth</span>
+                  <span class="networth-banner-value" id="netWorthBannerValue">—</span>
+                </div>
+                <div class="refresh-info">
+                  <span id="lastRefreshTimeNetWorth" class="last-refresh" data-translate="updated_just_now">Updated just now</span>
+                  <button id="refreshNetWorth" class="btn refresh-btn" data-translate-title="refresh_net_worth_data">
+                    <i class="material-icons">refresh</i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="netWorthContent" class="view-content">
+          <!-- Net Worth data will be loaded here -->
+        </div>
+      </div>
+        
+        
+      <!-- Categories  -->
+      
+      <div id="categoriesView" class="view">
+        <div class="view-header">
+          <div class="view-actions">
+            <!-- Unified Refresh Banner -->
+            <div class="month-banner">
+              <div class="month-banner-inner">
+                <div class="refresh-info">
+                  <span id="lastRefreshTimeCategories" class="last-refresh" data-translate="updated_just_now">Updated just now</span>
+                  <button id="refreshCategories" class="btn refresh-btn" data-translate-title="refresh_categories">
+                    <i class="material-icons">refresh</i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="categoriesContent" class="view-content">
+          <div class="categories-header">
+            <div id="category-counts" class="category-counts">
+              <!-- Will be populated by JS -->
+            </div>
+          </div>
+          <div id="categories-container" class="categories-container">
+            <!-- Categories will be loaded here -->
+          </div>
+        </div>
+      </div>
+        
+        <!-- Settings View - Initially Hidden -->
+        <div id="settingsView" class="view">
+          <div class="view-header">
+            <!-- view-actions div removed - using autosave instead -->
+          </div>
+          <div id="settingsContent" class="view-content">
+            <?!= include('Settings.html'); ?>
+          </div>
+        </div>
+
+        <!-- Expense View - Using Grid by Default -->
+        <div id="expenseView" class="view">
+          <div class="view-header">
+            <div class="view-actions">
+              <!-- Unified Month/Year Banner -->
+              <div class="month-banner">
+                <div class="month-banner-inner">
+                  <button id="viewToggle" class="toggle-btn" data-view="monthly" data-translate="monthly">Monthly</button>
+                  <div class="month-selector">
+                    <button id="prevMonth" class="month-nav-btn" data-translate-aria-label="previous_month">
+                      <i class="material-icons">chevron_left</i>
+                    </button>
+                    <div id="monthYearDisplay" class="month-year-display editable" data-translate-title="click_edit_month_year">
+                      <!-- Will be populated by JS -->
+                    </div>
+                    <button id="nextMonth" class="month-nav-btn" data-translate-aria-label="next_month">
+                      <i class="material-icons">chevron_right</i>
+                    </button>
+                  </div>
+                  <div class="refresh-info">
+                    <span id="lastRefreshTime" class="last-refresh" data-translate="updated_just_now">Updated just now</span>
+                    <button id="refreshExpenses" class="btn refresh-btn">
+                      <i class="material-icons">refresh</i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- The expense content is now directly the grid view -->
+          <div id="expenseContent" class="view-content">
+            <!-- The monthly grid component will load here -->
+          </div>
+        </div>
+
+        <!-- Reports View - Initially Hidden -->
+        <div id="reportsView" class="view" style="display: none;">
+          <div class="view-header">
+            <div class="view-actions">
+              <!-- Unified Year Banner -->
+              <div class="month-banner">
+                <div class="month-banner-inner">
+                  <button id="viewToggleReports" class="toggle-btn" data-view="yearly" data-translate="yearly">Yearly</button>
+                  <button id="yearlyAnalytics" class="analytics-btn" data-translate-title="analytics">
+                    📊
+                  </button>
+                  <div class="month-selector">
+                    <button id="prevYearReports" class="month-nav-btn" data-translate-aria-label="previous_year">
+                      <i class="material-icons">chevron_left</i>
+                    </button>
+                    <div id="yearDisplayReports" class="month-year-display editable" data-translate-title="click_edit_year">
+                      <!-- Will be populated by JS -->
+                    </div>
+                    <button id="nextYearReports" class="month-nav-btn" data-translate-aria-label="next_year">
+                      <i class="material-icons">chevron_right</i>
+                    </button>
+                  </div>
+                  <div class="refresh-info">
+                    <span id="lastRefreshTimeReports" class="last-refresh" data-translate="updated_just_now">Updated just now</span>
+                    <button id="refreshReports" class="btn refresh-btn" data-translate-title="refresh_yearly_data">
+                      <i class="material-icons">refresh</i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="reportsContent" class="view-content">
+            <!-- Reports data will be loaded here -->
+          </div>
+        </div>
+        
+        </div>
+      </div>
+    </div>
+    
+    <!-- Include JavaScript -->
+    <?!= include('CacheManager.js.html'); ?> 
+    <?!= include('settings.js.html'); ?>
+    <?!= include('API.html'); ?>
+    <?!= include('TransactionManager.js.html'); ?>
+    <?!= include('Utils.html'); ?>
+    <?!= include('Init.html'); ?>
+    <?!= include('dashboard.js.html'); ?>
+    <?!= include('categories.js.html'); ?> 
+    <?!= include('monthlyGrid.js.html'); ?>
+    <?!= include('yearlyGrid.js.html'); ?>
+    <?!= include('income.js.html'); ?>
+    <?!= include('recurring.js.html'); ?>
+    <?!= include('networth.js.html'); ?>
+    <?!= include('cacheDebug.js.html'); ?>
+ 
+
+
+
+
+<!-- Cache Debug Button -->
+<div style="position: fixed; bottom: 10px; right: 10px; z-index: 10000;">
+  <button onclick="openCombinedDebugPopup()" 
+    style=" display: none; background: #0066cc; color: white; border: none; padding: 8px 16px; border-radius: 4px; 
+    cursor: pointer; font-family: monospace; font-size: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.3);">
+    🐛 DEBUG
+  </button>
+</div>
+
+
+
+
+
+
+  </div>
+</div>
+
+
+
+      </body>
+    </html>

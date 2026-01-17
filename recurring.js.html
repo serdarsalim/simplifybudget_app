@@ -1,0 +1,4570 @@
+<script> 
+
+// ============================================================================
+// CLIENT-SIDE RECURRING MODULE - FIXED EMOJI VERSION
+// ============================================================================
+
+var RecurringManager = (function() {
+  // Private variables
+  let _initialized = false;
+  let _recurringData = [];
+  let _categories = []; // Active categories only (for dropdowns)
+  let _allCategoriesForLookup = []; // All categories including inactive (for emoji lookup)
+  let _currencySymbol = '$';
+  let _showDecimals = true;
+  let _language = 'en';
+  let _showExpired = false; // Default to hiding expired subscriptions
+  let _currentSort = { column: 'nextPayment', direction: 'asc' }; // Default sort by next payment
+  
+  // DOM element cache
+  const _elements = {};
+  
+  /**
+   * Get element with caching
+   */
+  function getElement(id) {
+    if (!_elements[id]) {
+      _elements[id] = document.getElementById(id);
+    }
+    return _elements[id];
+  }
+
+  /**
+   * Parse category string to extract name and emoji - ENHANCED VERSION
+   * Same as MonthlyGrid for consistency
+   */
+  function parseCategoryNameAndEmoji(categoryString) {
+    if (!categoryString || typeof categoryString !== 'string') {
+      return { name: '', emoji: '' };
+    }
+    
+    const parts = categoryString.trim().split(' ');
+    
+    if (parts.length >= 2) {
+      const lastPart = parts[parts.length - 1];
+      // Enhanced emoji regex to catch all modern emojis
+      const emojiRegex = /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F700}-\u{1F77F}]|[\u{1F780}-\u{1F7FF}]|[\u{1F800}-\u{1F8FF}]|[\u{1F900}-\u{1F9FF}]|[\u{1FA00}-\u{1FA6F}]|[\u{1FA70}-\u{1FAFF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{2300}-\u{23FF}]|[\u{2B00}-\u{2BFF}]|[\u{25A0}-\u{25FF}]|[\u{2190}-\u{21FF}]|[\u{3030}]|[\u{303D}]|[\u{3297}]|[\u{3299}]|[\u{24C2}]|[\u{1F004}]|[\u{1F0CF}]|[\u{1F18E}]/gu;
+      
+      if (emojiRegex.test(lastPart)) {
+        const name = parts.slice(0, -1).join(' ');
+        const emoji = lastPart;
+        return { name, emoji };
+      }
+    }
+    
+    return { name: categoryString, emoji: '' };
+  }
+
+  /**
+   * Load settings from SimBudget
+   */
+  function loadSettings() {
+    if (window.SimBudget && SimBudget.Settings) {
+      _currencySymbol = SimBudget.Settings.getCurrencySymbol() || '$';
+      _showDecimals = SimBudget.Settings.showDecimals() !== false;
+      _language = SimBudget.Settings.getSetting('language') || 'en';
+    }
+  }
+
+  /**
+   * Format currency with user settings
+   */
+  function formatCurrency(amount) {
+    // Ensure amount is a number
+    const numAmount = typeof amount === 'number' ? amount : parseFloat(amount) || 0;
+    
+    if (window.Utils && typeof Utils.formatCurrency === 'function') {
+      return Utils.formatCurrency(numAmount);
+    }
+    
+    const decimals = _showDecimals ? 2 : 0;
+    return `${_currencySymbol}${numAmount.toFixed(decimals)}`;
+  }
+
+  /**
+   * Sort data based on current sort settings
+   */
+  function sortData(data) {
+    // Special sorting when showing expired items
+    if (_showExpired && _currentSort.column === 'nextPayment') {
+      return [...data].sort((a, b) => {
+        const aStatus = a.status.toLowerCase();
+        const bStatus = b.status.toLowerCase();
+        
+        // Expired items come first when sorting by next payment
+        if (aStatus === 'expires' && bStatus !== 'expires') return -1;
+        if (bStatus === 'expires' && aStatus !== 'expires') return 1;
+        
+        // If both or neither are expired, fall back to normal sorting
+        if (!_currentSort.column) return 0;
+        
+        let aVal = a[_currentSort.column];
+        let bVal = b[_currentSort.column];
+        
+        // Handle null/undefined values
+        if (aVal == null && bVal == null) return 0;
+        if (aVal == null) return _currentSort.direction === 'asc' ? 1 : -1;
+        if (bVal == null) return _currentSort.direction === 'asc' ? -1 : 1;
+        
+        // Handle dates
+        if (_currentSort.column === 'nextPayment' || _currentSort.column === 'startDate' || 
+            _currentSort.column === 'endDate' || _currentSort.column === 'expiration') {
+          aVal = aVal instanceof Date ? aVal : new Date(aVal);
+          bVal = bVal instanceof Date ? bVal : new Date(bVal);
+        }
+        
+        // Handle numbers
+        if (_currentSort.column === 'amount') {
+          aVal = parseFloat(aVal) || 0;
+          bVal = parseFloat(bVal) || 0;
+        }
+        
+        // Handle strings
+        if (typeof aVal === 'string' && typeof bVal === 'string') {
+          aVal = aVal.toLowerCase();
+          bVal = bVal.toLowerCase();
+        }
+        
+        let result = 0;
+        if (aVal < bVal) result = -1;
+        if (aVal > bVal) result = 1;
+        
+        return _currentSort.direction === 'desc' ? -result : result;
+      });
+    }
+    
+    if (!_currentSort.column) return data;
+    
+    return [...data].sort((a, b) => {
+      let aVal = a[_currentSort.column];
+      let bVal = b[_currentSort.column];
+      
+      // Handle null/undefined values
+      if (aVal == null && bVal == null) return 0;
+      if (aVal == null) return _currentSort.direction === 'asc' ? 1 : -1;
+      if (bVal == null) return _currentSort.direction === 'asc' ? -1 : 1;
+      
+      // Handle dates
+      if (_currentSort.column === 'nextPayment' || _currentSort.column === 'startDate' || 
+          _currentSort.column === 'endDate' || _currentSort.column === 'expiration') {
+        aVal = aVal instanceof Date ? aVal : new Date(aVal);
+        bVal = bVal instanceof Date ? bVal : new Date(bVal);
+        
+        // For next payment, prioritize items that actually have a next payment
+        if (_currentSort.column === 'nextPayment') {
+          const aHasNext = aVal && !isNaN(aVal.getTime());
+          const bHasNext = bVal && !isNaN(bVal.getTime());
+          
+          if (!aHasNext && !bHasNext) return 0;
+          if (!aHasNext) return 1; // Items without next payment go to end
+          if (!bHasNext) return -1;
+        }
+      }
+      
+      // Handle numbers
+      if (_currentSort.column === 'amount') {
+        aVal = parseFloat(aVal) || 0;
+        bVal = parseFloat(bVal) || 0;
+      }
+      
+      // Handle strings
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        aVal = aVal.toLowerCase();
+        bVal = bVal.toLowerCase();
+      }
+      
+      let result = 0;
+      if (aVal < bVal) result = -1;
+      if (aVal > bVal) result = 1;
+      
+      return _currentSort.direction === 'desc' ? -result : result;
+    });
+  }
+
+  /**
+   * Handle column header click for sorting
+   */
+  function handleColumnSort(column) {
+    // Toggle direction if same column, otherwise set to ascending
+    if (_currentSort.column === column) {
+      _currentSort.direction = _currentSort.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+      _currentSort.column = column;
+      _currentSort.direction = 'asc';
+    }
+    
+    // Update table with new sort
+    updateRecurringTable();
+    updateSortIndicators();
+    updateFilterButtons();
+  }
+
+  /**
+   * Update sort indicators in table headers
+   */
+  function updateSortIndicators() {
+    // Remove all existing sort indicators
+    document.querySelectorAll('.rec-sort-indicator').forEach(indicator => {
+      indicator.remove();
+    });
+    
+    // Add indicator to current sort column
+    const currentHeader = document.querySelector(`[data-sort-column="${_currentSort.column}"]`);
+    if (currentHeader) {
+      const indicator = document.createElement('span');
+      indicator.className = 'rec-sort-indicator';
+      indicator.innerHTML = _currentSort.direction === 'asc' ? ' ▲' : ' ▼';
+      currentHeader.appendChild(indicator);
+    }
+  }
+
+  /**
+   * Initialize the Recurring Manager
+   * @param {string} containerId - Container element ID
+   * @param {Array|null} cachedData - Optional cached data to use instead of loading
+   */
+  function init(containerId, cachedData) {
+    // Clean up any unsaved new items when re-initializing (tab switch)
+    _recurringData = _recurringData.filter(item => !item.isNew);
+    
+    // Clear element cache when re-initializing
+    Object.keys(_elements).forEach(key => {
+      delete _elements[key];
+    });
+    
+    // Reset event binding flag
+    const oldContainer = document.getElementById('recurringContent');
+    if (oldContainer) {
+      oldContainer.dataset.eventsbound = 'false';
+    }
+    
+    // Load user settings
+    loadSettings();
+    
+    // Find container
+    const container = containerId ? 
+      document.getElementById(containerId) : 
+      getElement('recurringContent');
+    
+    if (!container) {
+      console.error('RecurringManager: Container not found');
+      return;
+    }
+    
+    _elements['recurringContent'] = container;
+    
+    // Load categories
+    loadCategories();
+    
+    // Check if we already have data loaded
+    if (_initialized && _recurringData.length > 0 && !cachedData) {
+      // Just render with existing data
+      renderRecurringView();
+      bindEvents();
+      hideLoadingIndicator();
+      
+      // Initialize expired count and hide date columns
+      setTimeout(() => {
+        updateFilterButtons();
+        hideDateColumns();
+      }, 100);
+      
+    } else if (cachedData && Array.isArray(cachedData)) {
+      loadCategories();
+      _recurringData = processRecurringData(cachedData);
+      renderRecurringView();
+      bindEvents();
+      hideLoadingIndicator();
+      
+      // Load fresh data in background after a delay
+       setTimeout(() => {
+          updateFilterButtons();
+          hideDateColumns();
+        }, 100);
+      
+    } else if (!_initialized || _recurringData.length === 0) {
+      // No data yet, load fresh
+      loadRealRecurringData();
+    }
+    
+    _initialized = true;
+  }
+
+  /**
+   * FIXED: Load categories using the same approach as MonthlyGrid
+   * Uses CacheManager and API.getCategoriesWithTimestamp instead of localStorage parsing
+   */
+  function loadCategories() {
+    return new Promise((resolve, reject) => {
+      // STEP 1: Try cache first (same as MonthlyGrid)
+      const cachedData = window.CacheManager ? CacheManager.getCategoriesWithTimestamp() : null;
+      
+      if (cachedData && cachedData.categories) {
+        processCategoriesData(cachedData.categories);
+        resolve(_categories);
+        return;
+      }
+      
+      // ⚠️ CACHE MISS - Fallback to API call (same as MonthlyGrid)
+      
+      if (!window.API || typeof API.getCategoriesWithTimestamp !== 'function') {
+        console.error('RecurringManager: API.getCategoriesWithTimestamp not available');
+        reject('API.getCategoriesWithTimestamp not available');
+        return;
+      }
+      
+      API.getCategoriesWithTimestamp(
+        function(result) {
+          if (result && result.success && Array.isArray(result.categories)) {
+            
+            // Cache the fresh data
+            if (window.CacheManager) {
+              CacheManager.setCategoriesWithTimestamp(result.categories, result.timestamp);
+            }
+            
+            processCategoriesData(result.categories);
+            resolve(_categories);
+          } else {
+            console.error('RecurringManager: Invalid categories response from API');
+            reject('Invalid categories response from API');
+          }
+        },
+        function(error) {
+          console.error('RecurringManager: API call failed:', error);
+          reject('Failed to load categories: ' + error);
+        }
+      );
+    }).catch(error => {
+      console.error('RecurringManager: Error in loadCategories:', error);
+      // Fallback to empty categories to prevent crashes
+      _categories = [];
+    });
+  }
+
+  /**
+   * FIXED: Process categories data using the proper emoji field
+   * Same approach as MonthlyGrid - no more string parsing!
+   */
+  function processCategoriesData(categories) {
+    // Store all categories for reference
+    window._allCategories = categories;
+    
+    // Create lookup table for ALL categories (including inactive) for emoji display
+    _allCategoriesForLookup = categories
+      .filter(cat => {
+        // Exclude Income category completely (using clean name)
+        if (cat.name && cat.name.toLowerCase().includes('income')) {
+          return false;
+        }
+        return true; // Include both active AND inactive for emoji lookup
+      })
+      .map(cat => ({
+        id: cat.name,              // Clean name as ID
+        name: cat.name,            // Clean name for display  
+        emoji: cat.emoji || '',    // ✅ FIXED: Use emoji field directly - no parsing!
+        active: cat.active,        // Keep original active status              
+        fullName: cat.fullName || cat.name, // Original name with emoji if needed
+        order: cat.order || 999,
+        originalIndex: 999
+      }));
+    
+    // Create active categories only for dropdowns/forms
+    _categories = _allCategoriesForLookup.filter(cat => cat.active === true);
+    
+  }
+
+  /**
+   * Calculate next payment date based on frequency and start date
+   */
+  function calculateNextPayment(startDate, frequency, endDate) {
+    if (!startDate || !(startDate instanceof Date)) return null;
+    
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // Normalize to midnight
+    
+    // If ended, no next payment
+    if (endDate && endDate < now) return null;
+    
+    let nextDate = new Date(startDate);
+    const freq = frequency.toLowerCase();
+    
+    
+    // Keep advancing the date until it's today or in the future
+    while (nextDate < today) {
+      const originalDay = startDate.getDate();
+      
+      if (freq.includes('monthly')) {
+        nextDate.setMonth(nextDate.getMonth() + 1);
+        nextDate.setDate(Math.min(originalDay, new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, 0).getDate()));
+      } else if (freq.includes('yearly') || freq.includes('annual')) {
+        nextDate.setFullYear(nextDate.getFullYear() + 1);
+      } else if (freq.includes('quarterly')) {
+        nextDate.setMonth(nextDate.getMonth() + 3);
+        nextDate.setDate(Math.min(originalDay, new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, 0).getDate()));
+      } else {
+        // Default to monthly
+        nextDate.setMonth(nextDate.getMonth() + 1);
+        nextDate.setDate(Math.min(originalDay, new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, 0).getDate()));
+      }
+      
+      // Safety check to prevent infinite loops
+      if (nextDate.getFullYear() > now.getFullYear() + 10) {
+        console.error('Next payment calculation error - possible infinite loop detected');
+        return null;
+      }
+    }
+    
+    // If the next payment would be after end date, return null
+    if (endDate && nextDate > endDate) return null;
+    
+    return nextDate;
+  }
+
+  /**
+   * Calculate expiration date for current subscription period
+   */
+  function calculateExpirationDate(startDate, frequency, endDate, itemType) {
+    if (!startDate || !(startDate instanceof Date) || !endDate) return null;
+    
+    // Check if this is a subscription (TRUE) vs fixed payment (FALSE)
+    const isSubscription = itemType && itemType.toString().toUpperCase() === 'TRUE';
+    
+    // For Fixed Payments, end date is just the end date
+    if (!isSubscription) {
+      return endDate;
+    }
+    
+    // For Subscriptions - find which cycle the end date falls in
+    const freq = frequency.toLowerCase();
+    let cycleStart = new Date(startDate);
+    let cycleEnd = new Date(startDate);
+    
+    // Calculate the cycle end for the first cycle
+    if (freq.includes('yearly') || freq.includes('annual')) {
+      cycleEnd.setFullYear(cycleEnd.getFullYear() + 1);
+    } else if (freq.includes('quarterly')) {
+      cycleEnd.setMonth(cycleEnd.getMonth() + 3);
+    } else {
+      // Default to monthly
+      cycleEnd.setMonth(cycleEnd.getMonth() + 1);
+    }
+    cycleEnd.setDate(cycleEnd.getDate() - 1); // Last day of cycle
+    
+    // Find the cycle that contains the end date
+    while (endDate > cycleEnd) {
+      cycleStart = new Date(cycleEnd);
+      cycleStart.setDate(cycleStart.getDate() + 1); // Start of next cycle
+      
+      if (freq.includes('yearly') || freq.includes('annual')) {
+        cycleEnd.setFullYear(cycleEnd.getFullYear() + 1);
+      } else if (freq.includes('quarterly')) {
+        cycleEnd.setMonth(cycleEnd.getMonth() + 3);
+      } else {
+        cycleEnd.setMonth(cycleEnd.getMonth() + 1);
+      }
+    }
+    
+    // Return the end of the cycle that contains the cancellation date
+    return cycleEnd;
+  }
+
+  function cacheLoadedData(recurringData) {
+    try {
+      // Cache the fresh recurring data with timestamp
+      if (window.CacheManager && typeof CacheManager.setRecurringWithTimestamp === 'function') {
+        CacheManager.setRecurringWithTimestamp(recurringData, new Date().toISOString());
+      }
+    } catch (error) {
+      console.error('Error caching recurring data:', error);
+    }
+  }
+
+  /**
+   * Load real recurring data from API
+   */
+  function loadRealRecurringData(isBackgroundRefresh = false) {
+    if (!isBackgroundRefresh) {
+      showLoadingState();
+    }
+    
+    if (!window.API || typeof API.getRecurringData !== 'function') {
+      console.error('RecurringManager: API.getRecurringData not available');
+      if (!isBackgroundRefresh) {
+        showErrorState('API not available');
+      }
+      return;
+    }
+
+    API.getRecurringData(
+      function(result) {
+        if (result && result.success && Array.isArray(result.recurring)) {
+          _recurringData = processRecurringData(result.recurring);
+
+          cacheLoadedData(result.recurring);
+          
+          // Cache the data in SimBudget's cache system
+          if (window._cache && typeof _cache.set === 'function') {
+            _cache.set('recurring', result.recurring);
+          }
+          
+          if (!isBackgroundRefresh) {
+            renderRecurringView();
+            bindEvents();
+            hideLoadingIndicator();
+            
+            // Initialize expired count and hide date columns
+            setTimeout(() => {
+              updateFilterButtons();
+              hideDateColumns();
+            }, 100);
+          } else {
+            updateChartMetrics();
+            updateRecurringTable();
+            
+            // Update chart with new data
+            if (window.recurringChart) {
+              initializeRecurringChart();
+            }
+          }
+        } else {
+          console.warn('RecurringManager: Invalid API response');
+          if (!isBackgroundRefresh) {
+            showErrorState(result?.error || 'No recurring data received');
+          }
+        }
+      },
+      function(error) {
+        console.error('RecurringManager: API error:', error);
+        if (!isBackgroundRefresh) {
+          showErrorState('Failed to load data: ' + error);
+        }
+      }
+    );
+  }
+
+  /**
+   * Process raw recurring data from API
+   */
+  function processRecurringData(rawData) {
+    if (!rawData || !Array.isArray(rawData)) {
+      return [];
+    }
+    
+    return rawData
+      .filter(item => {
+        // Exclude any items with Income category
+        if (item.category && item.category.toLowerCase().includes('income')) {
+  return false;
+}
+        return true;
+      })
+      .map(item => {
+        const startDate = item.startDate ? new Date(item.startDate) : null;
+        const endDate = item.endDate ? new Date(item.endDate) : null;
+        
+        // Calculate next payment 
+        const nextPayment = startDate ? calculateNextPayment(startDate, item.frequency || 'Monthly', endDate) : null;
+        
+        // Calculate status - ONLY use expiration logic if there's an actual end date
+        let status = 'Active';
+        let expiration = null;
+        const now = new Date();
+        const isSubscription = item.type && item.type.toString().toUpperCase() === 'TRUE';
+        
+        if (endDate) {
+          // Only calculate expiration if there's an end date
+          expiration = calculateExpirationDate(startDate, item.frequency || 'Monthly', endDate, item.type);
+          
+          if (isSubscription) {
+            // For subscriptions, use calculated expiration date
+            if (expiration && expiration < now) {
+              status = 'Ended';
+            } else if (expiration) {
+              // Any subscription with an expiration date shows as "Expires"
+              status = 'Expires';
+            }
+          } else {
+            // For fixed payments, use raw end date
+            if (endDate < now) {
+              status = 'Ended';
+            } else if (endDate < new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)) {
+              status = 'Expires';
+            }
+          }
+        }
+        // If no end date, status stays 'Active' and expiration stays null
+        
+        return {
+          id: item.id,
+          rowIndex: item.rowIndex,
+          startDate: startDate,
+          endDate: endDate,
+          name: item.name || '',
+          category: item.category || '',
+          type: item.type || '',
+          frequency: item.frequency || 'Monthly',
+          amount: parseFloat(item.amount) || 0,
+          account: item.account || '',
+          status: status,
+          nextPayment: nextPayment,
+          expiration: expiration,
+          notes: item.notes || ''
+        };
+      });
+  }
+
+  /**
+   * Calculate 12-month recurring expense projections
+   */
+   function calculateMonthlyProjections() {
+    const currentYear = new Date().getFullYear();
+    const monthlyData = {};
+    const subscriptionData = {};
+    
+    // Initialize 12 months
+    for (let month = 0; month < 12; month++) {
+      const monthKey = new Date(currentYear, month, 1).toISOString().substring(0, 7);
+      monthlyData[monthKey] = 0;
+      subscriptionData[monthKey] = {};
+    }
+    
+    // Process each recurring item BY INDIVIDUAL NAME - EXCLUDE INCOME
+    _recurringData.forEach(item => {
+      if (!item.startDate || !item.amount || !item.name) return;
+      
+      // Skip income items
+      if (item.category && item.category.toLowerCase().includes('income 💵')) {
+        return;
+      }
+      
+      const frequency = (item.frequency || 'Monthly').toLowerCase();
+      const amount = parseFloat(item.amount) || 0;
+      
+      // NEW: Skip amounts less than 1 for chart rendering
+      if (Math.abs(amount) < 1) return;
+      
+      const startDate = new Date(item.startDate);
+      const endDate = item.endDate ? new Date(item.endDate) : null;
+      const subscriptionName = item.name; // Filter by NAME not category!
+      
+      // Process each month of current year
+      for (let month = 0; month < 12; month++) {
+        const monthDate = new Date(currentYear, month, 1);
+        const monthKey = monthDate.toISOString().substring(0, 7);
+        
+        // FIXED: Check if subscription is active this month - compare MONTH not exact date
+        if (monthDate.getFullYear() < startDate.getFullYear() || 
+            (monthDate.getFullYear() === startDate.getFullYear() && monthDate.getMonth() < startDate.getMonth())) {
+          continue;
+        }
+        
+        // SURGICAL FIX: For end date comparison, check if the actual payment date would be after end date
+        if (endDate) {
+          const potentialPaymentDate = new Date(currentYear, month, startDate.getDate());
+          if (potentialPaymentDate > endDate) {
+            continue;
+          }
+        }
+        
+        let shouldAddPayment = false;
+        
+        if (frequency.includes('monthly')) {
+          shouldAddPayment = true;
+        } else if (frequency.includes('quarterly')) {
+          // Quarterly payments - use start month as base
+          const startQuarterMonth = startDate.getMonth();
+          const quarterMonths = [
+            startQuarterMonth,
+            (startQuarterMonth + 3) % 12,
+            (startQuarterMonth + 6) % 12,
+            (startQuarterMonth + 9) % 12
+          ];
+          shouldAddPayment = quarterMonths.includes(month);
+        } else if (frequency.includes('yearly') || frequency.includes('annual')) {
+          // Annual payment only in start month (anniversary)
+          shouldAddPayment = month === startDate.getMonth();
+        }
+        
+        if (shouldAddPayment) {
+          monthlyData[monthKey] += amount;
+          
+          if (!subscriptionData[monthKey][subscriptionName]) {
+            subscriptionData[monthKey][subscriptionName] = 0;
+          }
+          subscriptionData[monthKey][subscriptionName] += amount;
+        }
+      }
+    });
+    
+    return { monthlyData, subscriptionData };
+  }
+  
+  /**
+   * Calculate banner metrics
+   */
+  function calculateBannerMetrics() {
+    const activeSubscriptions = _recurringData.filter(item => {
+      // Exclude income items from metrics
+      if (item.category && item.category.toLowerCase().includes('income 💵')) {
+        return false;
+      }
+      return item.status === 'Active' || item.status === 'active';
+    });
+  
+    const activeCount = activeSubscriptions.length;
+    
+    let monthlyTotal = 0;
+    activeSubscriptions.forEach(item => {
+      const freq = item.frequency.toLowerCase();
+      const amount = item.amount;
+      
+      if (freq.includes('monthly')) {
+        monthlyTotal += amount;
+      } else if (freq.includes('yearly') || freq.includes('annual')) {
+        monthlyTotal += amount / 12;
+      } else if (freq.includes('quarterly')) {
+        monthlyTotal += amount / 3;
+      } else {
+        monthlyTotal += amount;
+      }
+    });
+  
+    const annualProjection = monthlyTotal * 12;
+    
+    let budgetImpact = 0;
+    // Calculate budget impact based on yearly income average
+    if (window._dataCache && typeof _dataCache.get === 'function') {
+      const budgetData = _dataCache.get('budget');
+      if (budgetData && budgetData.summary) {
+        const monthlyIncome = budgetData.summary.income || 0;
+        const yearlyIncome = monthlyIncome * 12;
+        budgetImpact = yearlyIncome > 0 ? (annualProjection / yearlyIncome) * 100 : 0;
+      }
+    }
+  
+    return {
+      activeSubscriptions: activeCount,
+      annualProjection: annualProjection,
+      budgetImpact: budgetImpact,
+      monthlyAverage: monthlyTotal
+    };
+  }
+
+  /**
+   * Show loading state
+   */
+  function showLoadingState() {
+    // Don't show overlay - just update the refresh indicator in top bar
+    const refreshElement = document.getElementById('lastRecurringRefresh');
+    const refreshBtn = document.getElementById('refreshRecurring');
+    
+    if (refreshElement) {
+      refreshElement.textContent = 'Loading...';
+      refreshElement.style.color = '#f39c12'; // Orange/yellow color
+      refreshElement.style.fontWeight = 'bold';
+    }
+    
+    if (refreshBtn) {
+      refreshBtn.classList.add('loading');
+    }
+  }
+  
+  /**
+   * Hide loading indicator
+   */
+  function hideLoadingIndicator() {
+    // Reset the refresh message and button
+    const refreshElement = document.getElementById('lastRecurringRefresh');
+    const refreshBtn = document.getElementById('refreshRecurring');
+    
+    if (refreshBtn) {
+      refreshBtn.classList.remove('loading');
+    }
+    
+    // Update last refresh time
+    if (typeof updateLastRefreshDisplay === 'function') {
+      updateLastRefreshDisplay();
+    }
+  }
+  
+  /**
+   * Update last refresh time display
+   */
+  function updateLastRefreshDisplay() {
+    const refreshElement = document.getElementById('lastRecurringRefresh');
+    if (refreshElement) {
+      const now = new Date();
+      const timeString = now.toLocaleTimeString('en-US', { 
+        hour: 'numeric', 
+        minute: '2-digit',
+        hour12: true 
+      });
+      refreshElement.textContent = `Last updated: ${timeString}`;
+      refreshElement.style.color = '';
+      refreshElement.style.fontWeight = '';
+    }
+  }
+
+  /**
+   * Show error state
+   */
+  function showErrorState(error) {
+    const container = getElement('recurringContent');
+    if (container) {
+      // Check if this is a first-time user error (no spreadsheet ID)
+      if (error && error.includes && error.includes('No spreadsheet ID found')) {
+        
+        // Show welcome message with Settings button
+        container.innerHTML = `
+          <div
+            class="grid-welcome"
+            style="
+              text-align: center;
+              padding: 80px 20px 40px;
+              max-width: 800px;
+              margin: 0 auto;
+            "
+          >
+            <h3 style="margin-bottom: 20px;">👋 Welcome to Simplify Budget!</h3>
+            
+            <p style="margin-bottom: 20px;">
+              Let's get you set up with your budget tracking.
+            </p>
+            
+            <div style="margin: 30px 0;">
+              <button 
+                onclick="if(window.SimBudget && SimBudget.Views) { SimBudget.Views.switchTo('settings'); }" 
+                style="
+                  background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+                  color: white;
+                  border: none;
+                  padding: 15px 30px;
+                  font-size: 18px;
+                  border-radius: 8px;
+                  cursor: pointer;
+                  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+                  transition: transform 0.2s, box-shadow 0.2s;
+                  margin-bottom: 20px;
+                "
+                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 12px rgba(0,0,0,0.3)';"
+                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.2)';"
+              >
+                🚀 Open Settings to Get Started
+              </button>
+            </div>
+            
+            <p style="margin: 0 0 15px; font-size: 16px; color: #666;">
+              In Settings, choose one of these options:
+            </p>
+            
+            <ul style="text-align: left; max-width: 600px; margin: 0 auto 30px; line-height: 1.6;">
+              <li style="margin-bottom: 10px;">
+                <strong>New Spreadsheet</strong> – to create a fresh budget spreadsheet in your Google Drive (recommended for first-time users)
+              </li>
+              <li>
+                <strong>Select Existing</strong> – to choose a budget spreadsheet you've already created or been using (recommended if sharing with others)
+              </li>
+            </ul>
+            
+            <p style="margin-bottom: 30px;">
+              🔒 <strong>Privacy:</strong> Your data is saved on a spreadsheet on your Google Drive. You control who has access.
+            </p>
+            
+            <p style="margin-bottom: 0;">
+              📺 <a href="https://youtu.be/ziE2S8SgEo8?t=26" target="_blank" rel="noopener">
+                Watch the YouTube tutorial: How to use the app
+              </a>
+            </p>
+          </div>
+        `;
+        return;
+      }
+      
+      // Regular error handling for existing users
+      container.innerHTML = `
+        <div class="rec-error">
+          <h3 data-translate="error_loading_recurring">Error Loading Subscriptions</h3>
+          <p>${error}</p>
+          <button onclick="RecurringManager.refresh()" data-translate="retry">Retry</button>
+        </div>
+      `;
+      
+      // Apply translations to the dynamically created error content
+      if (window.SimBudget && SimBudget.applyTranslations) {
+        SimBudget.applyTranslations();
+      }
+    }
+  }
+
+
+  /**
+   * Update expired count display
+   */
+  function updateFilterButtons() {
+    const activeCount = _recurringData.filter(item => {
+      const status = item.status.toLowerCase();
+      return status === 'active';
+    }).length;
+    
+    const expiredCount = _recurringData.filter(item => {
+      const status = item.status.toLowerCase();
+      return status === 'ended' || status === 'expires';
+    }).length;
+    
+    const activeCountElement = getElement('activeCount');
+    const expiredCountElement = getElement('expiredCount');
+    const activeBtn = getElement('activeFilterBtn');
+    const expiredBtn = getElement('expiredFilterBtn');
+    
+    if (activeCountElement) {
+      activeCountElement.textContent = activeCount;
+    }
+    
+    if (expiredCountElement) {
+      expiredCountElement.textContent = expiredCount;
+    }
+    
+    // Update button active states
+    if (activeBtn) {
+      if (_showExpired) {
+        activeBtn.classList.remove('active');
+      } else {
+        activeBtn.classList.add('active');
+      }
+    }
+    
+    if (expiredBtn) {
+      if (_showExpired) {
+        expiredBtn.classList.add('active');
+      } else {
+        expiredBtn.classList.remove('active');
+      }
+    }
+  }
+
+  /**
+   * Hide date columns permanently
+   */
+  function hideDateColumns() {
+    const startDateHeader = document.querySelector('.rec-startdate-header');
+    const endDateHeader = document.querySelector('.rec-enddate-header');
+    const startDateCells = document.querySelectorAll('.rec-startdate-cell');
+    const endDateCells = document.querySelectorAll('.rec-enddate-cell');
+    
+    if (startDateHeader) startDateHeader.style.display = 'none';
+    if (endDateHeader) endDateHeader.style.display = 'none';
+    startDateCells.forEach(cell => cell.style.display = 'none');
+    endDateCells.forEach(cell => cell.style.display = 'none');
+  }
+
+  /**
+   * Render the complete recurring view
+   */
+  function renderRecurringView() {
+    const container = getElement('recurringContent');
+    if (!container) return;
+
+    const metrics = calculateCurrentMonthMetrics();
+
+        container.innerHTML = `
+      <!-- Chart Container -->
+      <div class="rec-chart-container">
+        <div class="rec-chart-header">
+          <div class="rec-chart-summary" id="chartSummary">
+            <span class="summary-item">📅 ${getCurrentDate()}</span>
+            <span class="summary-item">🟢 ${metrics.currentMonthCount} Payments</span>
+            <span class="summary-item">💰 ${formatCurrency(metrics.currentMonthTotal)} (${metrics.incomePercentage}% of income)</span>
+          </div>
+          <button class="rec-chart-toggle" id="chartToggleBtn" title="Toggle chart visibility">
+            <span class="chart-toggle-icon">▼</span>
+          </button>
+        </div>
+        <div class="rec-chart-content" id="recChartContent" style="display: none;">
+          <canvas id="recurringChart" width="400" height="200"></canvas>
+        </div>
+      </div>
+    
+      <!-- Table Section -->
+      <div class="rec-table-container">
+        <div class="rec-table-header">
+          <div class="rec-filters">
+            <div class="rec-controls-row">
+              <button class="rec-add-subscription-btn" id="addSubscriptionBtn">
+                <i class="material-icons">add</i>
+                <span data-translate="add">Add</span>
+                <i class="material-icons">repeat</i>
+              </button>
+              <div class="rec-filter-buttons">
+                <button class="rec-filter-btn active" id="activeFilterBtn">
+                  <span data-translate="active">Active</span>
+                  <span class="rec-filter-count" id="activeCount"></span>
+                </button>
+                <button class="rec-filter-btn" id="expiredFilterBtn">
+                  <span data-translate="expired">Ended</span>
+                  <span class="rec-filter-count" id="expiredCount"></span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="rec-table-wrapper">
+          <table class="rec-table" id="recurringTable">
+            <thead>
+              <tr>
+                <th class="rec-startdate-header rec-sortable" data-sort-column="startDate" data-translate="start_date">Start Date</th>
+                <th class="rec-name-header rec-sortable" data-sort-column="name" data-translate="name">Name</th>
+                <th class="rec-type-header rec-sortable" data-sort-column="type" data-translate="type" style="display: none;">Type</th>
+                <th class="rec-amount-header rec-sortable" data-sort-column="amount" data-translate="amount">Amount</th>
+                <th class="rec-dynamic-date-header rec-sortable" id="dynamicDateHeader" data-sort-column="nextPayment" data-translate="next_payment">Next Payment</th>
+                <th class="rec-account-header rec-sortable" data-sort-column="account" data-translate="account">Account</th>
+                <th class="rec-frequency-header rec-sortable" data-sort-column="frequency" data-translate="frequency">Frequency</th>
+                <th class="rec-enddate-header rec-sortable" data-sort-column="endDate" data-translate="end_date">End date</th>
+              </tr>
+            </thead>
+            <tbody id="recurringTableBody">
+              <!-- Data will be populated here -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+    updateRecurringTable();
+    updateSortIndicators();
+    
+    // Initialize chart
+    setTimeout(() => {
+      initializeRecurringChart();
+    }, 100);
+    
+    if (window.SimBudget && SimBudget.applyTranslations) {
+      SimBudget.applyTranslations();
+    }
+  }
+
+
+  /**
+   * Update recurring table with current data and filters
+   */
+  function updateRecurringTable() {
+  const tbody = getElement('recurringTableBody');
+  if (!tbody) return;
+
+  let filteredData = _recurringData;
+
+  // Filter based on expired toggle
+  if (!_showExpired) {
+    filteredData = filteredData.filter(item => {
+      const status = item.status.toLowerCase();
+      return status === 'active' || status === 'expires';
+    });
+  }
+
+  // NEW: Filter out the brilliant specific amount of 0.444 from the table! 😏
+  filteredData = filteredData.filter(item => {
+    return Math.abs(item.amount) !== 0.444;
+  });
+
+  // Apply sorting
+  filteredData = sortData(filteredData);
+
+  tbody.innerHTML = '';
+
+    filteredData.forEach(item => {
+      const row = createRecurringRow(item);
+      tbody.appendChild(row);
+    });
+
+    // Hide date columns after adding rows
+    setTimeout(() => hideDateColumns(), 0);
+
+    if (filteredData.length === 0) {
+      const emptyRow = document.createElement('tr');
+      // 6 visible columns: Name, Amount, Next Payment, Account, Frequency, End Date
+      const colSpan = 6;
+      
+      const message = _showExpired ? 'No subscriptions found' : 'No active subscriptions';
+      emptyRow.innerHTML = `
+        <td colspan="${colSpan}" class="rec-empty-message" data-translate="no_recurring_found">
+          ${message}
+        </td>
+      `;
+      tbody.appendChild(emptyRow);
+    }
+  }
+
+  /**
+   * Create a table row for recurring item
+   */
+  function createRecurringRow(item) {
+    const row = document.createElement('tr');
+    row.setAttribute('data-id', item.id);
+    row.setAttribute('data-status', item.status);
+
+    // ✅ FIXED: Use ALL categories (including inactive) for emoji lookup
+    let categoryEmoji = '📄'; // Default fallback
+    
+    // First try direct matching from ALL categories (including inactive)
+    let categoryInfo = _allCategoriesForLookup.find(cat => 
+      cat.name === item.category || 
+      cat.id === item.category ||
+      cat.fullName === item.category
+    );
+    
+    if (categoryInfo && categoryInfo.emoji) {
+      categoryEmoji = categoryInfo.emoji;
+    } else {
+      // Fallback: Try to parse emoji from the category string itself
+      if (item.category && typeof item.category === 'string') {
+        const parsed = parseCategoryNameAndEmoji(item.category);
+        if (parsed.emoji) {
+          categoryEmoji = parsed.emoji;
+        }
+      }
+    }
+    
+    // Extract text for translation
+    let translatedCategoryName = item.category || 'Unknown Category';
+    if (item.category && typeof item.category === 'string') {
+      const emojiRegex = /[\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}\u{2460}-\u{24FF}\u{2500}-\u{257F}\u{2580}-\u{259F}\u{25A0}-\u{25FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2B50}\u{2B55}\u{231A}\u{231B}\u{2328}\u{23CF}\u{23E9}-\u{23F3}\u{23F8}-\u{23FA}\u{24C2}\u{25AA}\u{25AB}\u{25B6}\u{25C0}\u{25FB}-\u{25FE}\u{2934}\u{2935}\u{3030}\u{303D}\u{3297}\u{3299}]|\u{FE0F}/gu;
+      const categoryText = item.category.replace(emojiRegex, '').trim();
+      translatedCategoryName = Utils.translateCategory ? Utils.translateCategory(categoryText) : categoryText;
+    }
+    
+
+    const formatDate = (date) => {
+      if (!date || !(date instanceof Date)) return '';
+      const options = { day: 'numeric', month: 'short', year: 'numeric' };
+      return date.toLocaleDateString('en-GB', options);
+    };
+
+    const startDateStr = formatDate(item.startDate);
+    const endDateStr = formatDate(item.endDate);
+
+    let typeDisplay = 'Subscription';
+    if (item.type) {
+      const typeStr = item.type.toString().toUpperCase();
+      if (typeStr === 'FALSE' || typeStr === 'FIXED' || typeStr === 'PAYMENT') {
+        typeDisplay = 'Fixed';
+      }
+    }
+
+    const frequencyFull = item.frequency || 'Monthly';
+
+    // Dynamic date column logic
+    let dynamicDateValue = '';
+    let dynamicDateClass = '';
+    
+    if (item.status.toLowerCase() === 'ended') {
+      dynamicDateValue = 'Ended';
+      dynamicDateClass = 'status-ended';
+    } else if (item.status.toLowerCase() === 'expires' && item.expiration) {
+      // For items that expire, show "Ended" in red
+      dynamicDateValue = 'Ended';
+      dynamicDateClass = 'status-ended';
+    } else if (item.nextPayment) {
+      dynamicDateValue = formatDate(item.nextPayment);
+      dynamicDateClass = 'status-active';
+    } else if (item.isNew || !item.startDate) {
+      // For new items or items without start date, show empty
+      dynamicDateValue = '';
+      dynamicDateClass = '';
+    } else {
+      dynamicDateValue = 'Ended';
+      dynamicDateClass = 'status-ended';
+    }
+
+    // Let CSS handle truncation automatically
+    const nameDisplay = item.name;
+    
+    // Add expiration info for items that expire
+    let expirationInfo = '';
+    if (item.status.toLowerCase() === 'expires' && item.expiration) {
+      expirationInfo = ` <span class="rec-expiration-info">(Expires: ${formatDate(item.expiration)})</span>`;
+    }
+
+    row.innerHTML = `
+      <td class="rec-startdate-cell">${startDateStr}</td>
+      <td class="rec-name-cell rec-name-clickable" data-id="${item.id}" title="Click to edit" data-translate-title="click_to_edit">
+        <div class="rec-name-content">
+          <span class="rec-category-emoji" title="${translatedCategoryName}">${categoryEmoji}</span>
+          <span class="rec-item-name" title="${item.name}">${nameDisplay}${expirationInfo}</span>
+        </div>
+      </td>
+      <td class="rec-type-cell" style="display: none;">
+        <span class="rec-type-full">${typeDisplay}</span>
+      </td>
+      <td class="rec-amount-cell">${formatCurrency(item.amount)}</td>
+      <td class="rec-dynamic-date-cell ${dynamicDateClass}">${dynamicDateValue}</td>
+      <td class="rec-account-cell">${item.account}</td>
+      <td class="rec-frequency-cell">
+        <span class="frequency-full">${frequencyFull}</span>
+      </td>
+      <td class="rec-enddate-cell">${endDateStr}</td>
+    `;
+
+    return row;
+  }
+
+  function showAddSubscriptionPopup() {
+    // Nuclear cleanup first - remove ALL overlays
+    removeAllOverlays();
+    
+    // Always reload settings before creating new item to get current currency
+    loadSettings();
+    
+    // Create popup overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'rec-add-overlay';
+    
+    // Create popup
+    const popup = document.createElement('div');
+    popup.className = 'rec-add-popup';
+    
+        popup.innerHTML = `
+      <div class="rec-add-header">
+        <h3 data-translate="add_subscription">Add New Subscription</h3>
+      </div>
+      <div class="rec-add-body">
+        <div class="rec-add-form-wrapper">
+          <div class="rec-add-form-column">
+            <div class="rec-add-grid">
+              <div class="rec-add-row">
+                <label data-translate="name">Name *</label>
+                <input type="text" id="addName" class="rec-add-input" placeholder="Subscription name" data-translate-placeholder="subscription_name" required>
+              </div>
+              <div class="rec-add-row">
+                <label data-translate="amount">Amount *</label>
+                <div class="rec-add-amount-wrapper">
+                  <span class="rec-add-currency">${_currencySymbol}</span>
+                  <input type="number" id="addAmount" class="rec-add-input rec-add-amount" 
+                    placeholder="0.00" step="1" min="0" inputmode="decimal" required>
+                </div>
+              </div>
+              <div class="rec-add-row" style="display: none;">
+                <label data-translate="type">Type</label>
+                <select id="addType" class="rec-add-input">
+                  <option value="Subscription" data-translate="subscription">Subscription</option>
+                  <option value="Payment" data-translate="fixed_payment">Fixed Payment</option>
+                </select>
+              </div>
+              <div class="rec-add-row">
+                <label data-translate="category">Category</label>
+                <select id="addCategory" class="rec-add-input">
+                  ${_categories.map(cat => {
+                    // Extract text for translation
+                    const emojiRegex = /[\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}\u{2460}-\u{24FF}\u{2500}-\u{257F}\u{2580}-\u{259F}\u{25A0}-\u{25FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2B50}\u{2B55}\u{231A}\u{231B}\u{2328}\u{23CF}\u{23E9}-\u{23F3}\u{23F8}-\u{23FA}\u{24C2}\u{25AA}\u{25AB}\u{25B6}\u{25C0}\u{25FB}-\u{25FE}\u{2934}\u{2935}\u{3030}\u{303D}\u{3297}\u{3299}]|\u{FE0F}/gu;
+                    const categoryText = cat.name.replace(emojiRegex, '').trim();
+                    const translatedCatName = Utils.translateCategory ? Utils.translateCategory(categoryText) : categoryText;
+                    return `<option value="${cat.name}">${cat.emoji || '📄'} ${translatedCatName}</option>`;
+                  }).join('')}
+                </select>
+              </div>
+              <div class="rec-add-row">
+                <label data-translate="start_date">Start Date *</label>
+                <input type="date" id="addStartDate" class="rec-add-input" required>
+              </div>
+              <div class="rec-add-row">
+                <label data-translate="end_date">End Date</label>
+                <input type="date" id="addEndDate" class="rec-add-input">
+              </div>
+              <div class="rec-add-row">
+                <label data-translate="frequency">Frequency</label>
+                <select id="addFrequency" class="rec-add-input">
+                  <option value="Monthly" data-translate="monthly">Monthly</option>
+                  <option value="Quarterly" data-translate="quarterly">Quarterly</option>
+                  <option value="Yearly" data-translate="yearly">Yearly</option>
+                </select>
+              </div>
+              <div class="rec-add-row">
+                <label data-translate="account">Account</label>
+                <select id="addAccount" class="rec-add-input">
+                  <!-- Options will be populated by JavaScript AFTER DOM insertion -->
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="rec-add-notes-column">
+            <div class="rec-add-row rec-add-notes-row">
+              <label data-translate="notes">Notes</label>
+              <textarea id="addNotes" class="rec-add-input rec-add-textarea" placeholder="Additional notes..." data-translate-placeholder="additional_notes"></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="rec-add-actions">
+        <button class="rec-add-btn rec-add-cancel-btn" type="button" data-translate="cancel">Cancel</button>
+        <button class="rec-add-btn rec-add-save-btn" type="button" data-translate="save">Save</button>
+      </div>
+    `;
+    
+    overlay.appendChild(popup);
+    document.body.appendChild(overlay);
+    
+    // Apply translations to the dynamically created modal
+    if (window.SimBudget && SimBudget.applyTranslations) {
+      SimBudget.applyTranslations();
+    }
+    
+    // NOW populate the account dropdown AFTER it's in the DOM
+    setTimeout(() => {
+      const accountSelect = document.getElementById('addAccount');
+      if (accountSelect) {
+        // Get from cache IMMEDIATELY - no API calls
+        const cachedNetWorth = window.CacheManager ? CacheManager.getNetWorthWithTimestamp() : null;
+        
+        if (cachedNetWorth && cachedNetWorth.entries) {
+          // Filter for liquid assets from current month only
+          const currentMonth = new Date().getMonth();
+          const currentYear = new Date().getFullYear();
+          
+          const liquidAssets = cachedNetWorth.entries.filter(entry => {
+            // Check if it's this month/year
+            if (!entry.date) return false;
+            // Parse "MMM YYYY" format (e.g., "Jan 2024")
+            const dateParts = entry.date.split(' ');
+            const entryYear = parseInt(dateParts[1]);
+            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const entryMonth = monthNames.indexOf(dateParts[0]); // Already 0-based
+            
+            return entryMonth === currentMonth && 
+                   entryYear === currentYear &&
+                   entry.asset === 'Liquid Assets' &&
+                   entry.name && 
+                   entry.name.trim() !== '' &&
+                   parseFloat(entry.amount) > 0;
+          });
+          
+          if (liquidAssets.length > 0) {
+            // Clear any existing options first
+            accountSelect.innerHTML = '';
+            
+            // Create dropdown with REAL accounts INSTANTLY
+            const uniqueNames = [...new Set(liquidAssets.map(asset => asset.name.trim()))].sort();
+            
+            uniqueNames.forEach(accountName => {
+              const optionEl = document.createElement('option');
+              optionEl.value = accountName;
+              optionEl.textContent = accountName;
+              accountSelect.appendChild(optionEl);
+            });
+          } else {
+            // NO LIQUID ASSETS FOUND - SHOW MESSAGE
+            accountSelect.innerHTML = '';
+            const emptyOption = document.createElement('option');
+            emptyOption.value = '';
+            emptyOption.textContent = 'No accounts for this month';
+            emptyOption.disabled = true;
+            accountSelect.appendChild(emptyOption);
+          }
+        } else {
+          // NO CACHE - SHOW MESSAGE
+          accountSelect.innerHTML = '';
+          const noCacheOption = document.createElement('option');
+          noCacheOption.value = '';
+          noCacheOption.textContent = 'Loading accounts...';
+          noCacheOption.disabled = true;
+          accountSelect.appendChild(noCacheOption);
+        }
+      }
+    }, 50); // Small delay to ensure DOM is ready
+  
+    // Set default start date to today
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('addStartDate').value = today;
+    
+    // Focus the name input
+    setTimeout(() => {
+      const nameInput = document.getElementById('addName');
+      if (nameInput) {
+        nameInput.focus();
+        nameInput.select();
+      }
+    }, 100);
+    
+    // Handle button clicks
+    const saveBtn = popup.querySelector('.rec-add-save-btn');
+    const cancelBtn = popup.querySelector('.rec-add-cancel-btn');
+    
+    saveBtn.addEventListener('click', function() {
+      saveNewSubscriptionFromPopup(overlay);
+    });
+    
+    cancelBtn.addEventListener('click', function() {
+      removeAllOverlays();
+    });
+    
+    // Handle keyboard events
+    popup.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.target.matches('textarea')) {
+        e.preventDefault();
+        saveBtn.click();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        removeAllOverlays();
+      }
+    });
+    
+    // Handle overlay click (close on outside click)
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) {
+        removeAllOverlays();
+      }
+    });
+  }
+
+  /**
+   * Save new subscription from popup
+   */
+  function saveNewSubscriptionFromPopup(overlay) {
+    const formData = {
+      name: document.getElementById('addName').value.trim(),
+      type: 'TRUE', // Always default to subscription (TRUE)
+      category: document.getElementById('addCategory').value,
+      frequency: document.getElementById('addFrequency').value,
+      amount: document.getElementById('addAmount').value.trim(),
+      account: document.getElementById('addAccount').value.trim(),
+      startDate: document.getElementById('addStartDate').value,
+      endDate: document.getElementById('addEndDate').value,
+      notes: document.getElementById('addNotes').value.trim()
+    };
+    
+    // Validate required fields
+    let hasErrors = false;
+    const requiredFields = ['name', 'amount', 'startDate'];
+    
+    requiredFields.forEach(field => {
+      const input = document.getElementById('add' + field.charAt(0).toUpperCase() + field.slice(1));
+      if (!formData[field] || (field === 'amount' && parseFloat(formData[field]) <= 0)) {
+        input.classList.add('rec-input-error');
+        hasErrors = true;
+      } else {
+        input.classList.remove('rec-input-error');
+      }
+    });
+    
+    if (hasErrors) {
+      if (window.Utils && Utils.showToast) {
+        Utils.showToast('Please fill all required fields (Name, Amount, Start Date)', 'error');
+      }
+      return;
+    }
+    
+    // Create new item object using existing logic
+    const newItem = {
+      id: `REC-${Date.now()}`,
+      rowIndex: null,
+      startDate: new Date(formData.startDate),
+      endDate: formData.endDate ? new Date(formData.endDate) : null,
+      name: formData.name,
+      category: formData.category,
+      type: formData.type === 'Subscription' ? 'TRUE' : 'FALSE',
+      frequency: formData.frequency,
+      amount: parseFloat(formData.amount),
+      account: formData.account,
+      notes: formData.notes
+    };
+    
+    // Calculate status and dates using existing logic
+    const now = new Date();
+    const isSubscription = newItem.type === 'TRUE';
+    
+    if (newItem.endDate) {
+      newItem.expiration = calculateExpirationDate(newItem.startDate, newItem.frequency, newItem.endDate, newItem.type);
+      
+      if (isSubscription) {
+        if (newItem.expiration && newItem.expiration < now) {
+          newItem.status = 'Ended';
+          newItem.nextPayment = null;
+        } else if (newItem.expiration) {
+          newItem.status = 'Expires';
+          newItem.nextPayment = calculateNextPayment(newItem.startDate, newItem.frequency, newItem.endDate);
+        } else {
+          newItem.status = 'Active';
+          newItem.nextPayment = calculateNextPayment(newItem.startDate, newItem.frequency, newItem.endDate);
+        }
+      } else {
+        if (newItem.endDate < now) {
+          newItem.status = 'Ended';
+          newItem.nextPayment = null;
+        } else {
+          newItem.status = 'Active';
+          newItem.nextPayment = calculateNextPayment(newItem.startDate, newItem.frequency, newItem.endDate);
+        }
+      }
+    } else {
+      newItem.status = 'Active';
+      newItem.nextPayment = calculateNextPayment(newItem.startDate, newItem.frequency, null);
+      newItem.expiration = null;
+    }
+    
+    // Add to data and save using existing logic
+    _recurringData.unshift(newItem);
+    saveToServer([newItem]);
+    
+    // Update UI
+    updateChartMetrics();
+    updateRecurringTable();
+    updateFilterButtons();
+    
+    // Update chart
+    if (window.recurringChart) {
+      initializeRecurringChart();
+    }
+    
+    // Close popup
+    overlay.remove();
+    
+    if (window.Utils && Utils.showToast) {
+      Utils.showToast('Subscription added successfully', 'success');
+    }
+  }
+
+  /**
+   * Add new subscription - Updated to show popup
+   */
+  function addNewSubscription() {
+    showAddSubscriptionPopup();
+  }
+
+  /**
+   * Calculate total paid for a subscription from start to end/current date
+   */
+  function calculateTotalPaid(item) {
+    if (!item.startDate || !item.amount) return 0;
+    
+    const amount = parseFloat(item.amount) || 0;
+    const frequency = (item.frequency || 'Monthly').toLowerCase();
+    const startDate = new Date(item.startDate);
+    const endDate = item.endDate ? new Date(item.endDate) : new Date();
+    
+    // If end date is before start date, return just the initial payment
+    if (endDate < startDate) return amount;
+    
+    let paymentsCount = 1; // Always count the initial payment on start date
+    
+    if (frequency === 'monthly') {
+      // Count additional monthly payments after the first one
+      const months = (endDate.getFullYear() - startDate.getFullYear()) * 12 + 
+                     (endDate.getMonth() - startDate.getMonth());
+      paymentsCount += months;
+    } else if (frequency === 'quarterly') {
+      // Count additional quarterly payments (every 3 months)
+      let currentDate = new Date(startDate);
+      while (currentDate <= endDate) {
+        currentDate.setMonth(currentDate.getMonth() + 3);
+        if (currentDate <= endDate) {
+          paymentsCount++;
+        }
+      }
+    } else if (frequency === 'yearly') {
+      // Count additional yearly payments
+      let currentDate = new Date(startDate);
+      while (currentDate <= endDate) {
+        currentDate.setFullYear(currentDate.getFullYear() + 1);
+        if (currentDate <= endDate) {
+          paymentsCount++;
+        }
+      }
+    }
+    
+    return paymentsCount * amount;
+  }
+  
+  /**
+   * Calculate this year's cost for active monthly/quarterly subscriptions
+   */
+  function calculateThisYearCost(item) {
+    if (!item.startDate || !item.amount) return 0;
+    
+    const amount = parseFloat(item.amount) || 0;
+    const frequency = (item.frequency || 'Monthly').toLowerCase();
+    const status = (item.status || '').toLowerCase();
+    
+    // Only for active monthly/quarterly subscriptions
+    if (status !== 'active' || (frequency !== 'monthly' && frequency !== 'quarterly')) {
+      return 0;
+    }
+    
+    const currentYear = new Date().getFullYear();
+    const startDate = new Date(item.startDate);
+    const endDate = item.endDate ? new Date(item.endDate) : new Date(currentYear, 11, 31);
+    
+    // Find the overlap with current year
+    const yearStart = new Date(currentYear, 0, 1);
+    const yearEnd = new Date(currentYear, 11, 31);
+    
+    const overlapStart = new Date(Math.max(startDate.getTime(), yearStart.getTime()));
+    const overlapEnd = new Date(Math.min(endDate.getTime(), yearEnd.getTime()));
+    
+    if (overlapStart > overlapEnd) return 0;
+    
+    // Calculate months in overlap
+    const months = (overlapEnd.getFullYear() - overlapStart.getFullYear()) * 12 + 
+                   (overlapEnd.getMonth() - overlapStart.getMonth()) + 1;
+    
+    let paymentsCount = 0;
+    if (frequency === 'monthly') {
+      paymentsCount = months;
+    } else if (frequency === 'quarterly') {
+      paymentsCount = Math.floor(months / 3);
+    }
+    
+    return paymentsCount * amount;
+  }
+
+  /**
+   * Show edit popup for recurring transactions
+   * Uses existing add popup as template but pre-filled with item data
+   */
+  function showEditRecurringPopup(item) {
+    try {
+      // Nuclear cleanup first
+      removeAllOverlays();
+      
+      // Create popup overlay
+      const overlay = document.createElement('div');
+      overlay.className = 'rec-add-overlay';
+      
+      // Create popup
+      const popup = document.createElement('div');
+      popup.className = 'rec-add-popup';
+      
+      // Format dates for input fields
+      const startDateValue = item.startDate && item.startDate instanceof Date ? 
+        item.startDate.toISOString().split('T')[0] : (item.startDate || '');
+      const endDateValue = item.endDate && item.endDate instanceof Date ? 
+        item.endDate.toISOString().split('T')[0] : (item.endDate || '');
+      
+      popup.innerHTML = `
+        <div class="rec-add-header">
+          <h3 data-translate="edit_subscription">Edit Subscription</h3>
+        </div>
+        <div class="rec-add-body">
+          <div class="rec-add-form-wrapper">
+            <div class="rec-add-form-column">
+              <div class="rec-add-grid">
+                <div class="rec-add-row">
+                  <label data-translate="name">Name *</label>
+                  <input type="text" id="editName" class="rec-add-input" placeholder="Subscription name" value="${item.name || ''}" required>
+                </div>
+                <div class="rec-add-row">
+                  <label data-translate="amount">Amount *</label>
+                  <div class="rec-add-amount-wrapper">
+                    <span class="rec-add-currency">${_currencySymbol}</span>
+                    <input type="number" id="editAmount" class="rec-add-input rec-add-amount" 
+                      placeholder="0.00" step="1" min="0" value="${item.amount || ''}" inputmode="decimal" required>
+                  </div>
+                </div>
+                <div class="rec-add-row" style="display: none;">
+                  <label data-translate="type">Type</label>
+                  <select id="editType" class="rec-add-input">
+                    <option value="Subscription" ${item.type === 'TRUE' ? 'selected' : ''}>Subscription</option>
+                    <option value="Payment" ${item.type === 'FALSE' ? 'selected' : ''}>Fixed Payment</option>
+                  </select>
+                </div>
+                <div class="rec-add-row">
+                  <label data-translate="category">Category</label>
+                  <select id="editCategory" class="rec-add-input">
+                    ${(_categories || []).map(cat => {
+                      // Match either just the name or the name with emoji
+                      const categoryWithEmoji = `${cat.name} ${cat.emoji || ''}`.trim();
+                      const isSelected = cat.name === item.category || categoryWithEmoji === item.category;
+                      
+                      // Extract text for translation
+                      const emojiRegex = /[\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}\u{2460}-\u{24FF}\u{2500}-\u{257F}\u{2580}-\u{259F}\u{25A0}-\u{25FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2B50}\u{2B55}\u{231A}\u{231B}\u{2328}\u{23CF}\u{23E9}-\u{23F3}\u{23F8}-\u{23FA}\u{24C2}\u{25AA}\u{25AB}\u{25B6}\u{25C0}\u{25FB}-\u{25FE}\u{2934}\u{2935}\u{3030}\u{303D}\u{3297}\u{3299}]|\u{FE0F}/gu;
+                      const categoryText = cat.name.replace(emojiRegex, '').trim();
+                      const translatedCatName = Utils.translateCategory ? Utils.translateCategory(categoryText) : categoryText;
+                      
+                      return `<option value="${cat.name}" ${isSelected ? 'selected' : ''}>${cat.emoji || '📄'} ${translatedCatName}</option>`;
+                    }).join('')}
+                  </select>
+                </div>
+                <div class="rec-add-row">
+                  <label data-translate="start_date">Start Date *</label>
+                  <input type="date" id="editStartDate" class="rec-add-input" value="${startDateValue}" required>
+                </div>
+                <div class="rec-add-row">
+                  <label data-translate="end_date">End Date</label>
+                  <input type="date" id="editEndDate" class="rec-add-input" value="${endDateValue}">
+                </div>
+                <div class="rec-add-row">
+                  <label data-translate="frequency">Frequency</label>
+                  <select id="editFrequency" class="rec-add-input">
+                    <option value="Monthly" ${item.frequency === 'Monthly' ? 'selected' : ''}>Monthly</option>
+                    <option value="Quarterly" ${item.frequency === 'Quarterly' ? 'selected' : ''}>Quarterly</option>
+                    <option value="Yearly" ${item.frequency === 'Yearly' ? 'selected' : ''}>Yearly</option>
+                  </select>
+                </div>
+                <div class="rec-add-row">
+                  <label data-translate="account">Account</label>
+                  <select id="editAccount" class="rec-add-input">
+                    <option value="">Select Account</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div class="rec-add-notes-column">
+              <div class="rec-add-row rec-add-notes-row">
+                <label data-translate="notes">Notes</label>
+                <textarea id="editNotes" class="rec-add-input rec-add-textarea" placeholder="Optional notes">${item.notes || ''}</textarea>
+              </div>
+              <div class="rec-calc-summary">
+                <div class="rec-calc-row">
+                  <span class="rec-calc-label">Total Paid:</span>
+                  <span class="rec-calc-value">${formatCurrency(calculateTotalPaid(item))}</span>
+                </div>
+                ${calculateThisYearCost(item) > 0 ? `
+                <div class="rec-calc-row">
+                  <span class="rec-calc-label">${new Date().getFullYear()} Cost (Projected):</span>
+                  <span class="rec-calc-value">${formatCurrency(calculateThisYearCost(item))}</span>
+                </div>
+                ` : ''}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="rec-add-actions">
+          <button class="rec-add-btn rec-add-cancel-btn" type="button" data-translate="cancel">Cancel</button>
+          <button class="rec-add-btn rec-add-delete-btn" type="button" style="background-color: #f44336; color: white;" data-translate="delete">Delete</button>
+          <button class="rec-add-btn rec-add-save-btn" type="button" data-translate="save">Save</button>
+        </div>
+      `;
+      
+      overlay.appendChild(popup);
+      document.body.appendChild(overlay);
+      
+      // Apply translations to the dynamically created modal
+      if (window.SimBudget && SimBudget.applyTranslations) {
+        SimBudget.applyTranslations();
+      }
+      
+      // Populate account dropdown with full account list
+      const accountSelect = document.getElementById('editAccount');
+      if (accountSelect) {
+        // Get from cache IMMEDIATELY - no API calls
+        const cachedNetWorth = window.CacheManager ? CacheManager.getNetWorthWithTimestamp() : null;
+        
+        if (cachedNetWorth && cachedNetWorth.entries) {
+          // Filter for liquid assets from current month only
+          const currentMonth = new Date().getMonth();
+          const currentYear = new Date().getFullYear();
+          
+          const liquidAssets = cachedNetWorth.entries.filter(entry => {
+            // Check if it's this month/year
+            if (!entry.date) return false;
+            // Parse "MMM YYYY" format (e.g., "Jan 2024")
+            const dateParts = entry.date.split(' ');
+            const entryYear = parseInt(dateParts[1]);
+            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const entryMonth = monthNames.indexOf(dateParts[0]); // Already 0-based
+            
+            return entryMonth === currentMonth && 
+                   entryYear === currentYear &&
+                   entry.asset === 'Liquid Assets' &&
+                   entry.name && 
+                   entry.name.trim() !== '' &&
+                   parseFloat(entry.amount) > 0;
+          });
+          
+          if (liquidAssets.length > 0) {
+            // Clear any existing options first
+            accountSelect.innerHTML = '';
+            
+            // Create dropdown with REAL accounts INSTANTLY
+            const uniqueNames = [...new Set(liquidAssets.map(asset => asset.name.trim()))].sort();
+            
+            uniqueNames.forEach(accountName => {
+              const optionEl = document.createElement('option');
+              optionEl.value = accountName;
+              optionEl.textContent = accountName;
+              // Set selected if this is the item's account
+              if (accountName === item.account) {
+                optionEl.selected = true;
+              }
+              accountSelect.appendChild(optionEl);
+            });
+          } else {
+            // NO LIQUID ASSETS FOUND - SHOW MESSAGE
+            accountSelect.innerHTML = '';
+            const emptyOption = document.createElement('option');
+            emptyOption.value = '';
+            emptyOption.textContent = 'No accounts for this month';
+            emptyOption.disabled = true;
+            accountSelect.appendChild(emptyOption);
+          }
+        } else {
+          // NO CACHE - SHOW MESSAGE
+          accountSelect.innerHTML = '';
+          const noCacheOption = document.createElement('option');
+          noCacheOption.value = '';
+          noCacheOption.textContent = 'Loading accounts...';
+          noCacheOption.disabled = true;
+          accountSelect.appendChild(noCacheOption);
+        }
+      }
+      
+      // Focus the name input
+      const nameInput = popup.querySelector('#editName');
+      setTimeout(() => nameInput?.focus(), 100);
+      
+      // Handle save button
+      const saveBtn = popup.querySelector('.rec-add-save-btn');
+      const cancelBtn = popup.querySelector('.rec-add-cancel-btn');
+      const deleteBtn = popup.querySelector('.rec-add-delete-btn');
+      
+      saveBtn.addEventListener('click', function() {
+        saveRecurringFromPopup(item, popup);
+      });
+      
+      // Handle cancel button
+      cancelBtn.addEventListener('click', function() {
+        removeAllOverlays();
+      });
+      
+      // Handle delete button
+      deleteBtn.addEventListener('click', function() {
+        removeAllOverlays();
+        deleteRecurringItem(item.id);
+      });
+      
+      // Handle escape key
+      overlay.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+          removeAllOverlays();
+        }
+      });
+      
+      // Handle overlay click
+      overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) {
+          removeAllOverlays();
+        }
+      });
+      
+    } catch (error) {
+      console.error('Error showing recurring edit popup:', error);
+      if (window.Utils && Utils.showToast) {
+        Utils.showToast('Error opening edit dialog: ' + error.message, 'error');
+      }
+    }
+  }
+
+  /**
+   * Save recurring transaction from popup - EXACT COPY of inline editing logic
+   */
+  function saveRecurringFromPopup(originalItem, popup) {
+    // Get form inputs
+    const nameInput = popup.querySelector('#editName');
+    const amountInput = popup.querySelector('#editAmount');
+    const typeInput = popup.querySelector('#editType');
+    const categoryInput = popup.querySelector('#editCategory');
+    const startDateInput = popup.querySelector('#editStartDate');
+    const endDateInput = popup.querySelector('#editEndDate');
+    const frequencyInput = popup.querySelector('#editFrequency');
+    const accountInput = popup.querySelector('#editAccount');
+    const notesInput = popup.querySelector('#editNotes');
+    
+    if (!nameInput || !amountInput || !startDateInput) {
+      if (window.Utils && Utils.showToast) {
+        Utils.showToast('Form error: Required fields not found', 'error');
+      }
+      return;
+    }
+    
+    const editedData = {};
+    let hasErrors = false;
+    
+    // Validate required fields - EXACT COPY from inline editing
+    const name = nameInput.value.trim();
+    const startDate = startDateInput.value;
+    const amount = amountInput.value.trim();
+    
+    if (!name) {
+      hasErrors = true;
+    }
+    if (!startDate) {
+      hasErrors = true;
+    }
+    if (!amount || parseFloat(amount) <= 0) {
+      hasErrors = true;
+    }
+    
+    if (hasErrors) {
+      if (window.Utils && Utils.showToast) {
+        Utils.showToast('Please fill in all required fields (Name, Start Date, Amount)', 'error');
+      }
+      return;
+    }
+    
+    // Build edited data - EXACT COPY from inline editing
+    editedData.name = name;
+    editedData.startDate = startDate;
+    editedData.amount = parseFloat(amount) || 0;
+    editedData.type = 'TRUE'; // Always default to subscription (TRUE)
+    editedData.category = categoryInput.value;
+    editedData.endDate = endDateInput.value || '';
+    editedData.frequency = frequencyInput.value;
+    editedData.account = accountInput.value;
+    editedData.notes = notesInput.value.trim();
+    
+    // Update item with edited data - EXACT COPY from inline editing
+    Object.assign(originalItem, editedData);
+    
+    if (editedData.startDate) {
+      originalItem.startDate = new Date(editedData.startDate);
+    }
+    if (editedData.endDate) {
+      originalItem.endDate = new Date(editedData.endDate);
+    }
+    
+    // Recalculate status and dates - EXACT COPY from inline editing
+    const now = new Date();
+    const isSubscription = originalItem.type && originalItem.type.toString().toUpperCase() === 'TRUE';
+    
+    // Only calculate expiration if there's an end date
+    if (originalItem.endDate) {
+      originalItem.expiration = calculateExpirationDate(originalItem.startDate, originalItem.frequency, originalItem.endDate, originalItem.type);
+      
+      if (isSubscription) {
+        // For subscriptions, use calculated expiration date
+        if (originalItem.expiration && originalItem.expiration < now) {
+          originalItem.status = 'Ended';
+          originalItem.nextPayment = null;
+        } else if (originalItem.expiration) {
+          // Any subscription with an expiration date shows as "Expires"
+          originalItem.status = 'Expires';
+          originalItem.nextPayment = calculateNextPayment(originalItem.startDate, originalItem.frequency, originalItem.endDate);
+        } else {
+          originalItem.status = 'Active';
+          originalItem.nextPayment = calculateNextPayment(originalItem.startDate, originalItem.frequency);
+        }
+      } else {
+        // For fixed payments, use end date directly
+        if (originalItem.endDate < now) {
+          originalItem.status = 'Ended';
+          originalItem.nextPayment = null;
+        } else {
+          originalItem.status = 'Active';
+          originalItem.nextPayment = calculateNextPayment(originalItem.startDate, originalItem.frequency, originalItem.endDate);
+        }
+      }
+    } else {
+      // No end date - ongoing
+      originalItem.status = 'Active';
+      originalItem.expiration = null;
+      originalItem.nextPayment = calculateNextPayment(originalItem.startDate, originalItem.frequency);
+    }
+    
+    // For new items, generate a proper ID if still using temporary ID - EXACT COPY from inline editing
+    if (originalItem.isNew || originalItem.id.startsWith('new-')) {
+      originalItem.id = `REC-${Date.now()}`;
+    }
+    
+    // Always remove the isNew flag after successful save - EXACT COPY from inline editing
+    delete originalItem.isNew;
+    
+    // Update the local data immediately to prevent UI flicker - EXACT COPY from inline editing
+    const itemIndex = _recurringData.findIndex(r => String(r.id) === String(originalItem.id));
+    if (itemIndex !== -1) {
+      _recurringData[itemIndex] = originalItem;
+    }
+    
+    // Close popup
+    removeAllOverlays();
+    
+    // Update table immediately - EXACT COPY from inline editing
+    updateRecurringTable();
+    
+    // Update chart immediately with local data - EXACT COPY from inline editing
+    if (window.recurringChart) {
+      initializeRecurringChart();
+    }
+    
+    // Save to server after UI updates - EXACT COPY from inline editing
+    saveToServer([originalItem]);
+  }
+
+  
+
+
+ 
+
+
+
+/**
+ * Helper function to restore Next Payment column visibility
+ */
+function restoreNextPaymentColumn() {
+  // Always restore the column now since we don't have filter modes
+  const dynamicHeader = document.getElementById('dynamicDateHeader');
+  if (dynamicHeader) {
+    dynamicHeader.style.display = '';
+  }
+  
+  // Show all dynamic date cells
+    document.querySelectorAll('.rec-dynamic-date-cell').forEach(cell => {
+      cell.style.display = '';
+    });
+  }
+
+  /**
+   * Cancel editing
+   */
+  function cancelEditingRow(itemId) {
+  const row = document.querySelector(`tr[data-id="${itemId}"]`);
+  if (!row) return;
+
+ const item = _recurringData.find(r => String(r.id) === String(itemId));
+  if (!item) return;
+
+  // Restore the Next Payment column visibility
+  restoreNextPaymentColumn();
+
+  if (item.isNew) {
+    _recurringData = _recurringData.filter(r => String(r.id) !== String(itemId));
+    row.remove();
+  } else {
+    const newRow = createRecurringRow(item);
+    row.replaceWith(newRow);
+  }
+}
+
+/**
+   * Edit recurring item
+   */
+  function editRecurringItem(itemId) {
+    // Convert both to string for comparison to handle both numeric and string IDs
+    const item = _recurringData.find(r => String(r.id) === String(itemId));
+    
+    if (item) {
+      showEditRecurringPopup(item);
+    }
+  }
+
+  /**
+   * Remove all overlays - nuclear option for cleanup (copied from income)
+   */
+  function removeAllOverlays() {
+    document.querySelectorAll('.rec-add-overlay, .rec-confirm-overlay').forEach(el => {
+      el.remove();
+    });
+  }
+  function showConfirmDialog(message, onConfirm, onCancel) {
+    // Remove any existing dialog
+    const existingDialog = document.querySelector('.rec-confirm-dialog');
+    if (existingDialog) {
+      existingDialog.remove();
+    }
+    
+    // Create dialog overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'rec-confirm-overlay';
+    
+    // Create dialog
+    const dialog = document.createElement('div');
+    dialog.className = 'rec-confirm-dialog';
+    
+    dialog.innerHTML = `
+      <div class="rec-confirm-header">
+        <h3 data-translate="confirm_delete">Confirm Delete</h3>
+      </div>
+      <div class="rec-confirm-body">
+        <p>${message}</p>
+      </div>
+      <div class="rec-confirm-actions">
+        <button class="rec-confirm-btn rec-cancel-btn" type="button" data-translate="cancel">Cancel</button>
+        <button class="rec-confirm-btn rec-delete-btn" type="button" data-translate="delete">Delete</button>
+      </div>
+    `;
+    
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    
+    // Apply translations to the dynamically created dialog
+    if (window.SimBudget && SimBudget.applyTranslations) {
+      SimBudget.applyTranslations();
+    }
+    
+    // Focus the delete button
+    const deleteBtn = dialog.querySelector('.rec-delete-btn');
+    const cancelBtn = dialog.querySelector('.rec-cancel-btn');
+    
+    setTimeout(() => deleteBtn.focus(), 100);
+    
+    // Handle button clicks
+    deleteBtn.addEventListener('click', function() {
+      removeAllOverlays();
+      if (onConfirm) onConfirm();
+    });
+    
+    cancelBtn.addEventListener('click', function() {
+      removeAllOverlays();
+      if (onCancel) onCancel();
+    });
+    
+    // Handle keyboard events
+    dialog.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        deleteBtn.click();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        removeAllOverlays();
+        if (onCancel) onCancel();
+      }
+    });
+    
+    // Handle overlay click (close on outside click)
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) {
+        removeAllOverlays();
+        if (onCancel) onCancel();
+      }
+    });
+  }
+
+  /**
+   * Delete recurring item
+   */
+  function deleteRecurringItem(itemId) {
+   const item = _recurringData.find(r => String(r.id) === String(itemId));
+    if (!item) return;
+
+    showConfirmDialog(
+      `Are you sure you want to delete "${item.name}"?`,
+      function() {
+        // On confirm - delete the item
+        const row = document.querySelector(`tr[data-id="${itemId}"]`);
+        if (row) row.remove();
+
+        _recurringData = _recurringData.filter(r => String(r.id) !== String(itemId));
+
+        updateChartMetrics();
+
+        // Update chart
+        if (window.recurringChart) {
+          initializeRecurringChart();
+        }
+
+        // ✅ UPDATE CACHE IMMEDIATELY (optimistically) - Don't wait for API
+        if (window.CacheManager && typeof CacheManager.setRecurringWithTimestamp === 'function') {
+          const currentTimestamp = new Date().toISOString();
+          CacheManager.setRecurringWithTimestamp(_recurringData, currentTimestamp);
+
+          // ✅ ALSO UPDATE MASTER DATABASE CACHE - Remove recurring expense from expenses_with_timestamp
+          const masterCache = CacheManager.get('expenses_with_timestamp');
+          if (masterCache && masterCache.expenses) {
+            // Remove all matching entries from master cache (recurring items have IDs like "REC-123-2025-01")
+            masterCache.expenses = masterCache.expenses.filter(expense =>
+              !String(expense.transactionId).startsWith(String(itemId))
+            );
+
+            // Update the master cache
+            masterCache.timestamp = Date.now();
+            masterCache.cached_at = new Date().toISOString();
+            masterCache.totalRows = masterCache.expenses.length;
+            CacheManager.set('expenses_with_timestamp', masterCache);
+
+            // ✅ INVALIDATE DASHBOARD CACHE
+            const currentDate = new Date();
+            const currentMonth = currentDate.getMonth();
+            const currentYear = currentDate.getFullYear();
+            const dashboardKey = `dashboard_${currentYear}-${currentMonth}`;
+            CacheManager.invalidate(dashboardKey);
+
+            // If currently viewing dashboard, refresh it immediately
+            if (window.SimBudget && SimBudget.Views && SimBudget.Views.getCurrent() === 'budget') {
+              if (typeof SimBudget.loadBudgetData === 'function') {
+                SimBudget.loadBudgetData(false);
+              }
+            }
+          }
+        }
+
+        if (window.API && typeof API.clearRecurringRow === 'function') {
+                    API.clearRecurringRow(itemId,
+            function(result) {
+              if (result && result.success) {  // ✅ CHECK SUCCESS FIRST
+                if (window.Utils && Utils.showToast) {
+                  Utils.showToast(`"${item.name}" deleted successfully`, 'success');
+                }
+
+                // Cache already updated above
+
+                // 🔥 DISPATCH DELETE EVENT
+                document.dispatchEvent(new CustomEvent('recurring-saved', {
+                  detail: {
+                    itemId: itemId,
+                    itemName: item.name,
+                    timestamp: Date.now()
+                  }
+                }));
+              }
+            },
+            function(error) {
+              console.error('RecurringManager: Delete error', error);
+              if (window.Utils && Utils.showToast) {
+                Utils.showToast('Error deleting item: ' + error, 'error');
+              }
+            }
+          );
+        }
+      },
+      function() {
+        // On cancel - do nothing
+      }
+    );
+  }
+
+  /**
+   * Save data to server - UPDATED VERSION
+   */
+  function saveToServer(items) {
+    if (!window.API || typeof API.saveBatchRecurring !== 'function') {
+      console.error('RecurringManager: API.saveBatchRecurring not available');
+      return;
+    }
+
+    // Filter out items without required fields before saving
+    const validItems = items.filter(item => 
+      item.name && item.amount > 0 && item.startDate
+    );
+
+    if (validItems.length === 0) {
+      return;
+    }
+
+    // Prepare items for saving - ensure proper date formatting
+    const itemsToSave = validItems.map(item => {
+      const saveItem = {
+        id: item.id,
+        name: item.name,
+        category: item.category,
+        type: item.type,
+        frequency: item.frequency,
+        amount: item.amount,
+        account: item.account,
+        status: item.status,
+        notes: item.notes || ''
+      };
+      
+      // Handle dates - convert to ISO strings for transmission
+      if (item.startDate instanceof Date) {
+        saveItem.startDate = item.startDate.toISOString();
+      } else if (item.startDate) {
+        saveItem.startDate = new Date(item.startDate).toISOString();
+      }
+      
+      if (item.endDate instanceof Date) {
+        saveItem.endDate = item.endDate.toISOString();
+      } else if (item.endDate) {
+        saveItem.endDate = new Date(item.endDate).toISOString();
+      }
+      
+      if (item.nextPayment instanceof Date) {
+        saveItem.nextPayment = item.nextPayment.toISOString();
+      } else if (item.nextPayment) {
+        saveItem.nextPayment = new Date(item.nextPayment).toISOString();
+      }
+      
+      return saveItem;
+    });
+
+    // ✅ UPDATE CACHE IMMEDIATELY (optimistically) - Don't wait for API
+    if (window.CacheManager && typeof CacheManager.setRecurringWithTimestamp === 'function') {
+      const currentTimestamp = new Date().toISOString();
+      CacheManager.setRecurringWithTimestamp(_recurringData, currentTimestamp);
+    }
+
+    if (window.Utils && Utils.showToast) {
+      Utils.showToast('Saving...', 'info');
+    }
+
+        API.saveBatchRecurring(itemsToSave,
+      function(result) {
+        if (result && result.success) {  // ✅ CHECK SUCCESS FIRST
+          if (window.Utils && Utils.showToast) {
+            const message = result.inserted > 0 ?
+              `Saved successfully (${result.inserted} added, ${result.updated} updated)` :
+              'Updated successfully';
+            Utils.showToast(message, 'success');
+          }
+
+          // Cache already updated optimistically before API call
+          // Just update master database cache here
+          if (window.CacheManager) {
+            // ✅ UPDATE MASTER DATABASE CACHE - Add/update recurring expense in expenses_with_timestamp
+            const masterCache = CacheManager.get('expenses_with_timestamp');
+            if (masterCache && masterCache.expenses) {
+              // Process each saved item - generate payment instances for master cache
+              itemsToSave.forEach(recurringItem => {
+
+                // Generate payment instances for this recurring item (from start date to current month)
+                const generatedPayments = [];
+                const startDate = new Date(recurringItem.startDate);
+                const endDate = recurringItem.endDate ? new Date(recurringItem.endDate) : null;
+                const frequency = (recurringItem.frequency || 'Monthly').toLowerCase();
+                const now = new Date();
+
+                // Create a date iterator starting from the start date
+                const iteratorDate = new Date(startDate);
+                iteratorDate.setDate(startDate.getDate()); // Use the day from start date
+
+                // Generate payments from start date through current month
+                let isFirstPayment = true;
+                while (iteratorDate <= now || isFirstPayment) {
+                  // Check if we've passed the end date
+                  if (endDate && iteratorDate > endDate) {
+                    break;
+                  }
+
+                  // Determine if payment occurs this month based on frequency
+                  let shouldAddPayment = false;
+                  if (frequency.includes('monthly')) {
+                    shouldAddPayment = true;
+                  } else if (frequency.includes('quarterly')) {
+                    const monthsSinceStart = (iteratorDate.getFullYear() - startDate.getFullYear()) * 12 +
+                                             (iteratorDate.getMonth() - startDate.getMonth());
+                    shouldAddPayment = monthsSinceStart % 3 === 0;
+                  } else if (frequency.includes('yearly') || frequency.includes('annual')) {
+                    shouldAddPayment = iteratorDate.getMonth() === startDate.getMonth();
+                  }
+
+                  if (shouldAddPayment) {
+                    generatedPayments.push({
+                      id: `${recurringItem.id}-${iteratorDate.getFullYear()}-${String(iteratorDate.getMonth() + 1).padStart(2, '0')}`,
+                      date: new Date(iteratorDate),
+                      name: recurringItem.name,
+                      category: recurringItem.category,
+                      amount: recurringItem.amount,
+                      account: recurringItem.account,
+                      notes: recurringItem.notes || ''
+                    });
+                  }
+
+                  // Move to next month
+                  iteratorDate.setMonth(iteratorDate.getMonth() + 1);
+                  isFirstPayment = false;
+                }
+
+                // Remove any existing cache entries for this recurring item before re-adding (handles edits)
+                masterCache.expenses = masterCache.expenses.filter(
+                  expense => String(expense.transactionId) !== String(recurringItem.id)
+                );
+
+                generatedPayments.forEach(payment => {
+                  // Format date as string with leading space: " 10 Oct 2025"
+                  const paymentDate = new Date(payment.date);
+                  const dateStr = ` ${paymentDate.getDate()} ${paymentDate.toLocaleString('en', { month: 'short' })} ${paymentDate.getFullYear()}`;
+
+                  const expenseFormat = {
+                    date: dateStr,
+                    amount: Math.abs(payment.amount),
+                    notes: payment.notes || '',
+                    name: payment.name,
+                    rowIndex: null,
+                    label: 'Subscription',
+                    category: payment.category,
+                    account: payment.account || '',
+                    transactionId: recurringItem.id  // Use base ID, not payment.id with month suffix
+                  };
+
+                  masterCache.expenses.push(expenseFormat);
+                });
+              });
+
+              // Update the master cache
+              masterCache.timestamp = Date.now();
+              masterCache.cached_at = new Date().toISOString();
+              masterCache.totalRows = masterCache.expenses.length;
+              CacheManager.set('expenses_with_timestamp', masterCache);
+              // ✅ INVALIDATE DASHBOARD CACHE
+              const currentDate = new Date();
+              const currentMonth = currentDate.getMonth();
+              const currentYear = currentDate.getFullYear();
+              const dashboardKey = `dashboard_${currentYear}-${currentMonth}`;
+              CacheManager.invalidate(dashboardKey);
+              
+              // If currently viewing dashboard, refresh it immediately
+              if (window.SimBudget && SimBudget.Views && SimBudget.Views.getCurrent() === 'budget') {
+                if (typeof SimBudget.loadBudgetData === 'function') {
+                  SimBudget.loadBudgetData(false);
+                }
+              }
+            } else {
+              console.warn('⚠️ Master cache not found or invalid');
+            }
+          }
+
+          // 🔥 DISPATCH EVENT
+          document.dispatchEvent(new CustomEvent('recurring-saved', {
+            detail: { timestamp: Date.now() }
+          }));
+
+          // No need to refresh - local data is already correct
+        }
+      },
+      function(error) {
+        console.error('RecurringManager: Save error', error);
+        if (window.Utils && Utils.showToast) {
+          Utils.showToast('Error saving: ' + error, 'error');
+        }
+      }
+    );
+  }
+
+  /**
+   * Initialize the recurring expenses chart
+   */
+  function initializeRecurringChart() {
+    const canvas = document.getElementById('recurringChart');
+    if (!canvas) {
+      console.warn('RecurringManager: Chart canvas not found');
+      return;
+    }
+    
+    
+
+    // Check if Chart.js is available
+    if (typeof Chart === 'undefined') {
+      console.warn('RecurringManager: Chart.js not available');
+      canvas.parentElement.innerHTML = '<div class="rec-chart-placeholder">Chart.js not loaded</div>';
+      return;
+    }
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Destroy existing chart if it exists
+    if (window.recurringChart && typeof window.recurringChart.destroy === 'function') {
+      window.recurringChart.destroy();
+    }
+
+    const { monthlyData, subscriptionData } = calculateMonthlyProjections();
+    
+   // User's specific color palette
+const colorPalette = [
+  '#F8CBA8', '#FF6F61', '#FFD166', '#06D6A0', '#00FFBF', '#ffc6ff',
+   '#2ECC71', '#83D0C9', '#38A3A5', '#F08080', 
+  '#FFB74D', '#FFD54F', '#4FC3F7', '#4DD0E1', '#81C784', '#A5D6A7',
+  '#FF8A65', '#FFCC80', '#BA68C8', '#CE93D8', '#FFF176', '#FFEB3B'
+];
+    // Prepare chart data
+    const currentYear = new Date().getFullYear();
+    const monthLabels = [];
+    const datasets = [];
+    const totalValues = [];
+    
+    // Generate month labels and collect total data
+   for (let month = 0; month < 12; month++) {
+  const monthDate = new Date(currentYear, month, 1);
+  
+  // Check if mobile view and show month only
+  const isMobile = window.innerWidth <= 768;
+  const monthLabel = isMobile ? 
+    monthDate.toLocaleDateString('en-US', { month: 'short' }) : 
+    monthDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  
+  monthLabels.push(monthLabel);
+  
+  const monthKey = monthDate.toISOString().substring(0, 7);
+  totalValues.push(monthlyData[monthKey] || 0);
+}
+
+    // Get unique subscription names and assign colors
+    const subscriptions = [...new Set(Object.values(subscriptionData).flatMap(month => Object.keys(month)))];
+    
+    // Determine current month (0-indexed)
+    const currentMonth = new Date().getMonth();
+    
+    // Create stacked datasets for each INDIVIDUAL SUBSCRIPTION with historical/projected split
+    subscriptions.forEach((subscriptionName, index) => {
+      const historicalValues = [];
+      const projectedValues = [];
+      
+      for (let month = 0; month < 12; month++) {
+        const monthKey = new Date(currentYear, month, 1).toISOString().substring(0, 7);
+        const value = subscriptionData[monthKey][subscriptionName] || 0;
+        
+        if (month <= currentMonth) {
+          // Historical data (past and current month)
+          historicalValues.push(value);
+          projectedValues.push(0);
+        } else {
+          // Projected data (future months)
+          historicalValues.push(0);
+          projectedValues.push(value);
+        }
+      }
+      
+      // Use color from palette, cycling if we have more subscriptions than colors
+      const color = colorPalette[index % colorPalette.length];
+      
+      // Historical dataset (normal colors)
+      datasets.push({
+        label: subscriptionName,
+        data: historicalValues,
+        backgroundColor: color,
+        borderColor: color,
+        borderWidth: 0,
+        stack: 'main'
+      });
+      
+      // Projected dataset (grey/muted colors with dashed border)
+      const greyColor = color.replace(/rgb\(([^)]+)\)/, 'rgba($1, 0.4)') 
+                            .replace(/#([0-9A-F]{6})/i, (match, hex) => {
+                              const r = parseInt(hex.substr(0,2), 16);
+                              const g = parseInt(hex.substr(2,2), 16);
+                              const b = parseInt(hex.substr(4,2), 16);
+                              return `rgba(${r}, ${g}, ${b}, 0.4)`;
+                            });
+      
+      datasets.push({
+        label: subscriptionName + ' (Projected)',
+        data: projectedValues,
+        backgroundColor: greyColor || 'rgba(128, 128, 128, 0.4)',
+        borderColor: color,
+        borderWidth: 1,
+        borderDash: [3, 3],
+        stack: 'main'
+      });
+    });
+
+    // Split total line into historical and projected segments
+    const historicalTotals = [];
+    const projectedTotals = [];
+    
+    for (let month = 0; month < 12; month++) {
+      const value = totalValues[month];
+      if (month <= currentMonth) {
+        historicalTotals.push(value);
+        projectedTotals.push(null);
+      } else {
+        historicalTotals.push(null);
+        projectedTotals.push(value);
+      }
+    }
+    
+    // Determine colors based on dark mode
+    const isDarkMode = document.body.classList.contains('dark-mode');
+    const totalLineColor = isDarkMode ? '#DDA15E' : '#1f2937';
+    const projectedLineColor = isDarkMode ? 'rgba(221, 161, 94, 0.6)' : 'rgba(128, 128, 128, 0.8)';
+    
+    // Historical total line (solid)
+    datasets.push({
+      label: 'Total',
+      data: historicalTotals,
+      type: 'line',
+      borderColor: totalLineColor,
+      backgroundColor: 'transparent',
+      borderWidth: 3,
+      pointRadius: 6,
+      pointBackgroundColor: totalLineColor,
+      pointBorderColor: '#ffffff',
+      pointBorderWidth: 2,
+      fill: false,
+      tension: 0.4,
+      pointStyle: 'circle',
+      showLine: true,
+      spanGaps: false
+    });
+    
+    // Projected total line (dashed, grey)
+    datasets.push({
+      label: 'Total (Projected)',
+      data: projectedTotals,
+      type: 'line',
+      borderColor: projectedLineColor,
+      backgroundColor: 'transparent',
+      borderWidth: 3,
+      borderDash: [8, 4],
+      pointRadius: 6,
+      pointBackgroundColor: projectedLineColor,
+      pointBorderColor: '#ffffff',
+      pointBorderWidth: 2,
+      fill: false,
+      tension: 0.4,
+      pointStyle: 'circle',
+      showLine: true,
+      spanGaps: false
+    });
+
+    const config = {
+      type: 'bar', // STACKED BAR CHART not line!
+      data: {
+        labels: monthLabels,
+        datasets: datasets
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: {
+          padding: {
+            top: 40 // More space for the higher trend line labels
+          }
+        },
+        scales: {
+          x: {
+            stacked: true, // Stack the bars
+            grid: {
+              display: false
+            },
+            ticks: {
+              font: {
+                size: 11
+              },
+              align: 'center'
+            }
+          },
+          y: {
+            stacked: true, // Stack the bars
+            beginAtZero: true,
+            grid: {
+              color: 'rgba(0, 0, 0, 0.1)'
+            },
+            ticks: {
+              callback: function(value) {
+                if (value >= 1000) {
+                  return (value / 1000).toFixed(0) + 'k';
+                }
+                return formatCurrency(value);
+              },
+              font: {
+                size: 11
+              }
+            }
+          }
+        },
+        plugins: {
+          legend: {
+            display: true,
+            position: 'bottom',
+            align: 'center',
+            labels: {
+              boxWidth: 10,
+              boxHeight: 10,
+              padding: 8,
+              font: {
+                size: 10
+              },
+               filter: function(legendItem) {
+        // Don't show Total lines in legend
+        if (legendItem.text === 'Total' || legendItem.text === 'Total (Projected)') return false;
+        
+        // Don't show projected datasets in legend - only show base subscription names
+        if (legendItem.text.includes('(Projected)')) return false;
+        
+        // Hide legend on vertical mobile
+        const isMobile = window.innerWidth <= 768;
+        const isPortrait = window.innerHeight > window.innerWidth;
+        const isVerticalMobile = isMobile && isPortrait;
+        
+        return !isVerticalMobile; // Hide all subscription labels on vertical mobile
+      }
+    },
+
+ // ADD THIS: Enable clicking legend items to toggle datasets
+        onClick: function(e, legendItem, legend) {
+          const chart = legend.chart;
+          const index = legendItem.datasetIndex;
+          const dataset = chart.data.datasets[index];
+          
+          // Skip the Total line datasets
+          if (dataset.label === 'Total' || dataset.label === 'Total (Projected)') return;
+          
+          // Handle projected datasets - toggle both historical and projected for same subscription
+          let baseLabel = dataset.label.replace(' (Projected)', '');
+          let isProjected = dataset.label.includes('(Projected)');
+          
+          // Find both historical and projected datasets for this subscription
+          const relatedDatasets = chart.data.datasets.filter(ds => 
+            ds.label === baseLabel || ds.label === baseLabel + ' (Projected)'
+          );
+          
+          // Toggle visibility for both
+          const newHiddenState = !dataset.hidden;
+          relatedDatasets.forEach(ds => {
+            ds.hidden = newHiddenState;
+          });
+          
+          // Update chart
+          chart.update();
+        }
+
+  },
+          tooltip: {
+            mode: 'point',
+            intersect: true,
+            callbacks: {
+              label: function(context) {
+                if (context.dataset.label === 'Total' || context.dataset.label === 'Total (Projected)') {
+                  const isProjected = context.dataIndex > currentMonth;
+                  const totalLabel = isProjected ? 'Total (Projected)' : 'Total';
+                  return `${totalLabel}: ${formatCurrency(context.parsed.y)}`;
+                }
+                const value = context.parsed.y;
+                const baseLabel = context.dataset.label.replace(' (Projected)', '');
+                const isProjected = context.dataIndex > currentMonth;
+                const labelSuffix = isProjected ? ' (Projected)' : '';
+                return `${baseLabel}${labelSuffix}: ${formatCurrency(value)}`;
+              },
+              afterBody: function(tooltipItems) {
+                const currentMonth = tooltipItems[0]?.dataIndex || 0;
+                const currentTotal = totalValues[currentMonth] || 0;
+                const prevTotal = currentMonth > 0 ? (totalValues[currentMonth - 1] || 0) : 0;
+                const delta = currentTotal - prevTotal;
+                
+                if (delta !== 0) {
+                  const deltaStr = delta > 0 ? `+${formatCurrency(delta)}` : `-${formatCurrency(Math.abs(delta))}`;
+                  return [`Change: ${deltaStr}`];
+                }
+                return [];
+              }
+            }
+          }
+        },
+        elements: {
+          bar: {
+            borderWidth: 0
+          }
+        },
+        interaction: {
+          mode: 'index',
+          intersect: false
+        },
+        animation: {
+          onComplete: function() {
+            // Draw total labels manually after animation completes
+            const chart = this;
+            const ctx = chart.ctx;
+            
+            // Find both total datasets
+            const historicalTotalDataset = chart.data.datasets.find(ds => ds.label === 'Total');
+            const projectedTotalDataset = chart.data.datasets.find(ds => ds.label === 'Total (Projected)');
+            
+            if (historicalTotalDataset || projectedTotalDataset) {
+              ctx.save();
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'bottom';
+              ctx.fillStyle = document.body.classList.contains('dark-mode') ? '#DDA15E' : '#1f2937';
+              ctx.font = 'bold 10px Arial';
+              
+              // Process all 12 months using the original totalValues array
+              totalValues.forEach((value, index) => {
+                if (value > 0) {
+                  // Determine which dataset to use for positioning
+                  const isHistorical = index <= currentMonth;
+                  const activeDataset = isHistorical ? historicalTotalDataset : projectedTotalDataset;
+                  
+                  if (activeDataset) {
+                    const datasetIndex = chart.data.datasets.indexOf(activeDataset);
+                    const meta = chart.getDatasetMeta(datasetIndex);
+                    const point = meta.data[index];
+                    
+                    if (point) {
+                      const x = point.x;
+                      const y = point.y - 25; // Move trend line higher above bars
+                      
+                      // Format total value
+                      let totalStr = value >= 1000 ? '€' + (value / 1000).toFixed(0) + 'k' : '€' + value.toFixed(0);
+                      
+                      // Calculate change
+                      const prevValue = index > 0 ? (totalValues[index - 1] || 0) : 0;
+                      const delta = value - prevValue;
+                      
+                      ctx.fillText(totalStr, x, y);
+                      
+                      // Draw change below if there's a change
+                      if (index > 0 && delta !== 0) {
+                        const changeStr = delta > 0 ? 
+                          '+' + (delta >= 1000 ? '€' + (delta / 1000).toFixed(0) + 'k' : '€' + delta.toFixed(0)) :
+                          '-' + (Math.abs(delta) >= 1000 ? '€' + (Math.abs(delta) / 1000).toFixed(0) + 'k' : '€' + Math.abs(delta).toFixed(0));
+                        
+                        ctx.fillStyle = delta > 0 ? '#22c55e' : '#ef4444';
+                        ctx.font = '9px Arial';
+                        ctx.fillText(changeStr, x, y + 14); // Adjusted spacing
+                        ctx.fillStyle = document.body.classList.contains('dark-mode') ? '#DDA15E' : '#1f2937';
+                        ctx.font = 'bold 10px Arial';
+                      }
+                    }
+                  }
+                }
+              });
+              
+              ctx.restore();
+            }
+          }
+        }
+      }
+    };
+
+    // Apply dark mode styles if needed - FIXED VERSION
+    if (document.body.classList.contains('dark-mode')) {
+      // Update scales for dark mode
+      config.options.scales.x.ticks.color = 'rgba(255, 255, 255, 0.6)';
+      config.options.scales.y.ticks.color = 'rgba(255, 255, 255, 0.6)';
+      config.options.scales.x.grid.color = 'rgba(255, 255, 255, 0.1)';
+      config.options.scales.y.grid.color = 'rgba(255, 255, 255, 0.1)';
+      
+      // Update legend for dark mode
+      config.options.plugins.legend.labels.color = 'rgba(255, 255, 255, 0.87)';
+      
+      // Update total line color for dark mode
+      const totalDataset = datasets[datasets.length - 1];
+      if (totalDataset && totalDataset.label === 'Total') {
+        totalDataset.borderColor = '#DDA15E';
+        totalDataset.pointBackgroundColor = '#DDA15E';
+        totalDataset.pointBorderColor = '#1e1e1e';
+      }
+      
+      // Update tooltip for dark mode
+      if (!config.options.plugins.tooltip) config.options.plugins.tooltip = {};
+      config.options.plugins.tooltip.backgroundColor = 'rgba(30, 30, 30, 0.9)';
+      config.options.plugins.tooltip.titleColor = '#DDA15E';
+      config.options.plugins.tooltip.bodyColor = 'rgba(255, 255, 255, 0.87)';
+    }
+
+    window.recurringChart = new Chart(ctx, config);
+  }
+
+  /**
+   * Update chart metrics only
+   */
+  function updateChartMetrics() {
+    const metrics = calculateCurrentMonthMetrics();
+    const summaryElement = document.getElementById('chartSummary');
+    
+    if (summaryElement) {
+      summaryElement.innerHTML = `
+        <span class="summary-item">📅 ${getCurrentDate()}</span>
+        <span class="summary-item">🟢 ${metrics.currentMonthCount} Payments</span>
+        <span class="summary-item">💰 ${formatCurrency(metrics.currentMonthTotal)} (${metrics.incomePercentage}% of income)</span>
+      `;
+    }
+  }
+
+  /**
+   * Calculate current month's actual payments (not averages)
+   * Uses similar logic to the server's fixed expenses calculation
+   */
+  function calculateCurrentMonthMetrics() {
+    const now = new Date();
+    const currentMonth = now.getMonth(); // 0-11
+    const currentYear = now.getFullYear();
+    
+    const activeSubscriptions = _recurringData.filter(item => {
+      // Exclude income items from metrics
+      if (item.category && item.category.toLowerCase().includes('income 💵')) {
+        return false;
+      }
+      return item.status === 'Active' || item.status === 'active';
+    });
+    
+    const totalActiveCount = activeSubscriptions.length;
+    let currentMonthTotal = 0;
+    let currentMonthCount = 0;
+    
+    activeSubscriptions.forEach(item => {
+      const freq = item.frequency.toLowerCase();
+      const amount = item.amount;
+      
+      // Simple logic: check if subscription charges this month
+      if (isSubscriptionDueThisMonth(item, currentMonth, currentYear)) {
+        currentMonthTotal += amount;
+        currentMonthCount++;
+      }
+    });
+    
+    // Calculate income percentage
+    let incomePercentage = 0;
+    
+    // Try multiple ways to get income data
+    let monthlyIncome = 0;
+    
+    // Method 1: Try _dataCache.get('budget')
+    if (window._dataCache && typeof _dataCache.get === 'function') {
+      const budgetData = _dataCache.get('budget');
+      if (budgetData && budgetData.summary && budgetData.summary.income) {
+        monthlyIncome = budgetData.summary.income;
+      }
+    }
+    
+    // Method 2: Try window._dataCache.budget directly
+    if (monthlyIncome === 0 && window._dataCache && window._dataCache.budget) {
+      if (window._dataCache.budget.summary && window._dataCache.budget.summary.income) {
+        monthlyIncome = window._dataCache.budget.summary.income;
+      }
+      // Also try budget.budget.summary.income structure
+      else if (window._dataCache.budget.budget && window._dataCache.budget.budget.summary && window._dataCache.budget.budget.summary.income) {
+        monthlyIncome = window._dataCache.budget.budget.summary.income;
+      }
+    }
+    
+    // Method 3: Try SimBudget._currentBudgetData
+    if (monthlyIncome === 0 && window.SimBudget && window.SimBudget._currentBudgetData && window.SimBudget._currentBudgetData.income) {
+      monthlyIncome = window.SimBudget._currentBudgetData.income;
+    }
+    
+    // Calculate percentage
+    incomePercentage = monthlyIncome > 0 ? Math.round((currentMonthTotal / monthlyIncome) * 100) : 0;
+
+    return {
+      totalActiveSubscriptions: totalActiveCount,
+      currentMonthCount: currentMonthCount,
+      currentMonthTotal: currentMonthTotal,
+      incomePercentage: incomePercentage
+    };
+  }
+  
+  /**
+   * Check if a subscription is due in the current month
+   * Simplified logic that matches typical subscription billing
+   */
+  function isSubscriptionDueThisMonth(subscription, currentMonth, currentYear) {
+    const freq = subscription.frequency.toLowerCase();
+    const now = new Date();
+    
+    // Parse start date if available
+    let startDate;
+    if (subscription.start_date) {
+      startDate = new Date(subscription.start_date);
+    } else if (subscription.startDate) {
+      startDate = new Date(subscription.startDate);  
+    } else {
+      // Default to current date if no start date
+      startDate = new Date();
+    }
+    
+    const startMonth = startDate.getMonth();
+    const startYear = startDate.getFullYear();
+    
+    // If subscription starts in the future, it's not due yet
+    if (startYear > currentYear || (startYear === currentYear && startMonth > currentMonth)) {
+      return false;
+    }
+    
+    // Monthly subscriptions are always due
+    if (freq.includes('monthly')) {
+      return true;
+    }
+    
+    // Weekly subscriptions are always due (they charge every month)
+    if (freq.includes('weekly')) {
+      return true;
+    }
+    
+    // Yearly/annual subscriptions are due only in their anniversary month
+    if (freq.includes('yearly') || freq.includes('annual')) {
+      return startMonth === currentMonth;
+    }
+    
+    // Quarterly subscriptions are due every 3 months from start
+    if (freq.includes('quarterly')) {
+      const monthsDiff = (currentYear - startYear) * 12 + (currentMonth - startMonth);
+      return monthsDiff >= 0 && monthsDiff % 3 === 0;
+    }
+    
+    // Default to monthly for unknown frequencies
+    return true;
+  }
+
+  /**
+   * Get current month and year for display
+   */
+  function getCurrentDate() {
+    const now = new Date();
+    const monthNames = [
+      "January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December"
+    ];
+    return `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
+  }
+
+  /**
+   * Toggle chart visibility
+   */
+  function toggleChart() {
+    const chartContent = document.getElementById('recChartContent');
+    const toggleBtn = document.getElementById('chartToggleBtn');
+    const toggleIcon = toggleBtn?.querySelector('.chart-toggle-icon');
+    const chartContainer = document.querySelector('.rec-chart-container');
+    
+    if (!chartContent || !toggleBtn || !toggleIcon) return;
+    
+    const isCollapsed = chartContent.style.display === 'none';
+    
+    if (isCollapsed) {
+      chartContent.style.display = 'block';
+      toggleIcon.textContent = '▼';
+      chartContainer.classList.remove('chart-collapsed');
+      
+      // Initialize chart if it doesn't exist
+      setTimeout(() => {
+        if (!window.recurringChart) {
+          initializeRecurringChart();
+        }
+      }, 100);
+    } else {
+      chartContent.style.display = 'none';
+      toggleIcon.textContent = '▶';
+      chartContainer.classList.add('chart-collapsed');
+    }
+  }
+
+  /**
+   * Bind event listeners - ENHANCED VERSION WITH SORTING
+   */
+  // Store the click handler so we can remove it
+  let _containerClickHandler = null;
+
+  function bindEvents() {
+    // Listen for category changes
+    if (!window._recurringCategoryListener) {
+      window._recurringCategoryListener = function(event) {
+        loadCategories();
+        updateRecurringTable();
+      };
+      document.addEventListener('categories-changed', window._recurringCategoryListener);
+    }
+
+    // Use event delegation on the container for all dynamic content
+    const container = getElement('recurringContent');
+    if (!container) return;
+
+    // Remove existing click handler if it exists
+    if (_containerClickHandler) {
+      container.removeEventListener('click', _containerClickHandler);
+    }
+
+    // Create new click handler
+    _containerClickHandler = function(e) {
+      // Chart toggle button
+      if (e.target.closest('#chartToggleBtn')) {
+        toggleChart();
+        return;
+      }
+
+      // Sortable column headers
+      if (e.target.classList.contains('rec-sortable') || e.target.closest('.rec-sortable')) {
+        const header = e.target.classList.contains('rec-sortable') ? e.target : e.target.closest('.rec-sortable');
+        const column = header.getAttribute('data-sort-column');
+        if (column) {
+          handleColumnSort(column);
+        }
+        return;
+      }
+
+
+      // Add button
+      if (e.target.id === 'addSubscriptionBtn' || e.target.closest('#addSubscriptionBtn')) {
+        addNewSubscription();
+        return;
+      }
+
+      // Filter buttons
+      if (e.target.closest('#activeFilterBtn')) {
+        _showExpired = false;
+        updateFilterButtons();
+        updateRecurringTable();
+        return;
+      }
+      
+      if (e.target.closest('#expiredFilterBtn')) {
+        _showExpired = true;
+        updateFilterButtons();
+        updateRecurringTable();
+        return;
+      }
+
+      // Clickable name cell
+      const nameCell = e.target.closest('.rec-name-clickable');
+      if (nameCell) {
+        e.stopPropagation();
+        const itemId = nameCell.getAttribute('data-id');
+        if (itemId) {
+          editRecurringItem(itemId);
+        }
+        return;
+      }
+    };
+
+    // Enter key to save
+    container.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter' && e.target.classList.contains('rec-edit-input')) {
+        const row = e.target.closest('tr');
+        if (row) {
+          const saveBtn = row.querySelector('.rec-save-btn');
+          if (saveBtn) saveBtn.click();
+        }
+      }
+    });
+
+
+
+    // Currency change listener - only add once
+    if (!window._recurringCurrencyListener) {
+      window._recurringCurrencyListener = function(event) {
+        _currencySymbol = event.detail.symbol;
+        updateChartMetrics();
+        updateRecurringTable();
+        
+        // Update chart
+        if (window.recurringChart) {
+          initializeRecurringChart();
+        }
+      };
+      document.addEventListener('currency-changed', window._recurringCurrencyListener);
+    }
+
+    // Settings change listener - only add once
+    if (!window._recurringSettingsListener) {
+      window._recurringSettingsListener = function() {
+        loadSettings();
+        updateChartMetrics();
+        updateRecurringTable();
+        
+        // Update chart
+        if (window.recurringChart) {
+          initializeRecurringChart();
+        }
+      };
+      document.addEventListener('settings-changed', window._recurringSettingsListener);
+    }
+
+    // Add the click handler
+    container.addEventListener('click', _containerClickHandler);
+    // Mark container as having events bound
+    container.dataset.eventsbound = 'true';
+  }
+
+  /**
+   * Refresh recurring data
+   */
+  function refresh() {
+    // Clear cache in main system
+    if (window._cache && typeof _cache.invalidate === 'function') {
+      window._cache.invalidate('recurring');
+    }
+    
+    // Clear local data
+    _recurringData = [];
+    
+    // Reset initialization flag
+    _initialized = false;
+    
+    // Clear element cache
+    Object.keys(_elements).forEach(key => {
+      delete _elements[key];
+    });
+    
+    // Re-initialize without cached data to force fresh load
+    init('recurringContent', null);
+  }
+
+  /**
+   * Set recurring data from external source
+   */
+  function setRecurringData(recurringData) {
+    if (!recurringData || !Array.isArray(recurringData)) {
+      console.warn('RecurringManager: Invalid recurring data');
+      return;
+    }
+
+    _recurringData = processRecurringData(recurringData);
+    
+    if (_initialized) {
+      updateChartMetrics();
+      updateRecurringTable();
+      
+      // Update chart
+      if (window.recurringChart) {
+        initializeRecurringChart();
+      }
+    }
+  }
+
+  // Public API
+  return {
+  init: init,
+  refresh: refresh,
+  setRecurringData: setRecurringData,
+  isInitialized: function() { return _initialized; },
+  
+  // ADD THIS NEW METHOD:
+  updateDataSilently: function(entries) {
+    if (!entries || !Array.isArray(entries)) return;
+    
+    _recurringData = processRecurringData(entries);
+    
+    // Update UI components without showing loading
+    updateChartMetrics();
+    updateRecurringTable();
+    
+    // Update chart if it exists
+    if (window.recurringChart) {
+      initializeRecurringChart();
+    }
+  },
+  
+  // Expose loading state function
+  showLoadingState: showLoadingState
+};
+})();
+
+// Expose globally
+window.RecurringManager = RecurringManager;
+
+</script>
+
+<style>
+/* ==============================================================
+   RECURRING MANAGEMENT - ENHANCED STYLES WITH SORTABLE TABLE
+   ==============================================================
+*/
+
+/* ======== CHART CONTAINER ======== */
+.rec-chart-container {
+  background-color: #ffffff;
+  border-radius: 0px;
+  padding: 0;
+  margin-bottom: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  transition: box-shadow 0.3s ease;
+}
+
+.rec-chart-header {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-bottom: none;
+  gap: 12px;
+  position: relative;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+}
+
+.rec-chart-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.rec-chart-title-left {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #2c3e50;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+.rec-chart-subtitle-right {
+  font-size: 13px;
+  color: #666;
+  font-weight: normal;
+}
+
+.rec-chart-summary {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 20px;
+  font-size: 16px;
+  font-weight: 600;
+  color: white;
+  text-align: center;
+  line-height: 1.4;
+  font-family: 'Lato', sans-serif;
+}
+
+.summary-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.rec-chart-content {
+  padding: 0 20px;
+  padding-bottom: 20px; /* Minimal space for bottom legend */
+  height: 300px;
+  position: relative;
+}
+
+#recurringChart {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.rec-chart-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #666;
+  font-style: italic;
+}
+
+.rec-chart-toggle {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+  color: #2c3e50;
+  font-size: 14px;
+}
+
+.rec-chart-toggle:hover {
+  background-color: rgba(44, 62, 80, 0.1);
+}
+
+.chart-toggle-icon {
+  display: inline-block;
+  transition: transform 0.3s ease;
+}
+
+.chart-collapsed .chart-toggle-icon {
+  transform: rotate(-90deg);
+}
+
+/* Mobile responsive for chart */
+@media (max-width: 768px) {
+  .rec-chart-header {
+    gap: 8px;
+  }
+  
+  .rec-chart-title-left {
+    font-size: 16px;
+  }
+  
+  .rec-chart-subtitle-right {
+    font-size: 11px;
+  }
+  
+  .rec-chart-summary {
+    font-size: 14px;
+    gap: 12px;
+    flex-direction: column;
+  }
+  
+  .summary-item {
+    gap: 4px;
+  }
+  
+  .rec-chart-content {
+    height: 250px;
+    padding: 15px;
+    padding-bottom: 20px; /* Minimal space for legend on mobile */
+  }
+}
+
+/* Dark mode for chart container */
+body.dark-mode .rec-chart-container {
+  background-color: #182f46;
+  color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+body.dark-mode .rec-chart-header {
+  background: linear-gradient(135deg, #4c1d95 0%, #5b21b6 100%) !important;
+  border-bottom: 1px solid rgba(139, 92, 246, 0.3);
+  box-shadow: 0 4px 12px rgba(76, 29, 149, 0.3);
+}
+
+body.dark-mode .rec-chart-title-left {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+body.dark-mode .rec-chart-subtitle-right {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+body.dark-mode .rec-chart-summary {
+  color: white;
+}
+
+body.dark-mode .rec-chart-toggle {
+  color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
+}
+
+body.dark-mode .rec-chart-toggle:hover {
+  background-color: rgba(221, 161, 94, 0.1);
+}
+
+
+
+/* Desktop styles for chart */
+@media (min-width: 769px) {
+  .rec-chart-content {
+    height: 350px;
+    padding-bottom: 30px; /* Minimal space for legend on desktop */
+  }
+
+   .rec-table-container {
+    padding: 20px 120px !important; /* Wider horizontal padding on desktop only */
+    margin-left: auto;
+    margin-right: auto;
+    max-width: 70%;
+  }
+  
+  .rec-chart-summary {
+    font-size: 18px;
+    gap: 30px;
+  }
+  
+  .rec-chart-container {
+    margin-left: auto;
+    margin-right: auto;
+    max-width: 70%;
+  }
+}
+
+/* ======== SORTABLE TABLE ENHANCEMENTS ======== */
+.rec-sortable {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.rec-sortable:hover {
+  background-color: rgba(44, 62, 80, 0.1);
+  color: #2c3e50;
+}
+
+.rec-sort-indicator {
+  font-size: 12px;
+  color: #2c3e50;
+  margin-left: 4px;
+  display: inline-block;
+  opacity: 0.8;
+}
+
+/* Dark mode sort indicators */
+body.dark-mode .rec-sortable:hover {
+  background-color: rgba(221, 161, 94, 0.1);
+  color: #DDA15E;
+}
+
+body.dark-mode .rec-sort-indicator {
+  color: #DDA15E;
+}
+
+/* ======== LOADING & ERROR STATES ======== */
+.rec-loading, .rec-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  text-align: center;
+}
+
+.rec-loading-text {
+  margin-top: 16px;
+  color: var(--text-secondary, #666);
+}
+
+.rec-error {
+  background-color: #ffebee;
+  border-radius: 0px;
+  border-top: 1px solid rgba(0, 0, 0, 0.5);
+  border-left: 1px solid rgba(0, 0, 0, 0.5);
+  border-right: 4px solid #334a60;
+  border-bottom: 4px solid #334a60;
+}
+
+
+
+/* ======== CONFIRMATION DIALOG ======== */
+.rec-confirm-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5); 
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.rec-confirm-dialog {
+  background: white;
+  border-radius: 0px;
+  border-top: 1px solid rgba(0, 0, 0, 0.5);
+  border-left: 1px solid rgba(0, 0, 0, 0.5);
+  border-right: 4px solid #334a60;
+  border-bottom: 4px solid #334a60;
+  min-width: 320px;
+  max-width: 480px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  position: relative; /* Ensure dialog stays on top */
+  z-index: 2001; /* Higher than overlay */
+}
+
+
+
+.rec-confirm-header {
+  background-color: #d6f1f5;
+  padding: 16px 20px;
+  border-bottom: 1px solid #eee;
+}
+
+.rec-confirm-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #2c3e50;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+.rec-confirm-body {
+  padding: 20px;
+}
+
+.rec-confirm-body p {
+  margin: 0;
+  font-size: 15px;
+  color: #2c3e50;
+  line-height: 1.4;
+}
+
+.rec-confirm-actions {
+  padding: 16px 20px;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  border-top: 1px solid #eee;
+}
+
+.rec-confirm-btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 0px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 80px;
+}
+
+.rec-confirm-btn.rec-cancel-btn {
+  background-color: #f5f5f5;
+  color: #666;
+  border: 1px solid #ddd;
+}
+
+.rec-confirm-btn.rec-cancel-btn:hover {
+  background-color: #e8e8e8;
+  color: #2c3e50;
+}
+
+.rec-confirm-btn.rec-delete-btn {
+  background-color: transparent;
+  color: #f44336;
+  border: 1px solid #f44336;
+}
+
+.rec-confirm-btn.rec-delete-btn:hover {
+  background-color: rgba(244, 67, 54, 0.1);
+  color: #d32f2f;
+}
+
+.rec-confirm-btn:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(244, 67, 54, 0.3);
+}
+
+/* Dark mode for confirmation dialog */
+body.dark-mode .rec-confirm-dialog {
+  background: var(--dark-surface, #1e1e1e);
+  color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
+}
+
+body.dark-mode .rec-confirm-header {
+  background-color: var(--dark-surface, #1e1e1e);
+  border-color: var(--dark-border, rgba(255, 255, 255, 0.12));
+}
+
+body.dark-mode .rec-confirm-header h3 {
+  color: #DDA15E;
+}
+
+body.dark-mode .rec-confirm-body p {
+  color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
+}
+
+body.dark-mode .rec-confirm-actions {
+  border-color: var(--dark-border, rgba(255, 255, 255, 0.12));
+}
+
+body.dark-mode .rec-confirm-btn.rec-cancel-btn {
+  background-color: var(--dark-surface, #1e1e1e);
+  color: var(--dark-text-secondary, rgba(255, 255, 255, 0.6));
+  border-color: var(--dark-border, rgba(255, 255, 255, 0.12));
+}
+
+body.dark-mode .rec-confirm-btn.rec-cancel-btn:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
+}
+
+body.dark-mode .rec-confirm-btn.rec-delete-btn:focus {
+  box-shadow: 0 0 0 2px rgba(239, 83, 80, 0.3);
+}
+
+body.dark-mode .rec-confirm-btn.rec-delete-btn {
+  background-color: transparent;
+  color: #ef5350;
+  border-color: #ef5350;
+}
+
+body.dark-mode .rec-confirm-btn.rec-delete-btn:hover {
+  background-color: rgba(239, 83, 80, 0.1);
+  color: #f44336;
+}
+
+/* ======== SUMMARY BOX ======== */
+.rec-summary-row {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: center;
+}
+
+.rec-summary-box {
+  background-color: #d6f1f5;
+  border-radius: 0px;
+  padding: 20px;
+  border-top: 1px solid rgba(0, 0, 0, 0.5);
+  border-left: 1px solid rgba(0, 0, 0, 0.5);
+  border-right: 4px solid #334a60;
+  border-bottom: 4px solid #334a60;
+  width: 100%;
+}
+
+.rec-box-content {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.rec-box-item {
+  flex: 1 0 calc(50% - 10px);
+  padding: 8px;
+  text-align: center;
+  margin-bottom: 5px;
+}
+
+.rec-box-label {
+  font-size: 12px;
+  color: black;
+  margin-bottom: 4px;
+  font-family: sans-serif;
+}
+
+.rec-box-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: #2c3e50;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+/* Hide summary on mobile */
+@media (max-width: 768px) {
+  .rec-summary-row {
+    display: none;
+  }
+}
+
+/* Add button styling */
+.rec-add-subscription-btn {
+  background-color: #2c3e50;
+  color: white;
+  border: none;
+  border-radius: 0px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  margin-left: 8px;
+}
+
+.rec-add-subscription-btn:hover {
+  background-color: #1984c5;
+}
+
+.rec-add-subscription-btn i {
+  font-size: 18px;
+}
+
+/* ======== TABLE SECTION ======== */
+.rec-table-container {
+  background-color: #ffffff;
+  border-radius: 0px;
+  padding: 20px;
+  border-top: 1px solid rgb(51 74 96 / 20%);
+  border-left: 1px solid rgb(51 74 96 / 20%);
+  border-right: 4px solid rgb(51 74 96 / 20%);
+  border-bottom: 4px solid rgb(51 74 96 / 20%);
+}
+
+.rec-table-header {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 16px;
+}
+
+.rec-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.rec-filter-btn {
+  background-color: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 0px;
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.rec-filter-btn.active {
+  background-color: #2c3e50;
+  color: white;
+  border-color: #2c3e50;
+}
+
+.rec-filter-buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.rec-filter-count {
+  font-weight: 600;
+  background-color: rgba(255, 255, 255, 0.2);
+  padding: 2px 6px;
+  border-radius: 12px;
+  font-size: 11px;
+  min-width: 16px;
+  text-align: center;
+}
+
+.rec-filter-btn.active .rec-filter-count {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Controls row layout */
+.rec-controls-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Show expired button */
+.rec-show-expired-btn {
+  background-color: #f5f5f5;
+  border: 1px solid #ddd;
+  color: #666;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.rec-show-expired-btn:hover {
+  background-color: #e9e9e9;
+  border-color: #ccc;
+}
+
+.rec-show-expired-btn.active {
+  background-color: #ff9800;
+  border-color: #ff9800;
+  color: white;
+}
+
+.rec-show-expired-btn.active:hover {
+  background-color: #f57c00;
+  border-color: #f57c00;
+}
+
+.rec-expired-count {
+  font-weight: 600;
+}
+
+
+.rec-filter-select {
+  min-width: 140px;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  background-color: white;
+}
+
+.rec-table-wrapper {
+  overflow-x: auto;
+  margin-bottom: 16px;
+}
+
+.rec-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+/* Updated table padding and gap */
+.rec-table th,
+.rec-table td {
+  padding: 6px 5px;
+  text-align: center;
+  border-bottom: 1px solid #eee;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rec-table th {
+  font-weight: 500;
+  color: #607d8b;
+  position: sticky;
+  top: 0;
+  background-color: white;
+  z-index: 10;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+/* Updated column widths (removed category column) */
+.rec-type-header,
+.rec-type-cell {
+  width: 80px !important;
+  max-width: 80px !important;
+}
+
+.rec-frequency-header,
+.rec-frequency-cell {
+  width: 90px !important;
+  max-width: 90px !important;
+}
+
+.rec-amount-header,
+.rec-amount-cell {
+  width: 80px !important;
+  max-width: 80px !important;
+}
+
+.rec-account-header,
+.rec-account-cell {
+  width: 88px !important;
+  max-width: 88px !important;
+}
+
+/* Name cell - Updated with emoji and name styling */
+.rec-name-cell {
+  max-width: 160px;
+  text-align: left !important;
+}
+
+
+
+.rec-name-clickable:hover {
+  background-color: rgba(0,0,0,0.05);
+}
+
+.rec-name-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rec-category-emoji {
+  font-size: 16px;
+  flex-shrink: 0;
+  display: inline-block;
+  cursor: pointer;
+  padding-right: 10px;
+}
+
+.rec-item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rec-expiration-info {
+  font-size: 13px;
+  color: #ff9800;
+  font-weight: 500;
+  float: right;
+}
+
+/* Edit mode name container */
+.rec-edit-name-container {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+
+.rec-category-select {
+  flex-shrink: 0;
+  width: 50px !important;
+  min-width: 50px !important;
+  max-width: 50px !important;
+  padding: 4px 2px !important;
+  font-size: 16px !important;
+  text-align: center;
+  background-color: transparent;
+}
+
+.rec-name-input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px !important;
+}
+
+
+
+
+.rec-table tbody tr {
+  transition: background-color 0.2s;
+}
+
+.rec-table tbody tr:hover {
+  filter: brightness(0.95);
+}
+
+
+
+.rec-amount-cell {
+  font-weight: 500;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+  color: #2c3e50;
+}
+
+/* Side-by-side action buttons */
+.rec-action-buttons {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  align-items: center;
+}
+
+
+.rec-save-btn {
+  background-color: #2c3e50;
+  color: white;
+}
+
+.rec-save-btn:hover {
+  background-color: #1984c5;
+}
+
+.rec-delete-btn {
+  color: #f44336 !important;
+}
+
+.rec-delete-btn:hover {
+  background-color: rgba(244, 67, 54, 0.1) !important;
+  color: #d32f2f !important;
+}
+
+.rec-edit-input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #ddd;
+  border-radius: 0px;
+  font-size: 14px;
+}
+
+.rec-input-error {
+  border-color: #f44336 !important;
+  background-color: rgba(244, 67, 54, 0.1) !important;
+}
+
+.rec-noneditable {
+  color: #999;
+  font-style: italic;
+}
+
+/* Status classes for dynamic date column */
+.rec-dynamic-date-cell.status-active {
+  color: #2e7d32;
+}
+
+.rec-dynamic-date-cell.status-expires {
+  color: #ff9800;
+}
+
+.rec-dynamic-date-cell.status-ended {
+  color: #d32f2f;
+}
+
+/* Full text display for type and frequency */
+.rec-type-cell,
+.rec-frequency-cell {
+  font-size: 13px !important;
+}
+
+.rec-type-full,
+.frequency-full {
+  font-weight: 500;
+  font-size: 15px !important;
+  display: inline-block;
+}
+
+/* Make sure frequency shows up properly */
+.rec-frequency-cell .frequency-full {
+  display: inline-block !important;
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  .rec-table {
+    font-size: 12px;
+  }
+  
+  /* Hide start date column on mobile */
+  .rec-startdate-cell,
+  .rec-table th:nth-child(1) {
+    display: none;
+  }
+  
+  /* Hide type column on mobile */
+  .rec-type-cell,
+  .rec-table th:nth-child(3) {
+    display: none;
+  }
+  
+  /* Name column - updated index (now column 2) */
+  .rec-name-cell,
+  .rec-table th:nth-child(2) {
+    max-width: 200px;
+  }
+  
+  /* Adjust name content for mobile */
+  .rec-name-content {
+    gap: 4px;
+  }
+  
+  .rec-category-emoji {
+    font-size: 14px;
+  }
+  
+  /* End date column - hide on mobile (now column 8) */
+  .rec-enddate-cell,
+  .rec-table th:nth-child(8) {
+    display: none;
+  }
+  
+  /* Dynamic date column (now column 7) */
+  .rec-dynamic-date-cell,
+  .rec-table th:nth-child(7) {
+    width: 70px;
+  }
+  
+  /* Actions column (now column 8) */
+  .rec-actions-cell,
+  .rec-table th:nth-child(8) {
+    width: 60px;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  
+  /* Action button smaller */
+  .rec-action-btn {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .rec-action-btn i {
+    font-size: 16px;
+  }
+  
+  /* Filter adjustments */
+  .rec-filter-btn {
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+  
+  /* Show abbreviated text on mobile for space */
+  .rec-type-cell .rec-type-full {
+    font-size: 11px;
+  }
+  
+  .rec-frequency-cell .frequency-full {
+    font-size: 11px;
+  }
+  
+  /* Edit mode adjustments for mobile */
+  .rec-edit-name-container {
+    flex-direction: column;
+    gap: 2px;
+  }
+  
+  .rec-category-select {
+    width: 100% !important;
+    max-width: 100% !important;
+    font-size: 14px !important;
+  }
+}
+
+@media (min-width: 769px) {
+  /* Show frequency letter only on desktop too for consistency */
+  .frequency-full {
+    display: none;
+  }
+  
+  .frequency-letter {
+    display: inline-block;
+    font-weight: bold;
+  }
+}
+
+/* Currency input wrapper */
+.rec-amount-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.rec-currency {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #666;
+  z-index: 1;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+.rec-amount {
+  padding-left: 36px !important;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+/* iOS-specific fix for date inputs */
+input[type="date"].rec-edit-input {
+  width: 100% !important;
+  min-width: 100% !important;
+  max-width: 100% !important;
+  -webkit-appearance: none;
+  appearance: none;
+  display: block !important;
+}
+
+/* ======== DARK MODE SUPPORT ======== */
+body.dark-mode .rec-summary-box {
+  background-color: var(--dark-surface, #1e1e1e) !important;
+  color: var(--dark-text-primary, rgba(255, 255, 255, 0.87)) !important;
+}
+
+body.dark-mode .rec-table-container {
+  background-color: var(--dark-surface, #1e1e1e);
+  color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
+}
+
+body.dark-mode .rec-box-label,
+body.dark-mode .rec-table th {
+  color: var(--dark-text-secondary, rgba(255, 255, 255, 0.6)) !important;
+}
+
+body.dark-mode .rec-box-value,
+body.dark-mode .rec-amount-cell {
+  color: #DDA15E !important;
+}
+
+body.dark-mode .rec-currency {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+body.dark-mode .rec-filter-select,
+body.dark-mode .rec-filter-btn,
+body.dark-mode .rec-edit-input,
+body.dark-mode .rec-category-select {
+  background-color: var(--dark-surface, #1e1e1e);
+  color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
+  border-color: var(--dark-border, rgba(255, 255, 255, 0.12));
+}
+
+body.dark-mode .rec-table td {
+  border-color: var(--dark-border, rgba(255, 255, 255, 0.12));
+}
+
+body.dark-mode .rec-table th {
+  background-color: var(--dark-surface, #1e1e1e);
+}
+
+
+body.dark-mode .rec-category-emoji {
+  color: #ffffff !important;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+}
+
+body.dark-mode .rec-filter-btn.active {
+  background-color: #DDA15E;
+  border-color: #DDA15E;
+  color: #1e1e1e;
+}
+
+body.dark-mode .rec-add-subscription-btn {
+  background-color: #DDA15E;
+  color: #1e1e1e;
+}
+
+body.dark-mode .rec-add-subscription-btn:hover {
+  background-color: #c9955a;
+}
+
+body.dark-mode .rec-show-expired-btn {
+  background-color: var(--dark-surface, #1e1e1e);
+  border-color: var(--dark-border, rgba(255, 255, 255, 0.12));
+  color: var(--dark-text-secondary, rgba(255, 255, 255, 0.6));
+}
+
+body.dark-mode .rec-show-expired-btn:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+body.dark-mode .rec-show-expired-btn.active {
+  background-color: #ff9800;
+  border-color: #ff9800;
+  color: white;
+}
+
+body.dark-mode .rec-show-expired-btn.active:hover {
+  background-color: #f57c00;
+  border-color: #f57c00;
+}
+
+body.dark-mode .rec-dynamic-date-cell.status-active {
+  color: #4caf50;
+}
+
+body.dark-mode .rec-dynamic-date-cell.status-expires {
+  color: #ffb74d;
+}
+
+body.dark-mode .rec-dynamic-date-cell.status-ended {
+  color: #ef5350;
+}
+
+body.dark-mode .rec-expiration-info {
+  color: #ffb74d;
+}
+
+body.dark-mode .rec-name-clickable:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+
+/* Dark mode delete button styling */
+body.dark-mode .rec-delete-btn {
+  color: #ef5350 !important;
+}
+
+body.dark-mode .rec-delete-btn:hover {
+  background-color: rgba(239, 83, 80, 0.1) !important;
+  color: #f44336 !important;
+}
+
+/* ======== DESKTOP STYLES ======== */
+@media (min-width: 769px) {
+  /* Adjusted column widths for better space distribution */
+  .rec-name-cell {
+    max-width: 120px !important;  /* Increased by 20% from 100px */
+  }
+  
+  .rec-amount-header,
+  .rec-amount-cell {
+    width: 120px !important;       /* Decreased from 120px */
+    max-width: 120px !important;
+  }
+  
+  .rec-dynamic-date-header,
+  .rec-dynamic-date-cell {
+    width: 110px !important;       /* Set narrower width for next payment */
+    max-width:110px !important;
+  }
+  
+  .rec-account-header,
+  .rec-account-cell {
+    width: 140px !important;      /* Increased from 88px */
+    max-width: 140px !important;
+  }
+  
+  .rec-frequency-header,
+  .rec-frequency-cell {
+    width: 120px !important;      /* Increased from 90px */
+    max-width: 120px !important;
+  }
+  
+  .rec-box-item {
+    flex: 1;
+  }
+  
+  .rec-box-label {
+    font-size: 14px;
+  }
+  
+  .rec-box-value {
+    font-size: 22px;
+  }
+  
+  .rec-filters {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .rec-controls-row {
+    flex: 1;
+    justify-content: flex-start;
+  }
+  
+  .rec-filter-select {
+    width: 200px;
+    max-width: 200px;
+  }
+  
+  .rec-table {
+    font-size: 15px;
+  }
+  
+  .rec-table-container,
+  .rec-summary-box {
+    margin-left: auto;
+    margin-right: auto;
+    max-width: 70%;
+  }
+}
+
+/* Empty message styling */
+.rec-empty-message {
+  text-align: center;
+  color: #999;
+  font-style: italic;
+  padding: 20px !important;
+}
+
+/* Hide Next Payment column completely when display is none */
+.rec-dynamic-date-header[style*="display: none"],
+.rec-dynamic-date-cell[style*="display: none"] {
+  width: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+}
+
+
+
+/* Desktop view - reset any flexbox ordering */
+@media (min-width: 769px) {
+  #recurringContent {
+    display: block !important; /* Override the flex display for desktop */
+  }
+  
+  .rec-chart-container, .rec-table-container {
+    order: initial !important; /* Reset the order properties */
+    margin-top: 10px;
+  }
+}
+
+/* Mobile view - chart on top */
+@media (max-width: 768px) {
+  #recurringContent {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  
+  .rec-chart-container {
+    order: -9999 !important; /* Chart goes to top */
+  }
+  
+  .rec-table-container {
+    order: 9999 !important; /* Table goes to bottom */
+  }
+}
+
+/* Hide Next Payment column completely when display is none and redistribute space */
+.rec-dynamic-date-header[style*="display: none"],
+.rec-dynamic-date-cell[style*="display: none"] {
+  width: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  max-width: 0 !important;
+}
+
+/* Calculation summary */
+.rec-calc-summary {
+  background-color: #f8f9fa;
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin: 12px 0;
+  border: 1px solid #e9ecef;
+}
+
+.rec-calc-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.rec-calc-row:last-child {
+  margin-bottom: 0;
+}
+
+.rec-calc-label {
+  color: #6c757d;
+  font-size: 14px;
+}
+
+.rec-calc-value {
+  color: #2c3e50;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+body.dark-mode .rec-calc-summary {
+  background-color: rgba(40, 40, 40, 0.6);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+body.dark-mode .rec-calc-label {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+body.dark-mode .rec-calc-value {
+  color: #DDA15E;
+}
+
+/* Mobile 2-column layout for rec-add popup form fields */
+@media (max-width: 768px) {
+  /* Override single column layout for form fields in subscription popup */
+  .rec-add-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr); /* 2 equal columns */
+    gap: 12px 8px; /* Row gap, column gap */
+  }
+  
+  /* Each field takes up one cell by default */
+  .rec-add-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  /* Make category row span full width (2 columns) */
+  .rec-add-row:has(#addCategory),
+  .rec-add-row:has(#editCategory) {
+    grid-column: 1 / -1;
+  }
+  
+  /* Labels stay above inputs */
+  .rec-add-row label {
+    text-align: left;
+    padding-right: 0;
+    margin-bottom: 4px;
+  }
+  
+  /* Inputs take full width of their cell */
+  .rec-add-input,
+  .rec-add-amount-wrapper {
+    width: 100%;
+  }
+  
+  /* Notes section remains full width below the grid */
+  .rec-add-notes-column {
+    margin-top: 16px;
+  }
+  
+  /* Remove the border from notes row to avoid double border */
+  .rec-add-notes-row {
+    border-top: none !important;
+    padding-top: 0 !important;
+  }
+  
+  /* Add single border to notes column */
+  .rec-add-form-column {
+    padding-bottom: 16px;
+    border-bottom: 1px solid #eee;
+  }
+  
+  /* Ensure popup body uses block layout */
+  .rec-add-body {
+    display: block;
+    overflow-x: hidden; /* Prevent horizontal scroll */
+  }
+  
+  /* Form wrapper uses block layout */
+  .rec-add-form-wrapper {
+    display: block;
+  }
+  
+  /* Ensure popup doesn't cause horizontal scroll */
+  .rec-add-popup {
+    max-width: calc(100vw - 20px);
+    overflow-x: hidden;
+  }
+  
+  /* Override mobile button layout to show side-by-side instead of stacked */
+  .rec-add-actions {
+    flex-direction: row !important; /* Override column layout */
+    gap: 12px;
+  }
+  
+  .rec-add-btn {
+    width: auto !important; /* Override 100% width */
+    flex: 1; /* Equal width buttons */
+  }
+  
+  /* Force correct button order on mobile */
+  .rec-add-cancel-btn { order: 1; }
+  .rec-add-delete-btn { order: 2; }
+  .rec-add-save-btn { order: 3; }
+  
+  /* Dark mode border for form column separator */
+  body.dark-mode .rec-add-form-column {
+    border-bottom-color: var(--dark-border, rgba(255, 255, 255, 0.12));
+  }
+}
+
+
+</style>

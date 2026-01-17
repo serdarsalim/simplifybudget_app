@@ -1,0 +1,1890 @@
+<script>
+/**
+ * CacheManager - Unified caching system for SimBudget
+ * ENHANCED with localStorage persistence to survive page reloads
+ * 
+ * Key principles:
+ * 1. Simple TTLs (30 days for most data)
+ * 2. Aggressive invalidation on writes
+ * 4. Persistent storage for cache survival across sessions
+ */
+
+ // ADD THIS TO THE TOP OF CacheManager.js.html - MINIMAL CACHE FIX
+// This fixes cache coherency without changing existing APIs
+const CacheManager = (function() {
+  // Cache storage
+  const cache = {
+    data: {},
+    metadata: {},
+  };
+  
+  // Storage keys for localStorage persistence
+  const STORAGE_PREFIX = 'simbudget_cache_';
+  const METADATA_PREFIX = 'simbudget_meta_';
+  
+  // Configuration
+  const config = {
+    ttl: {
+      shortLived: 30 * 24 * 60 * 60 * 1000,    // 30 days for expenses
+      mediumLived: 30 * 24 * 60 * 60 * 1000,   // 30 days for budget data
+      longLived: 30 * 24 * 60 * 60 * 1000,     // 30 days for categories, settings
+      dashboard: 30 * 24 * 60 * 60 * 1000,     // 30 days for dashboard
+    },
+
+  };
+
+
+const CacheFix = (function() {
+  // Simple lock mechanism to prevent race conditions
+  const locks = new Set();
+  
+  // Cache key mapper - redirects all variations to ONE canonical key
+  const keyMapping = {
+    // Budget/Dashboard keys all map to same canonical key
+    'budget': (month = currentMonth, year = currentYear) => `dashboard_${year}-${month}`,
+    'dashboardData': (month = currentMonth, year = currentYear) => `dashboard_${year}-${month}`,
+    
+    // Redirect function calls to canonical keys
+    mapKey: function(key) {
+      // Handle special view keys that get mapped in get/set
+      if (key === 'budget') {
+        return `dashboard_${currentYear}-${currentMonth}`;
+      }
+      if (key === 'expense') {
+        return 'expenses_with_timestamp';
+      }
+      
+      // Handle dashboard variations
+      if (key === 'dashboardData') {
+        return `dashboard_${currentYear}-${currentMonth}`;
+      }
+      
+      return key; // Return as-is for other keys
+    }
+  };
+  
+  // Timestamp standardizer
+  function standardizeTimestamp(data) {
+    if (!data || typeof data !== 'object') return data;
+    
+    // Ensure consistent timestamp field
+    if (!data.timestamp && data.cached_at) {
+      data.timestamp = data.cached_at;
+    }
+    if (!data.cached_at && data.timestamp) {
+      data.cached_at = data.timestamp;
+    }
+    
+    // Add timestamp if missing
+    if (!data.timestamp && !data.cached_at) {
+      const now = Date.now();
+      data.timestamp = now;
+      data.cached_at = now;
+    }
+    
+    return data;
+  }
+  
+  return {
+    // Check if operation is locked
+    isLocked: function(key) {
+      const canonicalKey = keyMapping.mapKey(key);
+      return locks.has(canonicalKey);
+    },
+    
+    // Lock an operation
+    lock: function(key) {
+      const canonicalKey = keyMapping.mapKey(key);
+      locks.add(canonicalKey);
+    },
+    
+    // Unlock an operation
+    unlock: function(key) {
+      const canonicalKey = keyMapping.mapKey(key);
+      locks.delete(canonicalKey);
+    },
+    
+    // Map cache key to canonical version
+    mapKey: keyMapping.mapKey,
+    
+    // Standardize timestamps in data
+    standardizeTimestamp: standardizeTimestamp,
+    
+    // Safe cache update - prevents race conditions
+    safeUpdate: function(key, updateFn) {
+      const canonicalKey = this.mapKey(key);
+      
+      if (this.isLocked(canonicalKey)) {
+        console.warn(`Cache operation blocked - ${canonicalKey} is locked`);
+        return false; // Operation blocked
+      }
+      
+      this.lock(canonicalKey);
+      
+      try {
+        const result = updateFn(canonicalKey);
+        return result;
+      } finally {
+        // Always unlock, even if update fails
+        setTimeout(() => this.unlock(canonicalKey), 100);
+      }
+    }
+  };
+})();
+
+// Add this line right here
+window.CacheFix = CacheFix;
+// PATCH EXISTING CACHE OPERATIONS - Minimal changes to existing code
+
+// Wrap the original set function
+const originalSet = set;
+function set(key, data, options = {}) {
+  // Map to canonical key
+  const canonicalKey = CacheFix.mapKey(key);
+  
+  // Standardize timestamps
+  const standardizedData = CacheFix.standardizeTimestamp(data);
+  
+  // Use safe update
+  return CacheFix.safeUpdate(canonicalKey, (safeKey) => {
+    return originalSet(safeKey, standardizedData, options);
+  });
+}
+
+// Wrap the original get function  
+const originalGet = get;
+function get(key) {
+  // Map to canonical key
+  const canonicalKey = CacheFix.mapKey(key);
+  
+  return originalGet(canonicalKey);
+}
+
+// Wrap the original invalidate function
+const originalInvalidate = invalidate;
+function invalidate(key) {
+  // Map to canonical key and clean up any aliases
+  const canonicalKey = CacheFix.mapKey(key);
+  
+  return CacheFix.safeUpdate(canonicalKey, (safeKey) => {
+    return originalInvalidate(safeKey);
+  });
+}
+
+  
+  // Track current month/year
+  let currentMonth = new Date().getMonth();
+  let currentYear = new Date().getFullYear();
+  let _allTimestamps = {};
+  
+
+  // Cache relationships - instant updated cache fetch
+
+          const relationships = {
+          expenses: ['budget'],                    // expenses → budget (spending totals)
+          recurring: ['budget', 'expense'],       // recurring → budget + expense (data updates)
+          income: ['budget', 'expense'],          // income → budget + expense (data updates)  
+          categories: ['budget'],                 // categories → budget (for dashboard recalc)
+          netWorth: [],                          // netWorth → nothing (standalone)
+          budget: [],                            // budget → nothing (self-contained)
+          settings: []                           // settings → nothing (leave alone)
+        };
+
+      // The _allTimestamps object serves as a centralized repository for 
+      // tracking server timestamps across all data types in the application. 
+
+        function loadCacheFromStorage() {
+          try {
+            loadCacheEfficiently();
+            
+            // DEBUG: Verify cache loaded correctly
+            const dataCount = Object.keys(cache.data).length;
+            const metaCount = Object.keys(cache.metadata).length;
+            
+            // FIX: If mismatch, clear everything and start fresh
+            if (dataCount === 0 && metaCount > 0) {
+              cache.data = {};
+              cache.metadata = {};
+            }
+            
+            // Load timestamps from localStorage
+            try {
+              const savedTimestamps = localStorage.getItem('simbudget_all_timestamps');
+              if (savedTimestamps) {
+                _allTimestamps = JSON.parse(savedTimestamps);
+              }
+            } catch(e) {
+              console.warn('Could not load timestamps from localStorage:', e);
+            }
+            
+          } catch (error) {
+            // Clear corrupted cache
+            cache.data = {};
+            cache.metadata = {};
+          }
+        }
+
+/**
+ * Efficiently load cache data with batch operations
+ */
+function loadCacheEfficiently() {
+  // Get ALL localStorage keys at once
+  const allKeys = Object.keys(localStorage);
+
+  // Filter for our keys
+  const cacheKeys = allKeys.filter(key =>
+    key.startsWith('simbudget_cache_') ||
+    key.startsWith('simbudget_meta_')
+  );
+
+  // Now batch process them
+  cacheKeys.forEach(key => {
+    const value = localStorage.getItem(key);
+
+    if (key.startsWith('simbudget_cache_')) {
+      const cacheKey = key.replace('simbudget_cache_', '');
+      cache.data[cacheKey] = JSON.parse(value);
+    } else if (key.startsWith('simbudget_meta_')) {
+      const metaKey = key.replace('simbudget_meta_', '');
+      cache.metadata[metaKey] = JSON.parse(value);
+    }
+  });
+
+}
+
+
+
+
+  /**
+   * Save to localStorage
+   */
+// In saveToPersistentStorage
+function saveToPersistentStorage(key, data, metadata) {
+  try {
+    // Create a simple hash of the data
+    const dataHash = JSON.stringify(data).length; // Simple but effective
+    
+    // Check if we just saved this exact data
+    if (window._lastSaveHash === `${key}-${dataHash}`) {
+      return;
+    }
+    
+    window._lastSaveHash = `${key}-${dataHash}`;
+    
+    // Continue with normal save...
+    localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(data));
+    localStorage.setItem(METADATA_PREFIX + key, JSON.stringify(metadata));
+    
+  } catch (error) {
+    console.warn('CacheManager: Error saving:', error);
+  }
+}
+
+  /**
+   * Remove from localStorage
+   */
+  function removeFromPersistentStorage(key) {
+    try {
+      const dataKey = STORAGE_PREFIX + key;
+      const metaKey = METADATA_PREFIX + key;
+      
+      
+      localStorage.removeItem(dataKey);
+      localStorage.removeItem(metaKey);
+    } catch (error) {
+      console.warn('CacheManager: Error removing from localStorage:', error);
+    }
+  }
+
+  /**
+   * Core cache operations
+   */
+  
+  // Set data in cache
+  function set(key, data, options = {}) {
+    // Handle special view keys
+    if (key === 'budget') {
+      key = `dashboard_${currentYear}-${currentMonth}`;
+    } else if (key === 'expense') {
+      key = `expenses_with_timestamp`;
+    }
+    
+    const ttl = options.ttl || config.ttl.shortLived;
+    const metadata = {
+      timestamp: Date.now(),
+      expires: Date.now() + ttl,
+    };
+    
+    cache.data[key] = data;
+    cache.metadata[key] = metadata;
+    
+    // ENHANCED: Save to localStorage for persistence
+    saveToPersistentStorage(key, data, metadata);
+    
+    return true;
+  }
+  
+  // Get data from cache
+  function get(key) {
+    // Handle special view keys
+    if (key === 'budget') {
+      key = `dashboard_${currentYear}-${currentMonth}`;
+    } else if (key === 'expense') {
+      key = `expenses_with_timestamp`;
+    }
+    
+    const meta = cache.metadata[key];
+    
+    if (!meta || !cache.data[key]) {
+      return null;
+    }
+    
+    // Check if expired
+    if (Date.now() > meta.expires) {
+      invalidate(key);
+      return null;
+    }
+    
+    return cache.data[key];
+  }
+  
+  // Check if cache is valid
+  function isValid(key) {
+    return get(key) !== null;
+  }
+  
+      // Invalidate cache and related data
+    function invalidate(key) {
+      if (key.includes('dashboard')) {
+      }
+      
+      delete cache.data[key];
+      delete cache.metadata[key];
+      removeFromPersistentStorage(key);
+    }
+  
+  // Invalidate all cache
+  function invalidateAll() {
+    if (window._isRendering) {
+      return;
+    }
+    
+    Object.keys(cache.data).forEach(key => {
+      delete cache.data[key];
+      delete cache.metadata[key];
+      // ENHANCED: Remove from localStorage
+      removeFromPersistentStorage(key);
+    });
+  }
+  
+  // Clear specific month data
+  function clearMonth(month, year) {
+    const monthKey = `${year}-${month}`;
+    
+    Object.keys(cache.data).forEach(key => {
+      if (key.includes(monthKey)) {
+        invalidate(key);
+      }
+    });
+    
+    // Also clear dashboard for that month
+    invalidate(`dashboard_${monthKey}`);
+  }
+
+  /**
+   * Budget-specific helpers (from old CacheManager)
+   */
+  
+  // Expenses
+  function getExpenses(month = currentMonth, year = currentYear) {
+    const unifiedCache = get(`expenses_with_timestamp`);
+    if (unifiedCache && unifiedCache.expenses && Array.isArray(unifiedCache.expenses)) {
+      // If month/year specified, filter for that month
+      if (month !== undefined && year !== undefined) {
+        return unifiedCache.expenses.filter(expense => {
+          if (!expense.date) return false;
+          const expenseDate = expense.date instanceof Date ? expense.date : new Date(expense.date);
+          if (isNaN(expenseDate.getTime())) return false;
+          return expenseDate.getMonth() === month && expenseDate.getFullYear() === year;
+        });
+      } else {
+        // Return all expenses
+        return unifiedCache.expenses;
+      }
+    }
+    return null;
+  }
+  
+    /**
+     * Store expenses in cache and intelligently update related caches
+     * - Stores expenses for specific month/year in cache
+     * - Optionally invalidates dashboard cache (old behavior)  
+     * - Intelligently updates budget cache without destroying it (new behavior)
+     * @param {Array} expenses - Array of expense objects
+     * @param {number} month - Month (0-11) 
+     * @param {number} year - Full year
+     * @param {boolean} invalidateDashboard - Whether to destroy dashboard cache
+     */
+    function setExpenses(expenses, month = currentMonth, year = currentYear, invalidateDashboard = true) {
+      
+      // Skip cache updates during toggle operations
+      if (window._isToggling) {
+        return;
+      }
+      
+      let allExpenses = [];
+      
+      // If month/year are null/undefined, replace ALL expenses (for yearly view)
+      if (month === null || year === null || month === undefined || year === undefined) {
+        allExpenses = [...expenses]; // Make a copy to avoid reference issues
+      } else {
+        // Get existing unified cache
+        const existingCache = get('expenses_with_timestamp');
+        
+        if (existingCache && existingCache.expenses) {
+          // Remove expenses for the specified month/year
+          allExpenses = existingCache.expenses.filter(expense => {
+            if (!expense.date) return true; // Keep expenses without dates
+            const expenseDate = expense.date instanceof Date ? expense.date : new Date(expense.date);
+            if (isNaN(expenseDate.getTime())) return true; // Keep invalid dates
+            return !(expenseDate.getMonth() === month && expenseDate.getFullYear() === year);
+          });
+        }
+        
+        // Add the new expenses for this month
+        allExpenses = allExpenses.concat(expenses);
+      }
+      
+      
+      // Create unified cache structure with ALL expenses
+      const unifiedCache = {
+        expenses: allExpenses,
+        cached_at: new Date().toISOString(),
+        timestamp: Date.now(),
+        totalRows: allExpenses.length,
+        monthsCached: 'all'
+      };
+      
+      
+      set(`expenses_with_timestamp`, unifiedCache, { ttl: config.ttl.shortLived });
+      
+      // Don't invalidate dashboard - let updateRelated handle it intelligently
+      updateRelated('expenses', 'update', { month, year, expenses: allExpenses });
+}
+
+  // Dashboard
+  function getDashboardData(month = currentMonth, year = currentYear) {
+    // ✅ CLEAN: Just return cached dashboard data or null
+    // Let Init.html handle all the loading and calculation 
+    return get(`dashboard_${year}-${month}`);
+  }
+  
+ // In CacheManager.js.html, REPLACE these local functions:
+
+// Budget data - NOW READS FROM TIMESTAMP CACHE
+function getBudgetData() {
+  const timestampedData = get('budget_data_with_timestamp');
+  const returnValue = timestampedData ? timestampedData.budgetData : null;
+  return returnValue;
+}
+
+function setBudgetData(data) {
+  // Redirect to timestamp version with current timestamp
+  const timestamp = new Date().toISOString();
+  set('budget_data_with_timestamp', {
+    budgetData: data,
+    timestamp: timestamp,
+    cached_at: Date.now()
+  }, { ttl: config.ttl.longLived });
+  
+  // Clean up old cache key
+  invalidate('budgetData');
+}
+  
+  // Recurring
+  function getRecurring() {
+    return get('recurring');
+  }
+  
+  function setRecurring(recurring) {
+    set('recurring', recurring, { ttl: config.ttl.mediumLived });
+    // Invalidate all dashboards when recurring changes
+    Object.keys(cache.data).forEach(key => {
+      if (key.startsWith('dashboard_')) {
+        invalidate(key);
+      }
+    });
+  }
+  
+  // Settings
+  function getSettings() {
+    return get('settings');
+  }
+  
+  function setSettings(settings) {
+    set('settings', settings, { ttl: config.ttl.longLived });
+  }
+
+  /**
+   * Calculate dashboard data with optimized performance
+   * UPDATED: Extracts subscriptions directly from expenses (no recurring parameter needed)
+   * @param {Array} expenses - Expense data
+   * @param {Array} categories - Categories from cache with timestamp
+   * @param {number} month - Month (0-11)
+   * @param {number} year - Year
+   */
+  function calculateDashboardData(expenses, categories, month, year) {
+    // Get budget data for this month
+    const monthlyBudget = getBudgetForMonth(month, year) || {};
+    
+    // Initialize summary with default values
+    const summary = { income: 0, spent: 0, leftToSpend: 0 };
+    
+    // Create fast lookup maps for categories (major performance boost)
+    const categoryKeyMap = new Map();
+    const categoryDisplayMap = new Map();
+    const categoryOrderMap = new Map();
+    
+    // Single pass through categories to build all maps at once
+    categories.forEach((cat, index) => {
+      const lowerName = cat.name.toLowerCase();
+      categoryKeyMap.set(lowerName, cat.name);
+      categoryDisplayMap.set(cat.name, cat.fullName || cat.name);
+      categoryOrderMap.set(cat.name, cat.displayOrder || cat.order || index);
+      
+      if (cat.fullName) {
+        categoryKeyMap.set(cat.fullName.toLowerCase(), cat.name);
+      }
+    });
+    
+    // Initialize categories map with active categories
+    const categoriesMap = {};
+    const activeCategories = categories.filter(cat => cat.active);
+    
+    // Add all active categories with budgeted values
+    activeCategories.forEach(cat => {
+      const displayName = categoryDisplayMap.get(cat.name);
+      const budgetValue = monthlyBudget[displayName] || monthlyBudget[cat.name] || 0;
+      
+      categoriesMap[cat.name] = {
+        name: displayName,
+        budgeted: budgetValue,
+        actual: 0,
+        isActive: true
+      };
+    });
+    
+    // Single pass through expenses for both income and expense processing
+    if (expenses && expenses.length) {
+      for (let i = 0; i < expenses.length; i++) {
+        const expense = expenses[i];
+        if (!expense.category || !expense.amount) continue;
+        
+        const expenseCategoryName = expense.category;
+        const lowerCaseName = expenseCategoryName.toLowerCase();
+        
+        // Fast path - check if this is income
+        if (lowerCaseName === "income 💵" || 
+            lowerCaseName === "income" || 
+            lowerCaseName.includes("income")) {
+          summary.income += Math.abs(expense.amount);
+          continue; // Skip expense processing
+        }
+        
+        // Try to find matching category - fast lookup with Map
+        let matchedCategoryKey = null;
+        
+        // First try direct lookup from map (fastest)
+        const mappedKey = categoryKeyMap.get(lowerCaseName);
+        if (mappedKey && categoriesMap[mappedKey]) {
+          matchedCategoryKey = mappedKey;
+        } 
+        // Then try direct object lookup
+        else if (categoriesMap[expenseCategoryName]) {
+          matchedCategoryKey = expenseCategoryName;
+        }
+        
+        // If no match found, create inactive category
+        if (!matchedCategoryKey) {
+          // Find in full categories array with O(1) map lookup instead of O(n) find()
+          const categoryKey = categoryKeyMap.get(lowerCaseName);
+           const displayName = categoryKey ? categoryDisplayMap.get(categoryKey) : expenseCategoryName;
+  
+         // FIXED: Look up budget value for inactive categories
+          const budgetValue = monthlyBudget[displayName] || monthlyBudget[expenseCategoryName] || 0;
+          categoriesMap[expenseCategoryName] = {
+            name: categoryKey ? categoryDisplayMap.get(categoryKey) : expenseCategoryName,
+            budgeted: budgetValue,
+            actual: 0,
+            isActive: false
+          };
+          
+          matchedCategoryKey = expenseCategoryName;
+        }
+        
+        // Add expense amount to category and summary
+        categoriesMap[matchedCategoryKey].actual += expense.amount;
+        summary.spent += expense.amount;
+      }
+    }
+    
+        // UPDATED: Extract subscriptions directly from expenses (same logic as monthlyGrid)
+    const subscriptionsThisMonth = (expenses || []).filter(tx => {
+      // First filter out income transactions
+      if (tx.category && tx.category.toLowerCase().includes('income 💵')) {
+        return false;
+      }
+      
+      return tx.label && (
+        tx.label.toLowerCase().includes('subscription') || 
+        tx.label.toLowerCase().includes('fixed payment')
+      );
+    }).map(tx => ({
+      name: tx.description || tx.name || 'Unnamed Subscription',
+      amount: Math.abs(tx.amount || 0),
+      frequency: 'Monthly', 
+      startDate: tx.date || new Date().toISOString().split('T')[0],
+      category: tx.category || 'Uncategorized',
+      id: tx.transactionId || `sub-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`
+    }));
+    
+    // Calculate left to spend (never negative)
+        // FIND line 446 (around "Calculate left to spend"):
+    summary.leftToSpend = Math.max(0, summary.income - summary.spent);
+    
+    // ADD THIS CODE RIGHT AFTER:
+    // Calculate left to spend/saved/overspent based on month
+    const currentDate = new Date();
+    const isCurrentMonth = (month === currentDate.getMonth() && year === currentDate.getFullYear());
+    
+    if (isCurrentMonth) {
+      // Current month: Always show "left to spend" (can be 0)
+      summary.displayType = 'leftToSpend';
+    } else {
+      // Previous months: Show saved or overspent
+      const difference = summary.income - summary.spent;
+      
+      if (difference >= 0) {
+        summary.saved = difference;
+        summary.displayType = 'saved';
+      } else {
+        summary.overspent = Math.abs(difference);
+        summary.displayType = 'overspent';
+      }
+      
+      // Update leftToSpend for previous months
+      summary.leftToSpend = 0;
+    }
+    
+    // Convert categories map to array and sort (using pre-computed order)
+    const categoriesArray = Object.entries(categoriesMap).map(([key, catData]) => ({
+      ...catData,
+      sortOrder: categoryOrderMap.get(key) || 0  // Use 0 instead of 999 as fallback
+    }));
+
+    // Sort exactly like MonthlyGrid does - FIXED ordering
+    categoriesArray.sort((a, b) => {
+      // Active categories first
+      if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
+      
+      // Within same active state, sort by original spreadsheet order
+      return (a.sortOrder || 0) - (b.sortOrder || 0);
+    });
+
+
+        // === ADD VIRTUAL SAVINGS CATEGORY (NO CACHE IMPACT) ===
+          // Create a separate array for dashboard display only - don't modify original categoriesArray
+          const dashboardCategories = [...categoriesArray]; // Clone the array
+          
+          // Get budgeted amount for savings from special "savings" key (not category index)
+          const savingsBudgeted = monthlyBudget['savings'] || 0;
+          
+          // Calculate auto-savings (Income - Total Spent)
+          const autoSavingsAmount = Math.max(0, summary.income - summary.spent);
+          
+          // Add virtual Savings category to dashboard-only array
+          dashboardCategories.push({
+            name: 'Savings 💵',
+            budgeted: savingsBudgeted,
+            actual: autoSavingsAmount,
+            isActive: true,
+            isSavings: true, // Special flag to identify this as savings
+            sortOrder: 999 // Ensure it appears last
+          });
+          
+          // Update summary leftToSpend to show auto-savings amount
+          summary.leftToSpend = autoSavingsAmount;
+    
+    // Build final dashboard data object
+    const dashboardData = {
+      summary: summary,
+      categories: dashboardCategories,
+      header: {
+        month: new Date(year, month).toLocaleDateString('en-US', { month: 'long' }),
+        year: year
+      },
+            subscriptions: {
+        count: subscriptionsThisMonth.length,
+        total: subscriptionsThisMonth.reduce((sum, item) => sum + (item.amount || 0), 0),
+        items: subscriptionsThisMonth
+          .sort((a, b) => {
+            // Sort by date (newest first)
+            return new Date(a.startDate) - new Date(b.startDate);
+          })
+          .map((item, index) => ({
+            id: index + 1,
+            name: item.name,
+            amount: item.amount,
+            nextDate: getNextPaymentDate(item, month, year)
+          }))
+      }
+    };
+    
+    return dashboardData;
+  }
+
+  // Simplified helper function for subscription next payment dates
+  function getNextPaymentDate(item, month, year) {
+    if (!item.startDate) return '';
+    
+    const start = new Date(item.startDate);
+    const frequency = (item.frequency || 'Monthly').toLowerCase();
+    
+    if (frequency.includes('monthly')) {
+      const nextDate = new Date(year, month, start.getDate());
+      return nextDate.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
+    }
+    
+    return '';
+  }
+  
+// In CacheManager.js, replace the entire getBudgetForMonth function with:
+
+function getBudgetForMonth(month = currentMonth, year = currentYear) {
+  const budgetData = getBudgetData();
+  if (!budgetData || !budgetData.budgets) return {};
+  
+  const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
+  const monthBudgets = budgetData.budgets[monthKey] || {};
+  
+  // Get current categories for names
+  const currentCategories = getCategoriesWithTimestamp();
+  if (!currentCategories || !currentCategories.categories) return {};
+  
+  const budgetObject = {};
+  
+  // Map budgets using the 'order' property (the permanent ID)
+  currentCategories.categories.forEach(cat => {
+        
+    // Use the category's order property as the budget index
+    const budgetIndex = cat.order;
+    
+    // Validate order
+    if (typeof budgetIndex !== 'number' || budgetIndex < 0) {
+      console.warn(`Category "${cat.name}" has invalid order:`, budgetIndex);
+      return;
+    }
+    
+    // Get the budget value for this index
+    const budgetValue = monthBudgets[budgetIndex.toString()];
+
+    if (budgetValue !== undefined) {
+      // Use fullName (includes emoji) or fallback to name
+      const categoryName = cat.fullName || cat.name;
+      budgetObject[categoryName] = budgetValue;
+    }
+  });
+  
+  // Special case: savings budget stored with 'savings' key (not an index)
+  if (monthBudgets.savings !== undefined) {
+    budgetObject['savings'] = monthBudgets.savings;
+  }
+  
+  return budgetObject;
+}
+
+
+
+
+
+/**
+ * Smart cache update system - Updates related caches instead of destroying them
+ * This replaces the old invalidation system with intelligent cache updates
+ * @param {string} targetCache - The actual cache key to update
+ * @param {string} sourceCache - The source cache that changed
+ * @param {string} originalRelationshipKey - The original relationship key for handler lookup
+ * @param {string} changeType - Type of change ('add', 'update', 'remove')
+ * @param {Object} changeData - Data about the change
+ */
+
+// ==================== UPDATE HANDLERS ====================
+
+/**
+ * Update budget cache from expense changes
+ * @param {string} targetCache - The cache key to update
+ * @param {Object} cached - The cached budget data
+ * @param {Object} changeData - The change information
+ */
+function updateBudgetFromExpenses(targetCache, cached, changeData) {
+  if (!cached || !cached.categories) {
+    // No cached data to update, just invalidate
+    invalidate(targetCache);
+    return;
+  }
+  
+  // If we have expense data, recalculate totals
+  if (changeData?.expenses && Array.isArray(changeData.expenses)) {
+    
+    // Calculate total spent (excluding income)
+    const totalSpent = changeData.expenses
+      .filter(exp => !exp.category.toLowerCase().includes('income'))
+      .reduce((sum, exp) => sum + (exp.amount || 0), 0);
+    
+    // Get total income
+    const totalIncome = changeData.expenses
+      .filter(exp => exp.category.toLowerCase().includes('income'))
+      .reduce((sum, exp) => sum + (exp.amount || 0), 0);
+    
+    // Update each category's actual spending
+    cached.categories.forEach(category => {
+      if (category.name.toLowerCase().includes('savings')) {
+        // Savings = Income - Total Spent (never negative)
+        const budgetIncome = cached.summary?.income || totalIncome;
+        category.actual = Math.max(0, budgetIncome - totalSpent);
+      } else {
+        // Regular categories: sum matching expenses
+        const matchingExpenses = changeData.expenses.filter(exp => 
+          exp.category === category.name || 
+          exp.category.includes(category.name.split(' ')[0])
+        );
+        category.actual = matchingExpenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
+      }
+    });
+    
+    // Update summary totals
+    if (cached.summary) {
+      cached.summary.spent = totalSpent;
+      cached.summary.income = cached.summary.income || totalIncome;
+      
+      // Check if this is current month or previous month
+      const currentDate = new Date();
+      const isCurrentMonth = (changeData.month === currentDate.getMonth() && 
+                             changeData.year === currentDate.getFullYear());
+      
+      if (isCurrentMonth) {
+        cached.summary.leftToSpend = Math.max(0, cached.summary.income - totalSpent);
+        cached.summary.displayType = 'leftToSpend';
+      } else {
+        const difference = cached.summary.income - totalSpent;
+        if (difference >= 0) {
+          cached.summary.saved = difference;
+          cached.summary.overspent = 0;
+          cached.summary.displayType = 'saved';
+        } else {
+          cached.summary.saved = 0;
+          cached.summary.overspent = Math.abs(difference);
+          cached.summary.displayType = 'overspent';
+        }
+      }
+    }
+    
+    // Save updated cache
+    set(targetCache, cached);
+  } else {
+    // No expense data or invalid data, just invalidate
+    invalidate(targetCache);
+  }
+}
+
+
+
+
+/**
+ * Update budget cache from category changes
+ * @param {string} targetCache - The cache key to update
+ * @param {Object} changeData - The change information
+ */
+function updateBudgetFromCategories(targetCache, changeData) {
+  // Get current month/year from global scope (don't redeclare)
+  const month = currentMonth || new Date().getMonth();
+  const year = currentYear || new Date().getFullYear();
+  
+  // Get current expenses from cache
+  const expenses = getExpenses(month, year);
+  
+  if (expenses && changeData.categories) {
+    // Recalculate dashboard with fresh categories
+    const newDashboard = calculateDashboardData(
+      expenses,
+      changeData.categories,
+      month,
+      year
+    );
+    
+    if (newDashboard) {
+      // Add timestamp for cache tracking
+      newDashboard.cached_at = Date.now();
+      newDashboard.timestamp = Date.now();
+      
+     // Update dashboard cache with recalculated data
+          CacheManager.set(targetCache, newDashboard);
+          
+          // ALWAYS cache it as the safe dashboard too for instant loading
+          CacheManager.setDashboardDataSafe(newDashboard, month, year);
+          
+          // If we're on budget view, re-render immediately
+          if (window.SimBudget && SimBudget.Views && SimBudget.Views.getCurrent() === 'budget') {
+            SimBudget.renderBudgetDashboard(newDashboard);
+          }
+    }
+  } else {
+    // No data available, invalidate cache
+    invalidate(targetCache);
+  }
+}
+
+
+/**
+ * Cache update handlers - handles intelligent cache updates
+ * Maps relationship keys to specific update functions
+ */
+const cacheUpdateHandlers = {
+  // When expenses change, update budget dashboard
+  'expenses->budget': function(targetCache, cached, changeData) {
+    updateBudgetFromExpenses(targetCache, cached, changeData);
+  },
+  
+  // When categories change, update budget dashboard  
+  'categories->budget': function(targetCache, changeData) {
+    updateBudgetFromCategories(targetCache, changeData);
+  },
+  
+  // When recurring changes, invalidate related caches
+  'recurring->budget': function(targetCache) {
+    invalidate(targetCache);
+  },
+  
+  'recurring->expense': function(targetCache) {
+    // Don't invalidate the entire expense cache when recurring changes
+    // The expense data is still valid, just might need a refresh
+    // Let the normal staleness check handle updates
+  },
+  
+  // When income changes, invalidate related caches
+  'income->budget': function(targetCache) {
+    invalidate(targetCache);
+  },
+  
+  'income->expense': function(targetCache) {
+    // Don't invalidate the entire expense cache when income changes
+    // The expense data is still valid, just might need a refresh
+    // Let the normal staleness check handle updates
+  }
+};
+
+/**
+ * Smart cache update system - Updates related caches instead of destroying them
+ * This replaces the old invalidation system with intelligent cache updates
+ */
+function updateCacheIntelligently(targetCache, sourceCache, originalRelationshipKey, changeType, changeData) {
+
+  const cached = get(targetCache);
+  if (!cached) {
+    return; // No cache to update, skip
+  }
+  
+ const relationshipKey = `${sourceCache}->${originalRelationshipKey}`;
+
+  const handler = cacheUpdateHandlers[relationshipKey];
+  
+  if (handler) {
+    try {
+      // Call the appropriate handler
+      if (relationshipKey === 'expenses->budget') {
+        handler(targetCache, cached, changeData);
+      } else if (relationshipKey === 'categories->budget') {
+        handler(targetCache, changeData);
+      } else {
+        // Simple handlers that just invalidate
+        handler(targetCache);
+      }
+    } catch (error) {
+      console.error(`❌ Failed to update ${targetCache} cache:`, error);
+      // Fallback: just invalidate if update fails
+      invalidate(targetCache);
+    }
+  } else {
+    // Fallback: just invalidate if we don't know how to update intelligently
+    console.warn(`No handler found for ${relationshipKey}, invalidating cache`);
+    invalidate(targetCache);
+  }
+}
+
+/**
+ * Call this function to update related caches after data changes
+ * @param {string} sourceKey - The cache key that changed ('expenses', 'categories', etc.)
+ * @param {string} changeType - Type of change ('add', 'update', 'remove')
+ * @param {Object} changeData - Data about the change (expense object, categories array, etc.)
+ */
+function updateRelated(sourceKey, changeType, changeData) {
+  try {
+    // Skip if we're in the middle of rendering to avoid loops
+    if (window._isRendering) {
+      return;
+    }
+
+    const related = relationships[sourceKey];
+    
+    if (!related || related.length === 0) {
+      return;
+    }
+
+    related.forEach(relatedKey => {
+      try {
+        // Map the related key to the actual cache key
+        // Budget maps to dashboard cache key
+        let actualCacheKey = relatedKey;
+        if (relatedKey === 'budget') {
+          // Use global variables safely
+          const month = currentMonth !== undefined ? currentMonth : new Date().getMonth();
+          const year = currentYear !== undefined ? currentYear : new Date().getFullYear();
+          actualCacheKey = `dashboard_${year}-${month}`;
+        } else if (relatedKey === 'expense') {
+          // Use global variables safely
+          const month = currentMonth !== undefined ? currentMonth : new Date().getMonth();
+          const year = currentYear !== undefined ? currentYear : new Date().getFullYear();
+          actualCacheKey = `expenses_with_timestamp`;
+        }
+        
+       // FIXED: Pass original relatedKey for handler lookup, actualCacheKey for cache operations
+        // This fixes the "No handler found for categories->dashboard_2025-5" error
+        updateCacheIntelligently(actualCacheKey, sourceKey, relatedKey, changeType, changeData);
+      } catch (error) {
+        console.error(`❌ Failed to update ${relatedKey} cache:`, error);
+      }
+    });
+    
+  } catch (error) {
+    console.error(`❌ updateRelated failed for ${sourceKey}:`, error);
+  }
+}
+
+  /**
+   * Month prefetching (for expense grid)
+   */
+  // REMOVED: prefetchMonth - no longer needed with unified cache
+
+
+
+function getCategoriesWithTimestamp() {
+  return get('categories_with_timestamp');
+}
+
+function setCategoriesWithTimestamp(categories, timestamp) {
+  set('categories_with_timestamp', {
+    categories: categories,
+    timestamp: timestamp,
+    cached_at: Date.now()
+  }, { ttl: config.ttl.longLived });
+  
+  updateRelated('categories', 'update', {categories}); // ✅ No "this." needed
+}
+
+  /**
+   * Get cache statistics
+   */
+  function getStats() {
+    const stats = {
+      itemCount: Object.keys(cache.data).length,
+      items: {}
+    }; 
+    
+    Object.entries(cache.metadata).forEach(([key, meta]) => {
+      stats.items[key] = {
+        age: Date.now() - meta.timestamp,
+        expires: new Date(meta.expires),
+        isValid: Date.now() < meta.expires
+      };
+    });
+    
+    return stats;
+  }
+
+  // ENHANCED: Initialize cache from localStorage on startup
+  loadCacheFromStorage();
+
+  /**
+   * Public API
+   */
+  return {
+    // Core operations
+    get,
+    set,
+    isValid,
+    invalidate,
+    invalidateAll,
+    clear: invalidateAll,
+    clearMonth,
+    
+    // Budget-specific
+    getExpenses,
+    setExpenses,
+    getDashboardData,
+    getBudgetData,
+    setBudgetData,
+    getRecurring, 
+    setRecurring,
+    getSettings,
+    setSettings,
+    getBudgetForMonth,
+    calculateDashboardData,  
+    getCategoriesWithTimestamp,
+    setCategoriesWithTimestamp,
+    updateRelated,
+
+    // Centralized timestamp management
+    setAllTimestamps: function(timestamps) {
+      _allTimestamps = timestamps;
+      try {
+        localStorage.setItem('simbudget_all_timestamps', JSON.stringify(timestamps));
+      } catch(e) {
+        console.warn('Could not save timestamps to localStorage:', e);
+      }
+    },
+
+    getTimestamp: function(dataType) {
+      return _allTimestamps[dataType] || null;
+    },
+
+    getAllTimestamps: function() {
+      return _allTimestamps;
+    },
+
+
+
+    /**
+   * Get net worth data with timestamp from cache
+   * @return {Object|null} Cached net worth data with timestamp
+   */
+  getNetWorthWithTimestamp: function() {
+    return get('networth_with_timestamp');
+  },
+
+/**
+ * Set net worth data with timestamp in cache
+ * @param {Array} entries - Net worth entries array
+ * @param {string} timestamp - Server timestamp
+ */
+setNetWorthWithTimestamp: function(entries, timestamp) {
+  set('networth_with_timestamp', {
+    entries: entries,
+    timestamp: timestamp,
+    cached_at: Date.now()
+  }, { ttl: config.ttl.longLived });
+},
+
+
+// ADD this to match your existing pattern:
+
+
+// Replace getRecurringWithTimestamp with:
+getRecurringWithTimestamp: function() {
+  return get('recurring_with_timestamp');
+},
+
+// Replace setRecurringWithTimestamp with:
+setRecurringWithTimestamp: function(data, timestamp) {
+  set('recurring_with_timestamp', {
+    entries: data,
+    timestamp: timestamp,
+    cached_at: Date.now()
+  }, { ttl: config.ttl.mediumLived });
+},
+
+
+
+// REPLACE isRecurringCacheValid with this SIMPLE version:
+
+isRecurringCacheValid: function() {
+  // Use the standard cache validation
+  return this.isValid('recurring_with_timestamp');
+},
+
+/**
+ * Smart loading for net worth data with timestamp checking
+ * @return {Promise} Promise that resolves with net worth entries
+ */
+loadNetWorthWithTimestamp: function() {
+  return new Promise((resolve, reject) => {
+    
+    // Check cache first
+    const cachedData = this.getNetWorthWithTimestamp();
+    
+    if (cachedData && cachedData.entries && cachedData.timestamp) {
+      
+      // Check if server has newer data
+      if (window.API && typeof API.getNetWorthWithTimestamp === 'function') {
+        API.getNetWorthWithTimestamp(
+          (result) => {
+            if (result && result.success) {
+              const serverTimestamp = new Date(result.timestamp).getTime();
+              const cachedTimestamp = new Date(cachedData.timestamp).getTime();
+              
+              if (serverTimestamp > cachedTimestamp) {
+                this.setNetWorthWithTimestamp(result.entries, result.timestamp);
+                resolve(result.entries);
+              } else {
+                resolve(cachedData.entries);
+              }
+            } else {
+              console.error('CacheManager: Error checking net worth timestamp, using cache anyway');
+              resolve(cachedData.entries);
+            }
+          },
+          (error) => {
+            console.error('CacheManager: Error checking net worth timestamp:', error);
+            resolve(cachedData.entries);
+          }
+        );
+      } else {
+        resolve(cachedData.entries);
+      }
+    } else {
+      this.fetchFreshNetWorthData().then(resolve).catch(reject);
+    }
+  });
+},
+
+/**
+ * Fetch fresh net worth data from server
+ * @return {Promise} Promise that resolves with fresh net worth entries
+ */
+fetchFreshNetWorthData: function() {
+  return new Promise((resolve, reject) => {
+    if (window.API && typeof API.getNetWorthWithTimestamp === 'function') {
+      API.getNetWorthWithTimestamp(
+        (result) => {
+          if (result && result.success && result.entries) {
+            
+            // Cache the fresh data with timestamp
+            this.setNetWorthWithTimestamp(result.entries, result.timestamp);
+            resolve(result.entries);
+          } else {
+            console.error('CacheManager: Invalid server response for net worth data:', result);
+            reject(result ? result.error : 'Invalid response from server');
+          }
+        },
+        (error) => {
+          console.error('CacheManager: Server error loading net worth data:', error);
+          reject('Error loading from server: ' + error);
+        }
+      );
+    } else {
+      console.error('CacheManager: API.getNetWorthWithTimestamp not available');
+      reject('API method not available');
+    }
+  });
+},
+
+/**
+ * Get net worth data (legacy compatibility)
+ * @return {Array|null} Net worth entries array or null
+ */
+getNetWorth: function() {
+  const data = this.getNetWorthWithTimestamp();
+  return data ? data.entries : null;
+},
+
+/**
+ * Set net worth data (legacy compatibility)
+ * @param {Array} entries - Net worth entries array
+ */
+setNetWorth: function(entries) {
+  this.setNetWorthWithTimestamp(entries, new Date().toISOString());
+},
+
+updateNetWorthEntry: function(entry) {
+  const cachedData = this.getNetWorthWithTimestamp();
+  if (!cachedData || !cachedData.entries) return;
+  
+  const entries = cachedData.entries;
+  const index = entries.findIndex(e => e.id === entry.id);
+  
+  if (index >= 0) {
+    entries[index] = entry;
+  } else {
+    entries.push(entry);
+  }
+  
+  // FIX: Update timestamp to current date/time when making changes
+  const newTimestamp = new Date().toISOString();
+  this.setNetWorthWithTimestamp(entries, newTimestamp);
+  
+},
+
+removeNetWorthEntry: function(entryId) {
+  const cachedData = this.getNetWorthWithTimestamp();
+  if (!cachedData || !cachedData.entries) return false;
+  
+  const entries = cachedData.entries;
+  const originalLength = entries.length;
+  
+  const filteredEntries = entries.filter(e => e.id !== entryId);
+  
+  if (filteredEntries.length < originalLength) {
+    // FIX: Update timestamp to current date/time when removing entries
+    const newTimestamp = new Date().toISOString();
+    this.setNetWorthWithTimestamp(filteredEntries, newTimestamp);
+    
+    return true;
+  }
+  
+  console.warn(`CacheManager: Net worth entry ${entryId} not found for removal`);
+  return false;
+},
+
+/**
+ * Check if net worth data is stale compared to server
+ * @param {Function} callback - Called with boolean indicating if data is stale
+ */
+isNetWorthDataStale: function(callback) {
+  const cachedData = this.getNetWorthWithTimestamp();
+  
+  if (!cachedData || !cachedData.timestamp) {
+    callback(true);
+    return;
+  }
+  
+  if (window.API && typeof API.getNetWorthWithTimestamp === 'function') {
+    API.getNetWorthWithTimestamp(
+      function(result) {
+        if (result && result.timestamp) {
+          const serverTime = new Date(result.timestamp).getTime();
+          const cachedTime = new Date(cachedData.timestamp).getTime();
+          
+          const isStale = serverTime > cachedTime;
+                    
+          callback(isStale);
+        } else {
+          callback(true); // Error = assume stale
+        }
+      },
+      function(error) {
+        console.error('CacheManager: Error checking net worth timestamp:', error);
+        callback(true); // Error = assume stale
+      }
+    );
+  } else {
+    console.warn('CacheManager: API not available for staleness check');
+    callback(false); // No API = assume fresh
+  }
+},
+
+
+
+    // Store master timestamp when we fetch data
+setMasterDataTimestamp: function(timestamp) {
+  set('master_data_timestamp', timestamp, { ttl: config.ttl.longLived });
+},
+
+getMasterDataTimestamp: function() {
+  return get('master_data_timestamp');
+},
+
+// In CacheManager.js, replace the removeExpense function:
+removeExpense: function(transactionId, month = currentMonth, year = currentYear) {
+  const unifiedCache = this.get('expenses_with_timestamp');
+  if (!unifiedCache || !unifiedCache.expenses) {
+    console.error('CacheManager: No unified cache found for removal');
+    return false;
+  }
+  
+  let allExpenses = [...unifiedCache.expenses];
+  const originalCount = allExpenses.length;
+  
+  allExpenses = allExpenses.filter(e => 
+    e.id !== transactionId && 
+    e.transactionId !== transactionId &&
+    e.rowIndex !== transactionId
+  );
+  
+  if (allExpenses.length < originalCount) {
+    // Update unified cache with ALL expenses
+    const updatedCache = {
+      expenses: allExpenses,
+      cached_at: new Date().toISOString(),
+      timestamp: Date.now(),
+      totalRows: allExpenses.length,
+      monthsCached: 'all'
+    };
+    
+    this.set('expenses_with_timestamp', updatedCache, { ttl: config.ttl.shortLived });
+    
+    // Update related caches intelligently
+    updateRelated('expenses', 'remove', { month, year, expenses: allExpenses });
+    
+    return true;
+  }
+  
+  return false;
+},
+
+      // Check if transaction data is stale
+      isTransactionDataStale: function(callback) {
+        // Force refresh of server timestamps before checking staleness
+        if (window.API && window.API.getAllTimestamps) {
+          API.getAllTimestamps((result) => {
+            if (result && result.timestamps && window.CacheManager) {
+              // Update the cached timestamps
+              CacheManager.setAllTimestamps(result.timestamps);
+            }
+            
+            // Get the fresh masterData timestamp
+            const serverTimestamp = this.getTimestamp('masterData');
+            
+        
+          if (!serverTimestamp) {
+            callback(true); // No timestamp = stale
+            return;
+          }
+          
+          // Check against cached data timestamp
+          const cachedData = this.get(`expenses_with_timestamp`);
+          const cacheMetadata = cache.metadata[`expenses_with_timestamp`];
+          
+          if (!cachedData || !cacheMetadata) {
+            callback(true); // No cache = stale
+            return;
+          }
+          
+          // Compare timestamps - use server timestamp from cache if available
+          const serverTime = new Date(serverTimestamp).getTime();
+          const cacheTime = cachedData.timestamp || cacheMetadata.timestamp;
+          
+          
+          const isStale = serverTime > cacheTime;
+          callback(isStale);
+          }, (error) => {
+            console.warn('🕐 STALE CHECK: Failed to get fresh timestamps, assuming stale:', error);
+            callback(true); // If we can't get fresh timestamps, assume stale
+          });
+        } else {
+          console.warn('🕐 STALE CHECK: API.getAllTimestamps not available, assuming stale');
+          callback(true); // If API is not available, assume stale
+        }
+      },
+
+    // Budget data with timestamp system (complete like categories)
+    getBudgetDataWithTimestamp: function() {
+      return get('budget_data_with_timestamp');
+    },
+
+    setBudgetDataWithTimestamp: function(budgetData, timestamp) {
+      set('budget_data_with_timestamp', {
+        budgetData: budgetData,
+        timestamp: timestamp,
+        cached_at: Date.now()
+      }, { ttl: config.ttl.longLived });
+        this.setBudgetData(budgetData);
+
+    },
+
+    // Settings with timestamp system (add to CacheManager return object)
+getSettingsWithTimestamp: function() {
+  return get('settings_with_timestamp');
+},
+
+setSettingsWithTimestamp: function(settings, timestamp) {
+  set('settings_with_timestamp', {
+    settings: settings,
+    timestamp: timestamp,
+    cached_at: Date.now()
+  }, { ttl: config.ttl.longLived });
+},
+
+// Smart loading for settings (like budget data)
+loadSettingsWithTimestamp: function() {
+  return new Promise((resolve, reject) => {
+    // Check cache first
+    const cachedData = this.getSettingsWithTimestamp();
+    
+    if (cachedData && cachedData.settings) {
+      // Return cached data immediately
+      resolve(cachedData.settings);
+    } else {
+      // No cache, fetch fresh
+      this.fetchFreshSettings().then(resolve).catch(reject);
+    }
+  });
+},
+
+// Fetch fresh settings from server
+fetchFreshSettings: function() {
+  return new Promise((resolve, reject) => {
+    if (window.API && typeof API.getUserSettings === 'function') {
+      API.getUserSettings(
+        (result) => {
+          if (result && result.success && result.settings) {
+            // USE CENTRALIZED TIMESTAMP!
+            const settingsTimestamp = this.getTimestamp('settings');
+            this.setSettingsWithTimestamp(result.settings, settingsTimestamp);
+            resolve(result.settings);
+          } else {
+            console.error('CacheManager: Invalid server response for settings:', result);
+            reject(result ? result.error : 'Invalid response from server');
+          }
+        },
+        (error) => {
+          console.error('CacheManager: Server error loading settings:', error);
+          reject('Error loading from server: ' + error);
+        },
+        true // Force fresh data
+      );
+    } else {
+      console.error('CacheManager: API.getUserSettings not available');
+      reject('API method not available');
+    }
+  });
+},
+
+    // Smart loading for budget data (like categories loadCategoriesWithTimestamp)
+// In CacheManager.js, REPLACE the loadBudgetDataWithTimestamp function with this:
+
+loadBudgetDataWithTimestamp: function() {
+  return new Promise((resolve, reject) => {
+    
+    // Check cache first
+    const cachedData = this.getBudgetDataWithTimestamp();
+    
+    if (cachedData && cachedData.budgetData && cachedData.timestamp) {
+      
+      // REMOVED THE 10-SECOND THROTTLE - Always check server timestamp
+      
+      // Check if server has newer data
+      if (window.API && typeof API.getBudgetData === 'function') {
+        API.getBudgetData(
+          (result) => {
+            if (result && result.success) {
+              const serverTimestamp = new Date(result.timestamp).getTime();
+              const cachedTimestamp = new Date(cachedData.timestamp).getTime();
+              
+              if (serverTimestamp > cachedTimestamp) {
+                this.setBudgetDataWithTimestamp(result.budgetData, result.timestamp);
+                resolve(result.budgetData);
+              } else {
+                resolve(cachedData.budgetData);
+              }
+            } else {
+              resolve(cachedData.budgetData);
+            }
+          },
+          (error) => {
+            console.error('CacheManager: Error checking budget timestamp:', error);
+            resolve(cachedData.budgetData);
+          },
+          true // Don't force refresh, just get timestamp
+        );
+      } else {
+        resolve(cachedData.budgetData);
+      }
+    } else {
+      this.fetchFreshBudgetData().then(resolve).catch(reject);
+    }
+  });
+},
+
+    // Fetch fresh budget data from server
+    fetchFreshBudgetData: function() {
+      return new Promise((resolve, reject) => {
+        if (window.API && typeof API.getBudgetData === 'function') {
+          API.getBudgetData(
+            (result) => {
+              if (result && result.success && result.budgetData) {
+                
+                // Cache the fresh data with timestamp
+                this.setBudgetDataWithTimestamp(result.budgetData, result.timestamp);
+                resolve(result.budgetData);
+              } else {
+                console.error('CacheManager: Invalid server response for budget data:', result);
+                reject(result ? result.error : 'Invalid response from server');
+              }
+            },
+            (error) => {
+              console.error('CacheManager: Server error loading budget data:', error);
+              reject('Error loading from server: ' + error);
+            },
+            true // Force fresh data
+          );
+        } else {
+          console.error('CacheManager: API.getBudgetData not available');
+          reject('API method not available');
+        }
+      });
+    },
+    
+    // Update expense (for transaction updates)
+    // In CacheManager.js, find the updateExpense function and replace it:
+// In CacheManager.js.html, REPLACE the updateExpense function with this:
+
+updateExpense: function(expense, month = currentMonth, year = currentYear) {
+  // Basic validation
+  if (!expense || !expense.transactionId || expense.amount < 0) {
+    console.error('CacheManager: Invalid expense or missing transactionId');
+    return false;
+  }
+  
+  // Get the unified cache with ALL expenses
+  const unifiedCache = get('expenses_with_timestamp');
+  if (!unifiedCache || !unifiedCache.expenses) {
+    console.error('CacheManager: No unified cache found');
+    return false;
+  }
+  
+  // Work with ALL expenses
+  let allExpenses = [...unifiedCache.expenses];
+  
+  // Find by transactionId in the full array
+  const index = allExpenses.findIndex(e => e.transactionId === expense.transactionId);
+  
+  if (index >= 0) {
+    // Update existing
+    allExpenses[index] = { ...allExpenses[index], ...expense };
+  } else {
+    // Add new
+    allExpenses.push(expense);
+  }
+  
+  // Save ALL expenses back to unified cache
+  const updatedCache = {
+    expenses: allExpenses,
+    cached_at: new Date().toISOString(),
+    timestamp: Date.now(),
+    totalRows: allExpenses.length,
+    monthsCached: 'all'
+  };
+  
+  set('expenses_with_timestamp', updatedCache, { ttl: config.ttl.shortLived });
+  
+  // Update dashboard cache intelligently
+  updateRelated('expenses', 'update', { month, year, expenses: allExpenses });
+  
+  return true;
+},
+
+// Add to CacheManager's return object:
+getCacheTimestamp: function(key) {
+  const meta = cache.metadata[key];
+  if (meta && meta.timestamp) {
+    return new Date(meta.timestamp).toISOString();
+  }
+  return null;
+},
+    
+    // prefetchMonth removed - using unified cache
+    
+    // State management
+    setCurrentMonth: (month, year) => {
+      currentMonth = month;
+      currentYear = year;
+    },
+    
+    // Stats and debugging
+    getStats,
+    
+  
+
+    
+    // ENHANCED: Debug methods for persistence
+    reloadFromStorage: function() {
+      loadCacheFromStorage();
+    },
+    
+    clearPersistentStorage: function() {
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith(STORAGE_PREFIX) || key.startsWith(METADATA_PREFIX)) {
+          localStorage.removeItem(key);
+        }
+      });
+    },
+
+
+
+
+
+
+    // Add these methods to your CacheManager return object:
+
+/**
+ * Get income data from cache
+ * @return {Array|null} Income entries or null
+ */
+getIncome: function() {
+  return this.get('income');
+},
+
+
+/**
+ * Get income data with timestamp from cache
+ * @return {Object|null} Cached income data with timestamp
+ */
+getIncomeWithTimestamp: function() {
+  return this.get('income_with_timestamp');
+},
+
+/**
+ * Set income data with timestamp in cache
+ * @param {Array} income - Income entries array
+ * @param {string} timestamp - Server timestamp
+ */
+setIncomeWithTimestamp: function(income, timestamp) {
+  this.set('income_with_timestamp', {
+    income: income,
+    timestamp: timestamp,
+    cached_at: Date.now()
+  }, { ttl: config.ttl.mediumLived });
+  
+  // Also update the regular income cache for backward compatibility
+  this.set('income', income, { ttl: config.ttl.mediumLived });
+  
+  // Income changes affect dashboard - use updateRelated system
+  updateRelated('income', 'update', {income});
+},
+
+/**
+ * Load income data with timestamp checking
+ * @return {Promise} Promise that resolves with income data
+ */
+loadIncomeWithTimestamp: function() {
+  return new Promise((resolve, reject) => {
+    
+    // Check cache first
+    const cachedData = this.getIncomeWithTimestamp();
+    
+    if (cachedData && cachedData.income && cachedData.timestamp) {
+      
+      // Check if server has newer data
+      if (window.API && typeof API.getIncomeData === 'function') {
+        API.getIncomeData(
+          (result) => {
+            if (result && result.success) {
+              const serverTimestamp = new Date(result.timestamp).getTime();
+              const cachedTimestamp = new Date(cachedData.timestamp).getTime();
+              
+              if (serverTimestamp > cachedTimestamp) {
+                // Server has newer data
+                this.setIncomeWithTimestamp(result.income, result.timestamp);
+                resolve(result.income);
+              } else {
+                // Cache is current
+                resolve(cachedData.income);
+              }
+            } else {
+              // Error checking, use cache
+              resolve(cachedData.income);
+            }
+          },
+          (error) => {
+            console.error('CacheManager: Error checking income timestamp:', error);
+            resolve(cachedData.income);
+          },
+          false // Don't force refresh, just check timestamp
+        );
+      } else {
+        // API not available, use cache
+        resolve(cachedData.income);
+      }
+    } else {
+      // No cache, fetch fresh
+      this.fetchFreshIncomeData().then(resolve).catch(reject);
+    }
+  });
+},
+
+/**
+ * Fetch fresh income data from server
+ * @return {Promise} Promise that resolves with fresh income data
+ */
+fetchFreshIncomeData: function() {
+  return new Promise((resolve, reject) => {
+    if (window.API && typeof API.getIncomeData === 'function') {
+      API.getIncomeData(
+        (result) => {
+          if (result && result.success && result.income) {
+            // Cache the fresh data with timestamp
+            this.setIncomeWithTimestamp(result.income, result.timestamp);
+            resolve(result.income);
+          } else {
+            console.error('CacheManager: Invalid server response for income data:', result);
+            reject(result ? result.error : 'Invalid response from server');
+          }
+        },
+        (error) => {
+          console.error('CacheManager: Server error loading income data:', error);
+          reject('Error loading from server: ' + error);
+        },
+        true // Force fresh data
+      );
+    } else {
+      console.error('CacheManager: API.getIncomeData not available');
+      reject('API method not available');
+    }
+  });
+},
+
+
+// NEW: Safe dashboard operations
+  getDashboardDataSafe: function(month = currentMonth, year = currentYear) {
+    const key = `dashboard_${year}-${month}`;
+    return get(key); // Will be mapped to canonical key automatically
+  },
+  
+  setDashboardDataSafe: function(data, month = currentMonth, year = currentYear) {
+    const key = `dashboard_${year}-${month}`;
+    
+    // Ensure data has proper structure
+    if (data && typeof data === 'object') {
+      data.month = month;
+      data.year = year;
+      data.cacheKey = key; // For debugging
+    }
+    
+    return set(key, data, { ttl: config.ttl.dashboard });
+  },
+  
+  // NEW: Check cache coherency (for debugging)
+  checkCoherency: function() {
+    const currentDashboardKey = `dashboard_${currentYear}-${currentMonth}`;
+    const budgetKey = 'budget';
+    
+    const dashboardData = originalGet(currentDashboardKey);
+    const budgetData = originalGet(CacheFix.mapKey(budgetKey));
+    
+
+    
+    return dashboardData === budgetData; // Should be true after fix
+  },
+  
+  // NEW: Force cache sync (emergency fix)
+  forceCacheSync: function() {
+    const currentDashboardKey = `dashboard_${currentYear}-${currentMonth}`;
+    const dashboardData = originalGet(currentDashboardKey);
+    
+    if (dashboardData) {
+      // Ensure the mapped budget key points to same data
+      const budgetKey = CacheFix.mapKey('budget');
+      if (budgetKey !== currentDashboardKey) {
+        // Remove any stale budget cache
+        originalInvalidate('budget');
+        originalInvalidate('dashboardData');
+      }
+    }
+    
+    return true;
+  }
+  
+  };
+})();
+
+// Make globally available
+window.CacheManager = CacheManager;
+</script>

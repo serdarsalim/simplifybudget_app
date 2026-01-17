@@ -1,0 +1,545 @@
+<script>
+
+    /**
+ * Utils.html - Utility functions for SimBudget
+ * Contains helper functions used across different modules
+ */
+
+var Utils = (function() {
+  return {
+    /**
+     * Currency Converter - Handles display currency conversion
+     */
+    CurrencyConverter: {
+      /**
+       * Get the display currency from settings
+       * @return {string} Display currency symbol
+       */
+      getDisplayCurrency: function() {
+        if (window.SimBudget && SimBudget.Settings) {
+          const settings = SimBudget.Settings.getAll();
+          return settings.displayCurrency || settings.currencySymbol || '$';
+        }
+        return '$';
+      },
+
+      /**
+       * Get the base currency from settings (what data is stored in)
+       * @return {string} Base currency symbol
+       */
+      getBaseCurrency: function() {
+        if (window.SimBudget && SimBudget.Settings) {
+          return SimBudget.Settings.getCurrencySymbol() || '$';
+        }
+        return '$';
+      },
+
+      /**
+       * Get the exchange rate from settings
+       * @return {number} Exchange rate (defaults to 1)
+       */
+      getExchangeRate: function() {
+        if (window.SimBudget && SimBudget.Settings) {
+          const settings = SimBudget.Settings.getAll();
+          const baseCurrency = settings.currencySymbol || '$';
+          const displayCurrency = settings.displayCurrency || baseCurrency;
+
+          // If same currency, rate is 1
+          if (baseCurrency === displayCurrency) {
+            return 1;
+          }
+
+          // Otherwise get saved rate
+          return parseFloat(settings.exchangeRate) || 1;
+        }
+        return 1;
+      },
+
+      /**
+       * Convert amount from base currency to display currency
+       * @param {number} amount - Amount in base currency
+       * @return {number} Amount in display currency
+       */
+      convert: function(amount) {
+        if (amount === undefined || amount === null || isNaN(amount)) {
+          return 0;
+        }
+        const rate = this.getExchangeRate();
+        return amount * rate;
+      },
+
+      /**
+       * Get the display currency symbol
+       * @return {string} Currency symbol for display
+       */
+      getDisplaySymbol: function() {
+        return this.getDisplayCurrency();
+      }
+    },
+
+    /**
+     * Debounce function to limit how often a function runs
+     * @param {Function} func - Function to debounce
+     * @param {number} wait - Milliseconds to wait
+     * @return {Function} Debounced function
+     */
+    debounce: function(func, wait) {
+      var timeout;
+      return function() {
+        var context = this;
+        var args = arguments;
+        clearTimeout(timeout);
+        timeout = setTimeout(function() {
+          func.apply(context, args);
+        }, wait);
+      };
+    },
+
+    
+    
+/**
+ * Format a number as currency
+ * @param {number} amount - Amount to format (in base currency)
+ * @param {string} currencySymbol - Currency symbol (optional, will use display currency if not provided)
+ * @return {string} Formatted currency string in display currency
+ */
+formatCurrency: function(amount, currencySymbol) {
+  if (amount === undefined || amount === null) return '';
+
+  // Convert amount to display currency
+  const convertedAmount = this.CurrencyConverter.convert(amount);
+
+  // Default to display currency symbol if not provided
+  if (!currencySymbol) {
+    currencySymbol = this.CurrencyConverter.getDisplaySymbol();
+  }
+
+  // Check if decimals should be shown (default to true if setting not available)
+  let showDecimals = true;
+  if (window.SimBudget && SimBudget.Settings &&
+      typeof SimBudget.Settings.showDecimals === 'function') {
+    showDecimals = SimBudget.Settings.showDecimals();
+  }
+
+  // Format with appropriate decimal places
+  const decimals = showDecimals ? 2 : 0;
+  const formattedNumber = parseFloat(convertedAmount).toFixed(decimals);
+
+  // Add thousand separators
+  const parts = formattedNumber.split('.');
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+  // Return formatted string with currency symbol
+  return currencySymbol + (parts.length > 1 ? parts.join('.') : parts[0]);
+},
+
+/**
+ * Format a number as currency without decimal places
+ * @param {number} amount - Amount to format (in base currency)
+ * @return {string} Formatted currency string without decimals in display currency
+ */
+formatCurrencyNoDecimals: function(amount) {
+  // Convert amount to display currency
+  const convertedAmount = this.CurrencyConverter.convert(amount);
+
+  // Get display currency symbol
+  const currencySymbol = this.CurrencyConverter.getDisplaySymbol();
+
+  // Format without decimals
+  const formattedNumber = parseFloat(convertedAmount).toFixed(0);
+
+  // Add thousand separators
+  const parts = formattedNumber.split('.');
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+  // Return formatted string with currency symbol
+  return currencySymbol + parts[0];
+},
+    
+       /**
+     * Format a number as currency without decimal places
+     * @param {number} amount - Amount to format
+     * @return {string} Formatted currency string without decimals
+     */
+    formatCurrencyNoDecimals: function(amount) {
+      return new Intl.NumberFormat('de-DE', {
+        style: 'currency',
+        currency: 'EUR',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+      }).format(amount);
+    },
+    
+    /**
+     * Format a date for display
+     * @param {Date|string} date - Date to format
+     * @param {string} format - Optional format string (default: based on settings)
+     * @return {string} Formatted date string
+     */
+    formatDate: function(date, format) {
+      if (!date) return '';
+      
+      // Convert string to Date if needed
+      if (typeof date === 'string') {
+        // Handle ISO string format
+        if (date.includes('T')) {
+          date = new Date(date);
+        } else {
+          // Try to parse various date formats
+          const formats = ['yyyy-MM-dd', 'MM/dd/yyyy', 'dd/MM/yyyy'];
+          for (const fmt of formats) {
+            const parsed = this.parseDate(date, fmt);
+            if (parsed) {
+              date = parsed;
+              break;
+            }
+          }
+          
+          // If still a string, try direct parsing
+          if (typeof date === 'string') {
+            date = new Date(date);
+          }
+        }
+      }
+      
+      if (!(date instanceof Date) || isNaN(date.getTime())) {
+        return '';
+      }
+      
+      // Get format from settings if available
+      if (!format && window.SimBudget && SimBudget.Settings) {
+        format = SimBudget.Settings.getDateFormat();
+      }
+      
+      // Default format if not specified
+      format = format || 'MM/DD/YYYY';
+      
+      // Format the date
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      
+      // Replace format patterns
+      return format
+        .replace('YYYY', year)
+        .replace('MM', month)
+        .replace('DD', day);
+    },
+    
+    /**
+     * Parse a date string according to format
+     * @param {string} dateStr - Date string to parse
+     * @param {string} format - Format string
+     * @return {Date|null} Parsed date or null if invalid
+     */
+    parseDate: function(dateStr, format) {
+      if (!dateStr || !format) return null;
+      
+      let day, month, year;
+      
+      // Extract parts based on format
+      if (format === 'yyyy-MM-dd') {
+        const parts = dateStr.split('-');
+        if (parts.length !== 3) return null;
+        year = parseInt(parts[0], 10);
+        month = parseInt(parts[1], 10) - 1;
+        day = parseInt(parts[2], 10);
+      } else if (format === 'MM/dd/yyyy') {
+        const parts = dateStr.split('/');
+        if (parts.length !== 3) return null;
+        month = parseInt(parts[0], 10) - 1;
+        day = parseInt(parts[1], 10);
+        year = parseInt(parts[2], 10);
+      } else if (format === 'dd/MM/yyyy') {
+        const parts = dateStr.split('/');
+        if (parts.length !== 3) return null;
+        day = parseInt(parts[0], 10);
+        month = parseInt(parts[1], 10) - 1;
+        year = parseInt(parts[2], 10);
+      } else {
+        return null;
+      }
+      
+      // Create and validate date
+      const date = new Date(year, month, day);
+      if (
+        date.getFullYear() !== year ||
+        date.getMonth() !== month ||
+        date.getDate() !== day
+      ) {
+        return null;
+      }
+      
+      return date;
+    },
+    
+    /**
+     * Show a status message
+     * @param {string} message - Message to show
+     * @param {boolean} isError - If true, show as error
+     * @param {HTMLElement} container - Container for status message
+     * @param {number} timeout - Auto-hide timeout (0 for no auto-hide)
+     */
+    showStatus: function(message, isError, container, timeout) {
+      if (!container) return;
+      
+      // Find or create status element
+      let statusEl = container.querySelector('.status-message');
+      if (!statusEl) {
+        statusEl = document.createElement('div');
+        statusEl.className = 'status-message';
+        container.appendChild(statusEl);
+      }
+      
+      // Clear existing classes and content
+      statusEl.className = 'status-message';
+      statusEl.textContent = "";
+      
+      // Add appropriate class
+      statusEl.classList.add(isError ? 'error' : 'success');
+      
+      // Add icon and message
+      var icon = document.createElement('i');
+      icon.className = 'material-icons';
+      icon.textContent = isError ? 'error' : 'check_circle';
+      
+      statusEl.appendChild(icon);
+      statusEl.appendChild(document.createTextNode(' ' + message));
+      
+      // Show the message
+      statusEl.classList.remove('hidden');
+      
+      // Auto-hide if timeout is provided and not an error
+      if (timeout !== 0 && !isError) {
+        setTimeout(function() {
+          statusEl.classList.add('hidden');
+        }, timeout || 5000);
+      }
+    },
+    
+    /**
+     * Show a toast notification
+     * @param {string} message - Message to show
+     * @param {string} type - Notification type (success, error, info)
+     * @param {number} duration - Display duration in ms
+     */
+    showToast: function(message, type, duration) {
+      // Remove any existing toast
+      var existingToast = document.getElementById('toast-notification');
+      if (existingToast) {
+        document.body.removeChild(existingToast);
+      }
+      
+      type = type || 'info';
+      duration = duration || 3000;
+      
+      // Set color based on type
+      var bgColor, textColor, icon;
+      switch (type) {
+        case 'error':
+          bgColor = '#d32f2f';
+          textColor = 'white';
+          icon = 'error';
+          break;
+        case 'success':
+          bgColor = '#388e3c';
+          textColor = 'white';
+          icon = 'check_circle';
+          break;
+        case 'warning':
+          bgColor = '#f57c00';
+          textColor = 'white';
+          icon = 'warning';
+          break;
+        default:
+          bgColor = '#2196f3';
+          textColor = 'white';
+          icon = 'info';
+      }
+      
+      // Create toast element
+      var toast = document.createElement('div');
+      toast.id = 'toast-notification';
+      toast.className = 'toast';
+      
+      // Set inner HTML with icon and message
+      toast.innerHTML = `
+        <i class="material-icons">${icon}</i>
+        <span>${message}</span>
+      `;
+      
+      // Apply styles
+      toast.style.backgroundColor = bgColor;
+      toast.style.color = textColor;
+      
+      // Add to DOM
+      document.body.appendChild(toast);
+      
+      // Animate in
+      setTimeout(function() {
+        toast.classList.add('show');
+      }, 10);
+      
+      // Animate out after specified duration
+      setTimeout(function() {
+        toast.classList.remove('show');
+        
+        // Remove from DOM after animation
+        setTimeout(function() {
+          if (toast.parentNode) {
+            document.body.removeChild(toast);
+          }
+        }, 300);
+      }, duration);
+    },
+    
+    /**
+     * Get a value from localStorage with error handling
+     * @param {string} key - Storage key
+     * @param {*} defaultValue - Default value if not found
+     * @return {*} Stored value or default
+     */
+    getLocalStorage: function(key, defaultValue) {
+      try {
+        var item = localStorage.getItem(key);
+        return item ? JSON.parse(item) : defaultValue;
+      } catch (e) {
+        console.warn('Error reading from localStorage:', e);
+        return defaultValue;
+      }
+    },
+    
+    /**
+     * Set a value in localStorage with error handling
+     * @param {string} key - Storage key
+     * @param {*} value - Value to store
+     * @return {boolean} Success flag
+     */
+    setLocalStorage: function(key, value) {
+      try {
+        localStorage.setItem(key, JSON.stringify(value));
+        return true;
+      } catch (e) {
+        console.warn('Error writing to localStorage:', e);
+        return false;
+      }
+    }
+  };
+
+
+
+
+
+
+
+
+
+})();
+
+  // Add this function to your Utils object
+Utils.getTranslatedQuote = function() {
+  // Use translated quote if available, otherwise use a random quote
+  if (window.SimBudget && SimBudget.translations && SimBudget.translations.budget_quote) {
+    return SimBudget.translations.budget_quote;
+  }
+  
+};
+
+// NOW add methods to the Utils object OUTSIDE the IIFE
+Utils.translateCategory = function(categoryName) {
+  return (window.SimBudget && SimBudget.translations && 
+          SimBudget.translations[categoryName]) ? 
+          SimBudget.translations[categoryName] : categoryName;
+};
+
+/**
+ * Format a translation string with parameters
+ * @param {string} str - The translation string with placeholders {0}, {1}, etc.
+ * @param {Array} params - The parameters to insert into the placeholders
+ * @return {string} The formatted string
+ */
+Utils.formatTranslation = function(str, params) {
+  if (!str) return '';
+  if (!params || !params.length) return str;
+  
+  return str.replace(/\{(\d+)\}/g, function(match, index) {
+    return typeof params[index] !== 'undefined' ? params[index] : match;
+  });
+};
+
+/**
+ * Create and show emoji picker
+ * @param {Function} onEmojiSelect - Callback function when emoji is selected
+ */
+Utils.showEmojiPicker = function(onEmojiSelect) {
+  // Remove existing picker if any
+  const existingPicker = document.querySelector('.emoji-picker-overlay');
+  if (existingPicker) {
+    existingPicker.remove();
+  }
+
+  // Create overlay
+  const overlay = document.createElement('div');
+  overlay.className = 'emoji-picker-overlay';
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  `;
+
+  // Create picker container
+  const container = document.createElement('div');
+  container.style.cssText = `
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    max-width: 90vw;
+    max-height: 90vh;
+  `;
+
+  // Create emoji picker element
+  const picker = document.createElement('emoji-picker');
+  picker.style.cssText = `
+    --border-radius: 8px;
+    --background: white;
+  `;
+
+  // Handle emoji selection
+  picker.addEventListener('emoji-click', (event) => {
+    const emoji = event.detail.emoji.unicode;
+    onEmojiSelect(emoji);
+    overlay.remove();
+  });
+
+  container.appendChild(picker);
+  overlay.appendChild(container);
+
+  // Close on overlay click
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      overlay.remove();
+    }
+  });
+
+  // Close on Escape key
+  const handleEscape = (e) => {
+    if (e.key === 'Escape') {
+      overlay.remove();
+      document.removeEventListener('keydown', handleEscape);
+    }
+  };
+  document.addEventListener('keydown', handleEscape);
+
+  // Add to DOM
+  document.body.appendChild(overlay);
+};
+
+</script>

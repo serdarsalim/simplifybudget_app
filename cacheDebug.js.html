@@ -1,0 +1,1828 @@
+<!-- Debug System CSS -->
+<style>
+.debug-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 20000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.debug-popup {
+    background: white;
+    border-radius: 8px;
+    padding: 0;
+    min-width: 900px;
+    min-height: 700px;
+    width: 90vw;
+    overflow: hidden;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+.debug-header {
+    background: #0066cc;
+    color: white;
+    padding: 15px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.debug-close {
+    background: rgba(255,255,255,0.2);
+    border: none;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.debug-tabs {
+    display: flex;
+    background: #f0f0f0;
+    border-bottom: 1px solid #ddd;
+    overflow-x: auto;
+}
+
+.debug-tab {
+    background: none;
+    border: none;
+    padding: 10px 15px;
+    cursor: pointer;
+    white-space: nowrap;
+    font-size: 11px;
+    color: #666;
+}
+
+.debug-tab:hover {
+    background: #e0e0e0;
+}
+
+.debug-tab.active {
+    background: #0066cc;
+    color: white;
+}
+
+.debug-content {
+    overflow-y: auto;
+    max-height: calc(85vh - 120px);
+    padding: 0;
+}
+
+.debug-tab-panel {
+    display: none;
+    padding: 15px;
+}
+
+.debug-tab-panel.active {
+    display: block;
+}
+
+.debug-section {
+    margin-bottom: 20px;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+}
+
+.debug-section-header {
+    background: #f8f8f8;
+    padding: 8px 12px;
+    font-weight: bold;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.debug-section-content {
+    padding: 10px 12px;
+}
+
+.debug-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.debug-data {
+    background: #f5f5f5;
+    padding: 8px;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+}
+
+.debug-actions {
+    display: flex;
+    gap: 8px;
+    padding: 15px 20px;
+    background: #f8f8f8;
+    border-top: 1px solid #ddd;
+    flex-wrap: wrap;
+}
+
+.debug-action-btn {
+    background: #0066cc;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+}
+
+.debug-action-btn:hover { background: #0052a3; }
+
+.debug-action-btn.success { background: #28a745; }
+.debug-action-btn.info { background: #17a2b8; }
+.debug-action-btn.danger { background: #dc3545; }
+
+.debug-stat {
+    background: white;
+    padding: 8px;
+    border-radius: 3px;
+    border: 1px solid #e0e0e0;
+}
+
+.debug-stat-label {
+    font-size: 10px;
+    color: #666;
+    margin-bottom: 2px;
+}
+
+.debug-stat-value {
+    font-weight: bold;
+    font-size: 12px;
+}
+
+.status-ok { color: #28a745; }
+.status-error { color: #dc3545; }
+.status-warning { color: #ffc107; }
+
+/* Timestamp Table Styles */
+.timestamp-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+}
+
+.timestamp-table th,
+.timestamp-table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+}
+
+.timestamp-table th {
+    background: #f5f5f5;
+    font-weight: bold;
+}
+
+.timestamp-table tr:nth-child(even) {
+    background: #f9f9f9;
+}
+
+.timestamp-table .stale {
+    background-color: #ffebee;
+}
+
+.timestamp-table .fresh {
+    background-color: #e8f5e9;
+}
+
+.timestamp-table .unknown {
+    background-color: #fff3e0;
+}
+
+.timestamp-status {
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-weight: bold;
+    text-align: center;
+}
+
+.timestamp-status.stale {
+    background: #d32f2f;
+    color: white;
+}
+
+.timestamp-status.fresh {
+    background: #4caf50;
+    color: white;
+}
+
+.timestamp-status.unknown {
+    background: #ff9800;
+    color: white;
+}
+</style>
+
+<script>
+/**
+ * Cache Debug System - Comprehensive debugging tools for SimBudget cache
+ * Moved from Index.html for better organization
+ */
+
+/**
+ * Open comprehensive debug popup with all tabs
+ */
+function openCombinedDebugPopup() {
+    const debugInfo = collectAllDebugInfo();
+    const popupHtml = createTabbedDebugHtml(debugInfo);
+    
+    const overlay = document.createElement('div');
+    overlay.className = 'debug-overlay';
+    overlay.innerHTML = popupHtml;
+    document.body.appendChild(overlay);
+    
+    setupTabbedDebugEvents(overlay, debugInfo);
+}
+
+/**
+ * Create the tabbed debug HTML
+ */
+function createTabbedDebugHtml(info) {
+    return `
+        <div class="debug-popup">
+            <div class="debug-header">
+                <h2>🐛 SimBudget Debug Dashboard</h2>
+                <button class="debug-close" onclick="closeCacheDebugPopup(this)">✕ Close</button>
+            </div>
+            
+            <div class="debug-tabs">
+                <button class="debug-tab active" onclick="switchDebugTab(event, 'system')">🏥 System</button>
+                <button class="debug-tab" onclick="switchDebugTab(event, 'timestamps')">⏰ Timestamps</button>
+                <button class="debug-tab" onclick="switchDebugTab(event, 'cache')">💾 Cache</button>
+                <button class="debug-tab" onclick="switchDebugTab(event, 'budget')">💰 Budget</button>
+                <button class="debug-tab" onclick="switchDebugTab(event, 'categories')">📂 Categories</button>
+                <button class="debug-tab" onclick="switchDebugTab(event, 'expenses')">🧾 Expenses</button>
+                <button class="debug-tab" onclick="switchDebugTab(event, 'recurring')">🔄 Recurring</button>
+                <button class="debug-tab" onclick="switchDebugTab(event, 'networth')">💎 Net Worth</button>
+                <button class="debug-tab" onclick="switchDebugTab(event, 'raw')">📄 Raw Data</button>
+            </div>
+            
+            <div class="debug-content">
+                ${createSystemTabContent(info)}
+                ${createTimestampsTabContent(info)}
+                ${createCacheTabContent(info)}
+                ${createBudgetTabContent(info)}
+                ${createCategoriesTabContent(info)}
+                ${createExpensesTabContent(info)}
+                ${createRecurringTabContent(info)}
+                ${createNetWorthTabContent(info)}
+                ${createRawDataTabContent(info)}
+            </div>
+            
+            <div class="debug-actions">
+                <button class="debug-action-btn success" onclick="copyAllDebugInfo()">📋 Copy All Data</button>
+                <button class="debug-action-btn info" onclick="downloadDebugInfo()">💾 Download JSON</button>
+                <button class="debug-action-btn" onclick="fixCacheCoherency()">🔧 Force Cache Sync</button>
+                <button class="debug-action-btn" onclick="refreshDebugPopup()">🔄 Refresh</button>
+                <button class="debug-action-btn danger" onclick="clearAllCaches()">🗑️ Clear Caches</button>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Timestamps Tab Content (NEW)
+ */
+function createTimestampsTabContent(info) {
+    const comparison = info.timestamps.comparison || [];
+    
+    return `
+        <div id="timestamps" class="debug-tab-panel">
+            <div class="debug-section">
+                <div class="debug-section-header">🕒 Timestamp Analysis</div>
+                <div class="debug-section-content">
+                    <div class="debug-stats">
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Fresh Items</div>
+                            <div class="debug-stat-value status-ok">${info.timestamps.freshCount || 0}</div>
+                        </div>
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Stale Items</div>
+                            <div class="debug-stat-value status-error">${info.timestamps.staleCount || 0}</div>
+                        </div>
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Total Comparisons</div>
+                            <div class="debug-stat-value">${comparison.length || 0}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="debug-section">
+                <div class="debug-section-header">⏰ Timestamp Comparison</div>
+                <div class="debug-section-content">
+                    <table class="timestamp-table">
+                        <thead>
+                            <tr>
+                                <th>Data Type</th>
+                                <th>Status</th>
+                                <th>Server Time</th>
+                                <th>Cached Time</th>
+                                <th>Age Diff</th>
+                                <th>Cache Key</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${comparison.map(item => `
+                                <tr class="${item.isStale ? 'stale' : 'fresh'}">
+                                    <td><strong>${item.dataType}</strong></td>
+                                    <td>
+                                        <span class="timestamp-status ${item.isStale ? 'stale' : 'fresh'}">
+                                            ${item.status}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        ${item.serverTimestamp ? 
+                                            new Date(item.serverTimestamp).toLocaleString() : 
+                                            '<span class="status-warning">No server timestamp</span>'}
+                                    </td>
+                                    <td>
+                                        ${item.cachedTimestamp ? 
+                                            new Date(item.cachedTimestamp).toLocaleString() : 
+                                            '<span class="status-error">No cache</span>'}
+                                    </td>
+                                    <td>
+                                        ${item.ageDiff ? 
+                                            formatTimeDiff(item.ageDiff) : 
+                                            '-'}
+                                    </td>
+                                    <td><code>${item.cacheKey}</code></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="debug-section">
+                <div class="debug-section-header">🔍 Detailed Cache Analysis</div>
+                <div class="debug-section-content">
+                    ${comparison.filter(item => item.isStale).map(item => `
+                        <div style="margin-bottom: 15px; padding: 10px; background: #ffebee; border-radius: 4px;">
+                            <strong>${item.dataType}</strong> - ${item.status}<br>
+                            <small>
+                                Cache Key: <code>${item.cacheKey}</code><br>
+                                Has Cache Data: ${item.hasCache ? 'Yes' : 'No'}<br>
+                                ${item.cacheDataSample ? `Cache Keys: ${item.cacheDataSample.join(', ')}` : ''}
+                            </small>
+                        </div>
+                    `).join('') || '<p class="status-ok">All data types are fresh!</p>'}
+                </div>
+            </div>
+            
+            <div class="debug-section">
+                <div class="debug-section-header">🗄️ Server Timestamps</div>
+                <div class="debug-section-content">
+                    <div class="debug-data">${JSON.stringify(info.timestamps.server, null, 2)}</div>
+                </div>
+            </div>
+            
+            <div class="debug-section">
+                <div class="debug-section-header">💾 Cached Timestamps</div>
+                <div class="debug-section-content">
+                    <div class="debug-data">${JSON.stringify(info.timestamps.cached, null, 2)}</div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * System Tab Content
+ */
+function createSystemTabContent(info) {
+    return `
+        <div id="system" class="debug-tab-panel active">
+            <div class="debug-section">
+                <div class="debug-section-header">🎯 System Status</div>
+                <div class="debug-section-content">
+                    <div class="debug-stats">
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Current View</div>
+                            <div class="debug-stat-value">${info.system.currentView || 'unknown'}</div>
+                        </div>
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Current Month</div>
+                            <div class="debug-stat-value">${info.system.currentMonth || 'unknown'}</div>
+                        </div>
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Current Year</div>
+                            <div class="debug-stat-value">${info.system.currentYear || 'unknown'}</div>
+                        </div>
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">App Initialized</div>
+                            <div class="debug-stat-value ${info.system.initialized ? 'status-ok' : 'status-error'}">${info.system.initialized ? '✓' : '✗'}</div>
+                        </div>
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Cache Fix Active</div>
+                            <div class="debug-stat-value ${info.system.cacheFix ? 'status-ok' : 'status-error'}">${info.system.cacheFix ? '✓' : '✗'}</div>
+                        </div>
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Cache Manager</div>
+                            <div class="debug-stat-value ${info.system.cacheManager ? 'status-ok' : 'status-error'}">${info.system.cacheManager ? '✓' : '✗'}</div>
+                        </div>
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">SimBudget Loaded</div>
+                            <div class="debug-stat-value ${info.system.simBudget ? 'status-ok' : 'status-error'}">${info.system.simBudget ? '✓' : '✗'}</div>
+                        </div>
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Google APIs</div>
+                            <div class="debug-stat-value ${info.system.googleApis ? 'status-ok' : 'status-error'}">${info.system.googleApis ? '✓' : '✗'}</div>
+                        </div>
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Online Status</div>
+                            <div class="debug-stat-value ${info.system.onlineStatus ? 'status-ok' : 'status-error'}">${info.system.onlineStatus ? '✓ Online' : '✗ Offline'}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="debug-section">
+                <div class="debug-section-header">📊 Google Sheet Connection</div>
+                <div class="debug-section-content">
+                    <div class="debug-stats">
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Sheet Status</div>
+                            <div class="debug-stat-value ${info.system.cachedSheetUrl !== 'Not set' ? 'status-ok' : 'status-error'}">
+                                ${info.system.cachedSheetUrl !== 'Not set' ? '✓ Connected' : '✗ Not Connected'}
+                            </div>
+                        </div>
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Sheet Info</div>
+                            <div class="debug-stat-value" style="font-size: 10px;">${info.system.sheetName}</div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <strong>Full URL:</strong><br>
+                        <div style="font-family: monospace; font-size: 10px; word-break: break-all; background: #f5f5f5; padding: 8px; border-radius: 3px;">
+                            ${info.system.cachedSheetUrl}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="debug-section">
+                <div class="debug-section-header">🌐 Environment Info</div>
+                <div class="debug-section-content">
+                    <div class="debug-stats">
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Language</div>
+                            <div class="debug-stat-value">${info.system.language}</div>
+                        </div>
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Timezone</div>
+                            <div class="debug-stat-value">${info.system.timezone}</div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <strong>User Agent:</strong><br>
+                        <div style="font-family: monospace; font-size: 10px; background: #f5f5f5; padding: 8px; border-radius: 3px;">
+                            ${info.system.userAgent}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="debug-section">
+                <div class="debug-section-header">⚙️ Current Settings</div>
+                <div class="debug-section-content">
+                    ${info.system.settings ? `
+                        <div class="debug-stats">
+                            <div class="debug-stat">
+                                <div class="debug-stat-label">Currency</div>
+                                <div class="debug-stat-value">${info.system.settings.currencySymbol || 'Not set'}</div>
+                            </div>
+                            <div class="debug-stat">
+                                <div class="debug-stat-label">Date Format</div>
+                                <div class="debug-stat-value">${info.system.settings.dateFormat || 'Not set'}</div>
+                            </div>
+                            <div class="debug-stat">
+                                <div class="debug-stat-label">Language</div>
+                                <div class="debug-stat-value">${info.system.settings.language || 'Not set'}</div>
+                            </div>
+                            <div class="debug-stat">
+                                <div class="debug-stat-label">Dark Mode</div>
+                                <div class="debug-stat-value ${info.system.settings.darkMode ? 'status-ok' : 'status-error'}">${info.system.settings.darkMode ? '✓ On' : '✗ Off'}</div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 10px;">
+                            <strong>All Settings:</strong><br>
+                            <div class="debug-data" style="max-height: 150px;">${JSON.stringify(info.system.settings, null, 2)}</div>
+                        </div>
+                    ` : '<p class="status-error">Settings not available</p>'}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Cache Tab Content
+ */
+function createCacheTabContent(info) {
+    return `
+        <div id="cache" class="debug-tab-panel">
+            <div class="debug-section">
+                <div class="debug-section-header">📊 Cache Statistics</div>
+                <div class="debug-section-content">
+                    <div class="debug-stats">
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Total Items</div>
+                            <div class="debug-stat-value">${info.cache.stats ? info.cache.stats.itemCount : 0}</div>
+                        </div>
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Keys Found</div>
+                            <div class="debug-stat-value">${info.cache.allKeys.length}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="debug-section">
+                <div class="debug-section-header">🔧 Key Mapping Test</div>
+                <div class="debug-section-content">
+                    <div class="debug-data">${JSON.stringify(info.cache.keyMappingTest, null, 2)}</div>
+                </div>
+            </div>
+            
+            <div class="debug-section">
+                <div class="debug-section-header">📈 Detailed Cache Stats</div>
+                <div class="debug-section-content">
+                    <div class="debug-data">${JSON.stringify(info.cache.stats, null, 2)}</div>
+                </div>
+            </div>
+            
+            <div class="debug-section">
+                <div class="debug-section-header">🔑 All Cache Keys</div>
+                <div class="debug-section-content">
+                    <div class="debug-data">${info.cache.allKeys.join('\\n')}</div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Budget Tab Content
+ */
+function createBudgetTabContent(info) {
+    return `
+        <div id="budget" class="debug-tab-panel">
+            <div class="debug-section">
+                <div class="debug-section-header">💰 Budget Data Status</div>
+                <div class="debug-section-content">
+                    <div class="debug-stats">
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Budget Data Present</div>
+                            <div class="debug-stat-value ${info.budget.budgetData ? 'status-ok' : 'status-error'}">${info.budget.budgetData ? '✓' : '✗'}</div>
+                        </div>
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Dashboard Data Present</div>
+                            <div class="debug-stat-value ${info.budget.dashboardData ? 'status-ok' : 'status-error'}">${info.budget.dashboardData ? '✓' : '✗'}</div>
+                        </div>
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Current Month Budget</div>
+                            <div class="debug-stat-value ${info.budget.currentMonthBudget ? 'status-ok' : 'status-error'}">${info.budget.currentMonthBudget ? '✓' : '✗'}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="debug-section">
+                <div class="debug-section-header">📊 Budget Summary</div>
+                <div class="debug-section-content">
+                    <div class="debug-stats">
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Income</div>
+                            <div class="debug-stat-value">$${info.budget.income?.toFixed(2) || '0.00'}</div>
+                        </div>
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Spent</div>
+                            <div class="debug-stat-value">$${info.budget.spent?.toFixed(2) || '0.00'}</div>
+                        </div>
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Left to Spend</div>
+                            <div class="debug-stat-value">$${info.budget.leftToSpend?.toFixed(2) || '0.00'}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="debug-section">
+                <div class="debug-section-header">📈 Dashboard Data</div>
+                <div class="debug-section-content">
+                    <div class="debug-data">${JSON.stringify(info.budget.dashboardData, null, 2)}</div>
+                </div>
+            </div>
+            
+            <div class="debug-section">
+                <div class="debug-section-header">💼 Budget Data</div>
+                <div class="debug-section-content">
+                    <div class="debug-data">${JSON.stringify(info.budget.budgetData, null, 2)}</div>
+                </div>
+            </div>
+            
+        </div>
+    `;
+}
+
+/**
+ * Categories Tab Content
+ */
+function createCategoriesTabContent(info) {
+    // Get full category objects, not just names
+    let activeCategories = [];
+    let inactiveCategories = [];
+    let allCategories = [];
+    
+    if (typeof CacheManager !== 'undefined' && CacheManager.getCategoriesWithTimestamp) {
+        try {
+            const categoriesWithTimestamp = CacheManager.getCategoriesWithTimestamp();
+            if (categoriesWithTimestamp && categoriesWithTimestamp.categories) {
+                allCategories = categoriesWithTimestamp.categories;
+                activeCategories = allCategories.filter(cat => cat.active);
+                inactiveCategories = allCategories.filter(cat => !cat.active);
+            }
+        } catch (e) {
+            console.error('Error getting full categories:', e);
+        }
+    }
+    
+    return `
+        <div id="categories" class="debug-tab-panel">
+            <div class="debug-section">
+                <div class="debug-section-header">📂 Categories Overview</div>
+                <div class="debug-section-content">
+                    <div class="debug-stats">
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Total Categories</div>
+                            <div class="debug-stat-value">${info.categories.total || 0}</div>
+                        </div>
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Active Categories</div>
+                            <div class="debug-stat-value status-ok">${info.categories.active || 0}</div>
+                        </div>
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Inactive Categories</div>
+                            <div class="debug-stat-value status-warning">${info.categories.inactive || 0}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="debug-section">
+                <div class="debug-section-header">📊 Categories Status</div>
+                <div class="debug-section-content">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                        <div>
+                            <h4 style="margin-top: 0; color: #28a745;">✅ Active Categories</h4>
+                            <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 10px;">
+                                ${activeCategories.length > 0 ? activeCategories.map(cat => `
+                                    <div style="padding: 5px; margin-bottom: 5px; background: white; border-radius: 3px; border: 1px solid #e0e0e0;">
+                                        <strong>${cat.emoji || '📁'} ${cat.name}</strong>
+                                        <div style="font-size: 10px; color: #666;">
+                                            ID: ${cat.id || 'N/A'} | Limit: ${cat.limit ? '$' + cat.limit : 'None'}
+                                        </div>
+                                    </div>
+                                `).join('') : '<p style="color: #999;">No active categories</p>'}
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <h4 style="margin-top: 0; color: #dc3545;">❌ Inactive Categories</h4>
+                            <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 10px;">
+                                ${inactiveCategories.length > 0 ? inactiveCategories.map(cat => `
+                                    <div style="padding: 5px; margin-bottom: 5px; background: white; border-radius: 3px; border: 1px solid #e0e0e0; opacity: 0.7;">
+                                        <strong>${cat.emoji || '📁'} ${cat.name}</strong>
+                                        <div style="font-size: 10px; color: #666;">
+                                            ID: ${cat.id || 'N/A'} | Limit: ${cat.limit ? '$' + cat.limit : 'None'}
+                                        </div>
+                                    </div>
+                                `).join('') : '<p style="color: #999;">No inactive categories</p>'}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="debug-section">
+                <div class="debug-section-header">🗄️ Full Categories JSON Structure</div>
+                <div class="debug-section-content">
+                    <div class="debug-data">${JSON.stringify(allCategories, null, 2)}</div>
+                </div>
+            </div>
+            
+            <div class="debug-section">
+                <div class="debug-section-header">🔍 Debug Info</div>
+                <div class="debug-section-content">
+                    <div class="debug-stats">
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Active Names Only</div>
+                            <div class="debug-stat-value" style="font-size: 10px;">${info.categories.activeList.join(', ') || 'None'}</div>
+                        </div>
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Inactive Names Only</div>
+                            <div class="debug-stat-value" style="font-size: 10px;">${info.categories.inactiveList.join(', ') || 'None'}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Expenses Tab Content
+ */
+function createExpensesTabContent(info) {
+    return `
+        <div id="expenses" class="debug-tab-panel">
+            <div class="debug-section">
+                <div class="debug-section-header">🧾 Expenses Overview</div>
+                <div class="debug-section-content">
+                    <div class="debug-stats">
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Current Month Expenses</div>
+                            <div class="debug-stat-value">${info.expenses.currentMonth?.length || 0}</div>
+                        </div>
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Current Month Amount</div>
+                            <div class="debug-stat-value">$${info.expenses.currentMonthAmount?.toFixed(2) || '0.00'}</div>
+                        </div>
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Total Amount (All Data)</div>
+                            <div class="debug-stat-value">$${info.expenses.totalAmount?.toFixed(2) || '0.00'}</div>
+                        </div>
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Categories Used</div>
+                            <div class="debug-stat-value">${info.expenses.categoriesUsed?.length || 0}</div>
+                        </div>
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Total Cached Rows</div>
+                            <div class="debug-stat-value ${info.expenses.totalCachedRows > 0 ? 'status-ok' : 'status-error'}">${info.expenses.totalCachedRows || 0}</div>
+                        </div>
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Cached Months</div>
+                            <div class="debug-stat-value ${info.expenses.cachedMonthsCount > 0 ? 'status-ok' : 'status-error'}">${info.expenses.cachedMonthsCount || 0}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="debug-section">
+                <div class="debug-section-header">📊 Cache Breakdown by Month</div>
+                <div class="debug-section-content">
+                    ${info.expenses.cacheBreakdown && info.expenses.cacheBreakdown.length > 0 ? `
+                        <table class="timestamp-table">
+                            <thead>
+                                <tr>
+                                    <th>Month/Year</th>
+                                    <th>Cached Rows</th>
+                                    <th>Total Amount</th>
+                                    <th>Cache Key</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${info.expenses.cacheBreakdown.map(item => `
+                                    <tr class="${item.rows > 0 ? 'fresh' : 'stale'}">
+                                        <td><strong>${item.monthName} ${item.year}</strong></td>
+                                        <td>${item.rows}</td>
+                                        <td>$${item.totalAmount.toFixed(2)}</td>
+                                        <td><code>${item.cacheKey}</code></td>
+                                        <td>
+                                            <span class="timestamp-status ${item.rows > 0 ? 'fresh' : 'stale'}">
+                                                ${item.rows > 0 ? 'CACHED' : 'EMPTY'}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    ` : '<p class="status-error">No cache breakdown available</p>'}
+                </div>
+            </div>
+            
+            <div class="debug-section">
+                <div class="debug-section-header">📈 Expense Categories</div>
+                <div class="debug-section-content">
+                    <div class="debug-data">${JSON.stringify(info.expenses.categoriesUsed, null, 2)}</div>
+                </div>
+            </div>
+            
+            <div class="debug-section">
+                <div class="debug-section-header">📋 Recent Expenses (Last 5)</div>
+                <div class="debug-section-content">
+                    <div class="debug-data">${JSON.stringify(info.expenses.recent, null, 2)}</div>
+                </div>
+            </div>
+            
+            <div class="debug-section">
+                <div class="debug-section-header">🗄️ Unified Cache Info</div>
+                <div class="debug-section-content">
+                    ${info.expenses.cacheInfo ? `
+                        <div class="debug-stats">
+                            <div class="debug-stat">
+                                <div class="debug-stat-label">Cache Key</div>
+                                <div class="debug-stat-value">${info.expenses.cacheInfo.cacheKey}</div>
+                            </div>
+                            <div class="debug-stat">
+                                <div class="debug-stat-label">Cached At</div>
+                                <div class="debug-stat-value">${info.expenses.cacheInfo.cached_at ? new Date(info.expenses.cacheInfo.cached_at).toLocaleString() : 'Unknown'}</div>
+                            </div>
+                            <div class="debug-stat">
+                                <div class="debug-stat-label">Total Rows</div>
+                                <div class="debug-stat-value status-ok">${info.expenses.cacheInfo.totalRows || 0}</div>
+                            </div>
+                            <div class="debug-stat">
+                                <div class="debug-stat-label">Months Cached</div>
+                                <div class="debug-stat-value status-ok">${info.expenses.cacheInfo.monthsCached || 0}</div>
+                            </div>
+                        </div>
+                    ` : '<p class="status-error">No unified cache info available</p>'}
+                </div>
+            </div>
+            
+            <div class="debug-section">
+                <div class="debug-section-header">🔑 All Cache Keys (Expense Related)</div>
+                <div class="debug-section-content">
+                    <div class="debug-data">${info.expenses.allCacheKeys ? info.expenses.allCacheKeys.join('\\n') : 'No cache keys found'}</div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Recurring Tab Content
+ */
+function createRecurringTabContent(info) {
+    return `
+        <div id="recurring" class="debug-tab-panel">
+            <div class="debug-section">
+                <div class="debug-section-header">🔄 Recurring Data Status</div>
+                <div class="debug-section-content">
+                    <div class="debug-stats">
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Total Entries</div>
+                            <div class="debug-stat-value">${info.recurring.entryCount || 0}</div>
+                        </div>
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Active Entries</div>
+                            <div class="debug-stat-value">${info.recurring.activeEntries?.length || 0}</div>
+                        </div>
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Income Entries</div>
+                            <div class="debug-stat-value">${info.recurring.incomeEntries?.length || 0}</div>
+                        </div>
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Expense Entries</div>
+                            <div class="debug-stat-value">${info.recurring.expenseEntries?.length || 0}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="debug-section">
+                <div class="debug-section-header">📊 Cache Information</div>
+                <div class="debug-section-content">
+                    <div class="debug-data">${JSON.stringify(info.recurring.cache || {}, null, 2)}</div>
+                </div>
+            </div>
+            
+            <div class="debug-section">
+                <div class="debug-section-header">✅ Active Entries</div>
+                <div class="debug-section-content">
+                    <div class="debug-data">${JSON.stringify(info.recurring.activeEntries, null, 2)}</div>
+                </div>
+            </div>
+            
+            <div class="debug-section">
+                <div class="debug-section-header">💰 Income Entries</div>
+                <div class="debug-section-content">
+                    <div class="debug-data">${JSON.stringify(info.recurring.incomeEntries, null, 2)}</div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Net Worth Tab Content
+ */
+function createNetWorthTabContent(info) {
+    const networthData = info.networth;
+    
+    return `
+        <div id="networth" class="debug-tab-panel">
+            <div class="debug-stats">
+                <div class="debug-stat-card">
+                    <div class="debug-stat-value ${networthData.totalNetWorth > 0 ? 'status-ok' : networthData.totalNetWorth < 0 ? 'status-error' : ''}">$${networthData.totalNetWorth.toFixed(2)}</div>
+                    <div class="debug-stat-label">Total Net Worth</div>
+                </div>
+                <div class="debug-stat-card">
+                    <div class="debug-stat-value status-ok">$${networthData.totalAssets.toFixed(2)}</div>
+                    <div class="debug-stat-label">Total Assets</div>
+                </div>
+                <div class="debug-stat-card">
+                    <div class="debug-stat-value ${networthData.totalDebts > 0 ? 'status-error' : 'status-ok'}">$${networthData.totalDebts.toFixed(2)}</div>
+                    <div class="debug-stat-label">Total Debts</div>
+                </div>
+                <div class="debug-stat-card">
+                    <div class="debug-stat-value">${networthData.entryCount}</div>
+                    <div class="debug-stat-label">Total Entries</div>
+                </div>
+            </div>
+            
+            <div class="debug-section">
+                <div class="debug-section-header">📊 Net Worth Cache Overview</div>
+                <div class="debug-section-content">
+                    <div class="debug-stats">
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Cache Status</div>
+                            <div class="debug-stat-value ${networthData.cache ? 'status-ok' : 'status-error'}">${networthData.cache ? '✓ Available' : '✗ No Cache'}</div>
+                        </div>
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Last Updated</div>
+                            <div class="debug-stat-value">${networthData.lastUpdated ? new Date(networthData.lastUpdated).toLocaleString() : 'Unknown'}</div>
+                        </div>
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Asset Count</div>
+                            <div class="debug-stat-value status-ok">${networthData.assetCount}</div>
+                        </div>
+                        <div class="debug-stat">
+                            <div class="debug-stat-label">Debt Count</div>
+                            <div class="debug-stat-value ${networthData.debtCount > 0 ? 'status-warning' : 'status-ok'}">${networthData.debtCount}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            ${networthData.entries.length > 0 ? `
+            <div class="debug-section">
+                <div class="debug-section-header">💰 Assets & Debts Breakdown</div>
+                <div class="debug-section-content">
+                    <table class="timestamp-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Category</th>
+                                <th>Value</th>
+                                <th>Type</th>
+                                <th>Change</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${networthData.entries.map(entry => `
+                                <tr class="${entry.isDebt ? 'stale' : 'fresh'}">
+                                    <td><strong>${entry.name || 'Unnamed'}</strong></td>
+                                    <td>${entry.category || 'Unknown'}</td>
+                                    <td>$${(entry.value || 0).toFixed(2)}</td>
+                                    <td>
+                                        <span class="timestamp-status ${entry.isDebt ? 'stale' : 'fresh'}">
+                                            ${entry.isDebt ? 'DEBT' : 'ASSET'}
+                                        </span>
+                                    </td>
+                                    <td>${entry.change ? ((entry.change > 0 ? '+' : '') + '$' + entry.change.toFixed(2)) : '-'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            ` : ''}
+            
+            ${networthData.summary ? `
+            <div class="debug-section">
+                <div class="debug-section-header">📈 Summary Data</div>
+                <div class="debug-section-content">
+                    <div class="debug-data">${JSON.stringify(networthData.summary, null, 2)}</div>
+                </div>
+            </div>
+            ` : ''}
+            
+            <div class="debug-section">
+                <div class="debug-section-header">🗄️ Raw Net Worth Cache Data</div>
+                <div class="debug-section-content">
+                    <div class="debug-data">${JSON.stringify(networthData.cache, null, 2)}</div>
+                </div>
+            </div>
+            
+            ${networthData.monthData ? `
+            <div class="debug-section">
+                <div class="debug-section-header">📅 Current Month Data</div>
+                <div class="debug-section-content">
+                    <div class="debug-data">${JSON.stringify(networthData.monthData, null, 2)}</div>
+                </div>
+            </div>
+            ` : ''}
+            
+            ${networthData.error ? `
+            <div class="debug-section">
+                <div class="debug-section-header">❌ Errors</div>
+                <div class="debug-section-content">
+                    <div class="debug-data status-error">${networthData.error}</div>
+                </div>
+            </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+/**
+ * Raw Data Tab Content
+ */
+function createRawDataTabContent(info) {
+    return `
+        <div id="raw" class="debug-tab-panel">
+            <div class="debug-section">
+                <div class="debug-section-header">📄 Complete Debug Information</div>
+                <div class="debug-section-content">
+                    <div class="debug-data">${JSON.stringify(info, null, 2)}</div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Collect comprehensive debug information including timestamps
+ */
+function collectAllDebugInfo() {
+    const debugInfo = {
+        timestamp: new Date().toISOString(),
+        system: {
+            currentView: window._currentView || (typeof SimBudget !== 'undefined' && SimBudget.Views ? SimBudget.Views.getCurrent() : 'unknown'),
+            currentMonth: window._currentMonth || new Date().getMonth(),
+            currentYear: window._currentYear || new Date().getFullYear(),
+            initialized: window._initialized || (window._initialLoadComplete || false),
+            cacheFix: typeof window.CacheFix !== 'undefined',
+            cacheManager: typeof window.CacheManager !== 'undefined',
+            simBudget: typeof window.SimBudget !== 'undefined',
+            cachedSheetUrl: window._cachedSheetUrl || 'Not set',
+            sheetName: getSheetNameFromSettings(),
+            googleApis: typeof window.gapi !== 'undefined',
+            onlineStatus: navigator.onLine,
+            userAgent: navigator.userAgent.substring(0, 50) + '...',
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            language: navigator.language,
+            settings: getSystemSettings()
+        },
+        cache: {
+            stats: null,
+            allKeys: [],
+            keyMappingTest: {}
+        },
+        timestamps: {
+            server: {},
+            cached: {},
+            comparison: [],
+            staleCount: 0,
+            freshCount: 0
+        },
+        budget: {
+            dashboardData: null,
+            budgetData: null,
+            currentMonthBudget: null,
+            income: null,
+            spent: null,
+            leftToSpend: null
+        },
+        categories: {
+            total: 0,
+            active: 0,
+            inactive: 0,
+            activeList: [],
+            inactiveList: []
+        },
+        expenses: {
+            currentMonth: [],
+            totalAmount: 0,
+            categoriesUsed: [],
+            recent: []
+        },
+        recurring: {
+            cache: null,
+            entries: [],
+            entryCount: 0,
+            incomeEntries: [],
+            expenseEntries: [],
+            activeEntries: [],
+            inactiveEntries: [],
+            lastUpdated: null,
+            calculated: null
+        },
+        networth: {
+            cache: null,
+            data: null,
+            summary: null,
+            totalAssets: 0,
+            totalDebts: 0,
+            totalNetWorth: 0,
+            entries: [],
+            entryCount: 0,
+            assetCount: 0,
+            debtCount: 0,
+            lastUpdated: null,
+            monthData: null
+        }
+    };
+
+    // Cache Manager debugging
+    if (typeof CacheManager !== 'undefined') {
+        try {
+            debugInfo.cache.stats = (typeof CacheManager.getStats === 'function') ? CacheManager.getStats() : null;
+            // Get cache keys by checking localStorage since getAllKeys doesn't exist
+            if (typeof CacheManager.get === 'function') {
+                const knownKeys = [
+                    'budget', 'budgetData', 'settings', 'categories', 'recurring',
+                    'budget_data_with_timestamp', 'settings_with_timestamp', 
+                    'categories_with_timestamp', 'recurring_with_timestamp',
+                    'expenses_' + debugInfo.system.currentYear + '-' + debugInfo.system.currentMonth,
+                    'dashboard_' + debugInfo.system.currentYear + '-' + debugInfo.system.currentMonth
+                ];
+                
+                debugInfo.cache.allKeys = [];
+                knownKeys.forEach(key => {
+                    try {
+                        if (CacheManager.get(key) !== null) {
+                            debugInfo.cache.allKeys.push(key);
+                        }
+                    } catch(e) {
+                        // Key doesn't exist, skip
+                    }
+                });
+                
+                // Also check localStorage for simbudget keys
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && key.includes('simbudget')) {
+                        debugInfo.cache.allKeys.push(key + ' (localStorage)');
+                    }
+                }
+            } else {
+                debugInfo.cache.allKeys = ['CacheManager.get not available'];
+            }
+            
+            // Test key mapping
+            if (window.CacheFix && typeof CacheFix.mapKey === 'function') {
+                debugInfo.cache.keyMappingTest = {
+                    'budget': CacheFix.mapKey('budget'),
+                    'expense': CacheFix.mapKey('expense'),
+                    'dashboardData': CacheFix.mapKey('dashboardData')
+                };
+            }
+        } catch (e) {
+            console.error('Error collecting cache info:', e);
+            debugInfo.cache.error = e.message;
+        }
+    }
+
+    // Enhanced timestamp debugging
+    if (typeof CacheManager !== 'undefined' && CacheManager.getAllKeys) {
+        try {
+            const allKeys = CacheManager.getAllKeys();
+            const now = Date.now();
+            const staleThreshold = 10000; // 10 seconds
+            
+            for (const key of allKeys) {
+                try {
+                    const data = CacheManager.get(key);
+                    if (data && typeof data === 'object') {
+                        const timestamp = data.timestamp || data.cached_at;
+                        if (timestamp) {
+                            debugInfo.timestamps.withTimestamps.push(key);
+                            const age = now - timestamp;
+                            debugInfo.timestamps.cached[key] = {
+                                timestamp: new Date(timestamp).toISOString(),
+                                age: Math.floor(age / 1000) + 's',
+                                isStale: age > staleThreshold
+                            };
+                            if (age > staleThreshold) {
+                                debugInfo.timestamps.staleItems.push(key);
+                            }
+                        } else {
+                            debugInfo.timestamps.withoutTimestamps.push(key);
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Error checking timestamp for key:', key, e);
+                }
+            }
+        } catch (e) {
+            console.error('Error in timestamp analysis:', e);
+        }
+    }
+
+    // Budget Info - Get dashboard summary (income, spent, leftToSpend)
+    // DEBUG: Try multiple ways to get dashboard data
+    debugInfo.budget.debugAttempts = {};
+    
+    if (window.CacheManager) {
+        // Try getDashboardData
+        if (typeof CacheManager.getDashboardData === 'function') {
+            debugInfo.budget.debugAttempts.getDashboardData = CacheManager.getDashboardData(debugInfo.system.currentMonth, debugInfo.system.currentYear);
+        }
+        
+        // Try getDashboardDataSafe
+        if (typeof CacheManager.getDashboardDataSafe === 'function') {
+            debugInfo.budget.debugAttempts.getDashboardDataSafe = CacheManager.getDashboardDataSafe(debugInfo.system.currentMonth, debugInfo.system.currentYear);
+        }
+        
+        // Try direct cache access with different key formats
+        if (typeof CacheManager.get === 'function') {
+            const year = debugInfo.system.currentYear;
+            const month = debugInfo.system.currentMonth;
+            
+            debugInfo.budget.debugAttempts.directCacheAccess = CacheManager.get('dashboard_' + year + '-' + month);
+            debugInfo.budget.debugAttempts.budgetCache = CacheManager.get('budget');
+            debugInfo.budget.debugAttempts.budgetDataCache = CacheManager.get('budgetData');
+            debugInfo.budget.debugAttempts.expensesCache = CacheManager.get('expenses_' + year + '-' + month);
+            
+            // Check what the actual working budget view uses
+            if (window.SimBudget && typeof SimBudget.getCurrentBudgetData === 'function') {
+                debugInfo.budget.debugAttempts.simBudgetMethod = SimBudget.getCurrentBudgetData();
+            }
+        }
+        
+        // Try to get all keys that contain dashboard
+        if (typeof CacheManager.getAllKeys === 'function') {
+            const allKeys = CacheManager.getAllKeys();
+            debugInfo.budget.debugAttempts.dashboardKeys = allKeys.filter(key => key.includes('dashboard'));
+        }
+    }
+    
+    // Use whichever method returns data
+    debugInfo.budget.dashboardData = debugInfo.budget.debugAttempts.getDashboardData || 
+                                    debugInfo.budget.debugAttempts.getDashboardDataSafe || 
+                                    debugInfo.budget.debugAttempts.directCacheAccess;
+    
+    // If no dashboard data exists, calculate summary from expenses
+    if (!debugInfo.budget.dashboardData && debugInfo.budget.debugAttempts.expensesCache) {
+        const expenses = debugInfo.budget.debugAttempts.expensesCache;
+        let income = 0;
+        let spent = 0;
+        
+        expenses.forEach(expense => {
+            if (expense.category && expense.category.toLowerCase().includes('income')) {
+                income += Math.abs(expense.amount || 0);
+            } else {
+                spent += Math.abs(expense.amount || 0);
+            }
+        });
+        
+        debugInfo.budget.income = income;
+        debugInfo.budget.spent = spent;
+        debugInfo.budget.leftToSpend = Math.max(0, income - spent);
+        
+        // Create synthetic dashboard data
+        debugInfo.budget.dashboardData = {
+            summary: {
+                income: income,
+                spent: spent,
+                leftToSpend: Math.max(0, income - spent)
+            },
+            calculated: true
+        };
+    } else if (debugInfo.budget.dashboardData && debugInfo.budget.dashboardData.summary) {
+        debugInfo.budget.income = debugInfo.budget.dashboardData.summary.income;
+        debugInfo.budget.spent = debugInfo.budget.dashboardData.summary.spent;
+        debugInfo.budget.leftToSpend = debugInfo.budget.dashboardData.summary.leftToSpend;
+    }
+    
+    // Budget Info - Get budget allocations data  
+    if (window.CacheManager && typeof CacheManager.getBudgetData === 'function') {
+        debugInfo.budget.budgetData = CacheManager.getBudgetData();
+    }
+    
+    // Budget Info - Get current month budget allocations
+    if (window.CacheManager && typeof CacheManager.getBudgetForMonth === 'function') {
+        debugInfo.budget.currentMonthBudget = CacheManager.getBudgetForMonth(debugInfo.system.currentMonth, debugInfo.system.currentYear);
+    }
+
+    // Categories debugging
+    if (typeof CacheManager !== 'undefined' && CacheManager.getCategoriesWithTimestamp) {
+        try {
+            const categoriesWithTimestamp = CacheManager.getCategoriesWithTimestamp();
+            if (categoriesWithTimestamp && categoriesWithTimestamp.categories) {
+                const categories = categoriesWithTimestamp.categories;
+                debugInfo.categories.total = categories.length;
+                debugInfo.categories.activeList = categories.filter(cat => cat.active).map(cat => cat.name);
+                debugInfo.categories.inactiveList = categories.filter(cat => !cat.active).map(cat => cat.name);
+                debugInfo.categories.active = debugInfo.categories.activeList.length;
+                debugInfo.categories.inactive = debugInfo.categories.inactiveList.length;
+            }
+        } catch (e) {
+            console.error('Error collecting categories info:', e);
+        }
+    }
+
+    // NEW: Unified expenses debugging using expenses_with_timestamp
+    if (typeof CacheManager !== 'undefined') {
+        try {
+            const currentMonth = debugInfo.system.currentMonth;
+            const currentYear = debugInfo.system.currentYear;
+            
+            // Get the unified expense cache
+            let unifiedExpenseCache = null;
+            if (CacheManager.get) {
+                unifiedExpenseCache = CacheManager.get('expenses_with_timestamp');
+            }
+            
+            if (unifiedExpenseCache && unifiedExpenseCache.expenses && Array.isArray(unifiedExpenseCache.expenses)) {
+                const allExpenses = unifiedExpenseCache.expenses;
+                
+                // Total stats
+                debugInfo.expenses.totalCachedRows = allExpenses.length;
+                debugInfo.expenses.totalAmount = allExpenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
+                debugInfo.expenses.categoriesUsed = [...new Set(allExpenses.map(exp => exp.category).filter(Boolean))];
+                debugInfo.expenses.recent = allExpenses.slice(-5);
+                debugInfo.expenses.allCacheKeys = ['expenses_with_timestamp'];
+                
+                // Filter current month expenses
+                debugInfo.expenses.currentMonth = allExpenses.filter(expense => {
+                    if (!expense.date) return false;
+                    const expenseDate = expense.date instanceof Date ? expense.date : new Date(expense.date);
+                    if (isNaN(expenseDate.getTime())) return false;
+                    return expenseDate.getMonth() === currentMonth && expenseDate.getFullYear() === currentYear;
+                });
+                
+                // Current month amount
+                debugInfo.expenses.currentMonthAmount = debugInfo.expenses.currentMonth.reduce((sum, exp) => sum + (exp.amount || 0), 0);
+                
+                // Breakdown by month for display
+                const expensesByMonth = {};
+                allExpenses.forEach(expense => {
+                    if (expense.date) {
+                        const expenseDate = expense.date instanceof Date ? expense.date : new Date(expense.date);
+                        if (!isNaN(expenseDate.getTime())) {
+                            const month = expenseDate.getMonth();
+                            const year = expenseDate.getFullYear();
+                            const key = `${year}-${month}`;
+                            if (!expensesByMonth[key]) {
+                                expensesByMonth[key] = [];
+                            }
+                            expensesByMonth[key].push(expense);
+                        }
+                    }
+                });
+                
+                // Create breakdown for display
+                const cacheBreakdown = [];
+                Object.keys(expensesByMonth).forEach(key => {
+                    const [year, month] = key.split('-');
+                    const monthExpenses = expensesByMonth[key];
+                    const monthTotal = monthExpenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
+                    const monthName = new Date(parseInt(year), parseInt(month), 1).toLocaleString('default', { month: 'long' });
+                    
+                    cacheBreakdown.push({
+                        year: parseInt(year),
+                        month: parseInt(month),
+                        monthName: monthName,
+                        cacheKey: 'expenses_with_timestamp (unified)',
+                        rows: monthExpenses.length,
+                        totalAmount: monthTotal
+                    });
+                });
+                
+                // Sort breakdown by year/month descending
+                cacheBreakdown.sort((a, b) => {
+                    if (a.year !== b.year) return b.year - a.year;
+                    return b.month - a.month;
+                });
+                
+                debugInfo.expenses.cacheBreakdown = cacheBreakdown;
+                debugInfo.expenses.cachedMonthsCount = cacheBreakdown.length;
+                
+                // Cache metadata
+                debugInfo.expenses.cacheInfo = {
+                    cacheKey: 'expenses_with_timestamp',
+                    cached_at: unifiedExpenseCache.cached_at,
+                    timestamp: unifiedExpenseCache.timestamp,
+                    totalRows: unifiedExpenseCache.totalRows,
+                    monthsCached: unifiedExpenseCache.monthsCached
+                };
+                
+            } else {
+                // No unified cache found
+                debugInfo.expenses.totalCachedRows = 0;
+                debugInfo.expenses.cachedMonthsCount = 0;
+                debugInfo.expenses.cacheBreakdown = [];
+                debugInfo.expenses.allCacheKeys = [];
+                debugInfo.expenses.currentMonth = [];
+                debugInfo.expenses.totalAmount = 0;
+                debugInfo.expenses.categoriesUsed = [];
+                debugInfo.expenses.recent = [];
+                debugInfo.expenses.error = 'No expenses_with_timestamp cache found';
+            }
+            
+            // Also check for any legacy cache keys that might still exist
+            if (CacheManager.getAllKeys) {
+                const allKeys = CacheManager.getAllKeys();
+                const expenseKeys = allKeys.filter(key => 
+                    key.includes('expense') || 
+                    key.includes('transaction')
+                );
+                debugInfo.expenses.allCacheKeys = [...new Set([...debugInfo.expenses.allCacheKeys, ...expenseKeys])];
+            }
+            
+        } catch (e) {
+            console.error('Error collecting unified expenses info:', e);
+            debugInfo.expenses.error = e.message;
+        }
+    }
+
+    // Recurring data debugging
+    if (typeof CacheManager !== 'undefined' && CacheManager.getRecurringWithTimestamp) {
+        try {
+            debugInfo.recurring.cache = CacheManager.getRecurringWithTimestamp();
+            
+            if (debugInfo.recurring.cache && debugInfo.recurring.cache.entries) {
+                debugInfo.recurring.entries = debugInfo.recurring.cache.entries;
+                debugInfo.recurring.entryCount = debugInfo.recurring.entries.length;
+                debugInfo.recurring.lastUpdated = debugInfo.recurring.cache.timestamp;
+                
+                // Categorize entries
+                debugInfo.recurring.incomeEntries = debugInfo.recurring.entries.filter(entry => 
+                    entry.category && entry.category.toLowerCase().includes('income')
+                );
+                
+                debugInfo.recurring.expenseEntries = debugInfo.recurring.entries.filter(entry => 
+                    entry.category && !entry.category.toLowerCase().includes('income')
+                );
+                
+                debugInfo.recurring.activeEntries = debugInfo.recurring.entries.filter(entry => {
+                    const now = new Date();
+                    const startDate = new Date(entry.startDate);
+                    const endDate = entry.endDate ? new Date(entry.endDate) : null;
+                    
+                    return startDate <= now && (!endDate || endDate >= now);
+                });
+                
+                debugInfo.recurring.inactiveEntries = debugInfo.recurring.entries.filter(entry => {
+                    const now = new Date();
+                    const startDate = new Date(entry.startDate);
+                    const endDate = entry.endDate ? new Date(entry.endDate) : null;
+                    
+                    return startDate > now || (endDate && endDate < now);
+                });
+            }
+        } catch (e) {
+            console.error('Error collecting recurring info:', e);
+        }
+    }
+    
+    // Try to get calculated recurring data from income manager
+    if (window._recurringIncomeData) {
+        debugInfo.recurring.calculated = window._recurringIncomeData;
+    }
+
+    // Net Worth debugging
+    if (typeof CacheManager !== 'undefined' && CacheManager.getNetWorthWithTimestamp) {
+        try {
+            debugInfo.networth.cache = CacheManager.getNetWorthWithTimestamp();
+            
+            if (debugInfo.networth.cache) {
+                debugInfo.networth.lastUpdated = debugInfo.networth.cache.timestamp;
+                
+                if (debugInfo.networth.cache.data) {
+                    debugInfo.networth.data = debugInfo.networth.cache.data;
+                    
+                    // Extract summary info
+                    if (debugInfo.networth.data.summary) {
+                        debugInfo.networth.summary = debugInfo.networth.data.summary;
+                        debugInfo.networth.totalAssets = debugInfo.networth.data.summary.totalAssets || 0;
+                        debugInfo.networth.totalDebts = debugInfo.networth.data.summary.totalDebts || 0;
+                        debugInfo.networth.totalNetWorth = debugInfo.networth.data.summary.totalNetWorth || 0;
+                    }
+                    
+                    // Extract entries
+                    if (debugInfo.networth.data.entries && Array.isArray(debugInfo.networth.data.entries)) {
+                        debugInfo.networth.entries = debugInfo.networth.data.entries;
+                        debugInfo.networth.entryCount = debugInfo.networth.entries.length;
+                        
+                        // Count assets vs debts
+                        debugInfo.networth.assetCount = debugInfo.networth.entries.filter(entry => 
+                            !entry.isDebt && entry.value > 0
+                        ).length;
+                        
+                        debugInfo.networth.debtCount = debugInfo.networth.entries.filter(entry => 
+                            entry.isDebt && entry.value > 0
+                        ).length;
+                    }
+                }
+            }
+            
+            // Try to get current month data
+            if (typeof CacheManager.getNetWorth === 'function') {
+                debugInfo.networth.monthData = CacheManager.getNetWorth();
+            }
+        } catch (e) {
+            console.error('Error collecting networth info:', e);
+            debugInfo.networth.error = e.message;
+        }
+    }
+
+    // Timestamps Info (CRITICAL)
+    collectTimestampInfo(debugInfo);
+
+    return debugInfo;
+}
+
+/**
+ * Collect timestamp information for debugging
+ */
+function collectTimestampInfo(info) {
+    try {
+        // Get server timestamps
+        if (window.CacheManager && typeof CacheManager.getAllTimestamps === 'function') {
+            info.timestamps.server = CacheManager.getAllTimestamps();
+        }
+        
+        // Define cache key mappings
+        const currentMonth = info.system.currentMonth;
+        const currentYear = info.system.currentYear;
+        const cacheKeyMap = {
+            'masterData': 'expenses_with_timestamp',
+            'settings': 'settings_with_timestamp',
+            'categories': 'categories_with_timestamp',
+            'budget': 'budget_data_with_timestamp',
+            'netWorth': 'networth_with_timestamp',
+            'recurring': 'recurring_with_timestamp',
+            'income': 'income_with_timestamp'
+        };
+        
+        // Collect cached timestamps and do comparison
+        const dataTypes = ['masterData', 'settings', 'categories', 'budget', 'netWorth', 'recurring', 'income'];
+        
+        dataTypes.forEach(dataType => {
+            const serverTimestamp = info.timestamps.server[dataType];
+            let cachedTimestamp = null;
+            let cacheData = null;
+            let cacheKey = cacheKeyMap[dataType];
+            
+            // Get cached timestamp based on data type
+            if (window.CacheManager) {
+                if (dataType === 'masterData') {
+                    // For expenses, check metadata
+                    if (typeof CacheManager.getCacheTimestamp === 'function') {
+                        cachedTimestamp = CacheManager.getCacheTimestamp(cacheKey);
+                    }
+                } else if (dataType === 'settings') {
+                    // Check both settings keys
+                    const settingsTimestamped = CacheManager.get('settings_with_timestamp');
+                    const settingsPlain = CacheManager.get('settings');
+                    
+                    if (settingsTimestamped && settingsTimestamped.cached_at) {
+                        cachedTimestamp = new Date(settingsTimestamped.cached_at).toISOString();
+                        cacheData = settingsTimestamped;
+                    } else if (settingsPlain) {
+                        // Plain settings without timestamp
+                        cachedTimestamp = null;
+                        cacheData = settingsPlain;
+                    }
+                } else {
+                    // Other timestamped data types
+                    const data = CacheManager.get(cacheKey);
+                    if (data && data.cached_at) {
+                        cachedTimestamp = new Date(data.cached_at).toISOString();
+                        cacheData = data;
+                    }
+                }
+            }
+            
+            info.timestamps.cached[dataType] = cachedTimestamp;
+            
+            // Compare timestamps
+            const comparison = {
+                dataType: dataType,
+                cacheKey: cacheKey,
+                serverTimestamp: serverTimestamp,
+                cachedTimestamp: cachedTimestamp,
+                serverDate: serverTimestamp ? new Date(serverTimestamp) : null,
+                cachedDate: cachedTimestamp ? new Date(cachedTimestamp) : null,
+                hasCache: !!cacheData,
+                cacheDataSample: cacheData ? Object.keys(cacheData).slice(0, 5) : null
+            };
+            
+            // Determine if stale
+            if (!cachedTimestamp) {
+                comparison.status = 'NO_CACHE';
+                comparison.isStale = true;
+                info.timestamps.staleCount++;
+            } else if (serverTimestamp && new Date(serverTimestamp) > new Date(cachedTimestamp)) {
+                comparison.status = 'STALE';
+                comparison.isStale = true;
+                comparison.ageDiff = new Date(serverTimestamp) - new Date(cachedTimestamp);
+                info.timestamps.staleCount++;
+            } else {
+                comparison.status = 'FRESH';
+                comparison.isStale = false;
+                info.timestamps.freshCount++;
+            }
+            
+            info.timestamps.comparison.push(comparison);
+        });
+        
+    } catch (error) {
+        console.error('Error collecting timestamp info:', error);
+    }
+}
+
+/**
+ * Switch between debug tabs
+ */
+function switchDebugTab(event, tabName) {
+    // Remove active class from all tabs and panels
+    document.querySelectorAll('.debug-tab').forEach(tab => tab.classList.remove('active'));
+    document.querySelectorAll('.debug-tab-panel').forEach(panel => panel.classList.remove('active'));
+    
+    // Add active class to clicked tab and corresponding panel
+    event.target.classList.add('active');
+    document.getElementById(tabName).classList.add('active');
+}
+
+/**
+ * Setup event listeners
+ */
+function setupTabbedDebugEvents(overlay, debugInfo) {
+    overlay._debugInfo = debugInfo;
+    
+    overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) {
+            closeCacheDebugPopup(overlay);
+        }
+    });
+    
+    document.addEventListener('keydown', function escapeHandler(e) {
+        if (e.key === 'Escape') {
+            closeCacheDebugPopup(overlay);
+            document.removeEventListener('keydown', escapeHandler);
+        }
+    });
+}
+
+/**
+ * Action Functions
+ */
+function closeCacheDebugPopup(element) {
+    const overlay = element.closest ? element.closest('.debug-overlay') : element;
+    if (overlay && overlay.parentNode) {
+        overlay.parentNode.removeChild(overlay);
+    }
+}
+
+function copyAllDebugInfo() {
+    const overlay = document.querySelector('.debug-overlay');
+    const debugInfo = overlay ? overlay._debugInfo : null;
+    
+    if (debugInfo) {
+        const debugText = JSON.stringify(debugInfo, null, 2);
+        navigator.clipboard.writeText(debugText).then(() => {
+            alert('✅ All debug data copied to clipboard!');
+        }).catch(err => {
+            console.error('Failed to copy:', err);
+            alert('❌ Failed to copy to clipboard');
+        });
+    }
+}
+
+function downloadDebugInfo() {
+    const overlay = document.querySelector('.debug-overlay');
+    const debugInfo = overlay ? overlay._debugInfo : null;
+    
+    if (debugInfo) {
+        const debugText = JSON.stringify(debugInfo, null, 2);
+        const blob = new Blob([debugText], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'simbudget-debug-' + new Date().getTime() + '.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+}
+
+function fixCacheCoherency() {
+    try {
+        if (window.CacheManager && typeof CacheManager.forceCacheSync === 'function') {
+            const result = CacheManager.forceCacheSync();
+            alert('✅ Cache sync completed: ' + result);
+        } else {
+            alert('❌ Cache sync not available');
+        }
+    } catch (error) {
+        alert('❌ Error during cache sync: ' + error.message);
+    }
+}
+
+function refreshDebugPopup() {
+    const overlay = document.querySelector('.debug-overlay');
+    if (overlay) {
+        closeCacheDebugPopup(overlay);
+    }
+    setTimeout(() => openCombinedDebugPopup(), 100);
+}
+
+function clearAllCaches() {
+    if (confirm('⚠️ This will clear ALL cached data. Are you sure?')) {
+        try {
+            if (window.CacheManager && typeof CacheManager.invalidateAll === 'function') {
+                CacheManager.invalidateAll();
+                alert('✅ All caches cleared');
+                refreshDebugPopup();
+            } else {
+                alert('❌ Cache clear not available');
+            }
+        } catch (error) {
+            alert('❌ Error clearing caches: ' + error.message);
+        }
+    }
+}
+
+/**
+ * Format time difference
+ */
+function formatTimeDiff(milliseconds) {
+    const seconds = Math.floor(milliseconds / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+    
+    if (days > 0) return `${days} days`;
+    if (hours > 0) return `${hours} hours`;
+    if (minutes > 0) return `${minutes} minutes`;
+    return `${seconds} seconds`;
+}
+
+/**
+ * Get sheet name from settings
+ */
+function getSheetNameFromSettings() {
+    try {
+        if (window.SimBudget && SimBudget.Settings) {
+            const settings = SimBudget.Settings.getAll();
+            if (settings && settings.sheetName) {
+                return settings.sheetName;
+            }
+        }
+        
+        // Fallback to URL extraction
+        return extractSheetNameFromUrl(window._cachedSheetUrl);
+    } catch (e) {
+        return 'Unknown sheet';
+    }
+}
+
+/**
+ * Extract sheet name from Google Sheets URL (fallback)
+ */
+function extractSheetNameFromUrl(url) {
+    if (!url || url === 'Not set') return 'No sheet connected';
+    
+    try {
+        // Try to extract spreadsheet ID from URL
+        const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+        if (match) {
+            return `Sheet ID: ${match[1].substring(0, 20)}...`;
+        }
+        
+        // Fallback to just showing domain
+        const urlObj = new URL(url);
+        return `Connected to: ${urlObj.hostname}`;
+    } catch (e) {
+        return 'Invalid sheet URL';
+    }
+}
+
+/**
+ * Get current system settings
+ */
+function getSystemSettings() {
+    try {
+        if (window.SimBudget && SimBudget.Settings) {
+            return SimBudget.Settings.getAll();
+        }
+        return null;
+    } catch (e) {
+        return { error: e.message };
+    }
+}
+</script>

@@ -1,0 +1,659 @@
+<!-- Sidebar component for SimBudget -->
+<aside id="sidebar" class="sb-sidebar">
+  <!-- Sidebar Header -->
+  <div class="sb-sidebar-header">
+   <div class="sb-logo">
+  <img src="https://haqrgufgei2ou2jo.public.blob.vercel-storage.com/simplifybudget.png" 
+       alt="Simplify Budget" 
+       class="sb-logo-image">
+  <span class="sb-logo-text" data-translate="app_title">Simplify</span>
+</div>
+    <button id="toggleSidebar" class="sb-toggle-btn" aria-label="Toggle Sidebar">
+      <i class="material-icons">menu</i>
+    </button>
+  </div>
+  
+  <!-- Navigation Items -->
+  <nav class="sb-sidebar-nav">
+    <ul class="sb-nav-list">
+      <li class="sb-nav-item active" data-view="budget">
+        <a href="#budget" class="sb-nav-link">
+          <i class="material-icons">account_balance_wallet</i>
+          <span class="sb-nav-text" data-translate="budget">Dashboard</span>
+        </a>
+      </li>
+      <li class="sb-nav-item" data-view="expense">
+        <a href="#expense" class="sb-nav-link">
+          <i class="material-icons">receipt_long</i>
+          <span class="sb-nav-text" data-translate="expenses">Expenses</span>
+        </a>
+      </li>
+      <li class="sb-nav-item" data-view="recurring">
+        <a href="#recurring" class="sb-nav-link">
+          <i class="material-icons">repeat</i>
+          <span class="sb-nav-text" data-translate="recurring">Subscriptions</span>
+        </a>
+      </li>
+            <li class="sb-nav-item" data-view="income">
+        <a href="#income" class="sb-nav-link">
+          <i class="material-icons">payments</i>
+          <span class="sb-nav-text" data-translate="income_title">Income</span>
+        </a>
+      </li>
+      <li class="sb-nav-item" data-view="netWorth">
+        <a href="#netWorth" class="sb-nav-link">
+          <i class="material-icons">trending_up</i>
+          <span class="sb-nav-text" data-translate="net_worth_title">Net Worth</span>
+        </a>
+      </li>
+      <li class="sb-nav-item" data-view="reports" style="display: none;">
+        <a href="#reports" class="sb-nav-link">
+          <i class="material-icons">bar_chart</i>
+          <span class="sb-nav-text" data-translate="reports">Yearly View</span>
+        </a>
+      </li>
+      <li class="sb-nav-item" data-view="categories">
+        <a href="#categories" class="sb-nav-link">
+          <i class="material-icons">category</i>
+          <span class="sb-nav-text" data-translate="categories">Categories</span>
+        </a>
+      </li>
+      <li class="sb-nav-item sb-nav-item-external">
+        <a href="#" onclick="SimBudget.openSpreadsheet(); return false;" class="sb-nav-link">
+          <i class="material-icons">open_in_new</i>
+          <span class="sb-nav-text" data-translate="connected_spreadsheet">Connected Spreadsheet</span>
+        </a>
+      </li>
+      <li class="sb-nav-item" data-view="settings">
+        <a href="#settings" class="sb-nav-link">
+          <i class="material-icons">settings</i>
+          <span class="sb-nav-text" data-translate="settings">Settings</span>
+        </a>
+      </li>
+    </ul>
+  </nav>
+  
+  <!-- Sidebar Footer -->
+  <div class="sb-sidebar-footer">
+    <div class="sb-app-info">
+      <a href="https://simplifybudget.com/" target="_blank" class="sb-version-link">
+        <span class="sb-version notranslate">Simplify Budget</span>
+      </a>
+      <span class="sb-disclaimer"><a href="https://simplifybudget.com/terms" target="_blank" data-translate="terms_of_service">Terms of Service</a></span>
+        <span class="sb-disclaimer"><a href="https://simplifybudget.com/privacy" target="_blank" data-translate="terms_of_service">Privacy Policy</a></span>
+
+      <a href="https://docs.google.com/forms/d/e/1FAIpQLSd04w5oDz6xazcHDLRLam3UputcFhwl5RzuG8UTgItuj_7cDQ/viewform" target="_blank" class="sb-feedback-link">
+        <span data-translate="feedback">We ❤️ Feedback</span>
+      </a>
+    </div>
+  </div>
+</aside>
+
+<!-- Sidebar Backdrop for Mobile -->
+<div id="sidebarBackdrop" class="sb-backdrop"></div>
+
+<!-- Mobile menu toggle button -->
+<button id="mobileSidebarToggle" class="sb-mobile-toggle" aria-label="Open Menu">
+  <i class="material-icons">menu</i>
+</button>
+
+<style>
+/* App container enhancement */
+.app-container {
+  display: flex !important; /* Keep flex display */
+  position: relative; /* Ensure proper positioning context */
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Mobile-specific overrides to ensure full width */
+@media (max-width: 991px) {
+  .content-area, 
+  .app-container > .content-area,
+  .sb-content-area {
+    width: 100% !important;
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+    left: 0 !important;
+    flex: 1 !important; /* Ensure content area takes available space */
+  }
+  
+  /* Fix flex layout for mobile */
+  .app-container {
+    padding-left: 0 !important; /* Remove any padding for sidebar */
+  }
+  
+  /* Ensure sidebar is fully off-canvas */
+  .sb-sidebar {
+    position: fixed !important;
+    left: 0 !important;
+    transform: translateX(-100%) !important;
+    width: var(--sb-sidebar-width) !important;
+    max-width: 85vw !important;
+    flex: 0 0 auto !important; /* Don't grow or shrink */
+  }
+  
+  .sb-sidebar.sb-open {
+    transform: translateX(0) !important;
+  }
+}
+
+/* SimBudget Sidebar - Dashboard Style Matching */
+
+/* Variables - Updated to Match Dashboard */
+:root {
+  /* Colors - Dashboard Palette */
+  --sb-primary: #2c3e50;
+  --sb-primary-light: #DDA15E;
+  --sb-primary-dark: #1e2b37;
+  --sb-accent: #d6f1f5;
+  --sb-background: #fffaf1;
+  --sb-surface: #ffffff;
+  --sb-text-primary: rgba(44, 62, 80, 0.87);
+  --sb-text-secondary: rgba(44, 62, 80, 0.6);
+  --sb-border: rgba(44, 62, 80, 0.12);
+  
+  /* Icon Colors - Professional Palette */
+  --sb-icon-budget: #007AFF;      /* Apple Blue */
+  --sb-icon-expense: #FF3B30;     /* Apple Red */
+  --sb-icon-recurring: #5856D6;   /* Apple Purple */
+  --sb-icon-networth: #34C759;    /* Apple Green */
+  --sb-icon-income: #FF9500;      /* Apple Orange */
+  --sb-icon-reports: #5AC8FA;     /* Apple Light Blue */
+  --sb-icon-categories: #AF52DE;  /* Apple Violet */
+  --sb-icon-settings: #8E8E93;    /* Apple Gray */
+  
+  /* Dark mode colors */
+  --sb-dark-background: #1e1e1e;
+  --sb-dark-surface: #1e1e1e;
+  --sb-dark-text-primary: rgba(255, 255, 255, 0.87);
+  --sb-dark-text-secondary: rgba(255, 255, 255, 0.6);
+  --sb-dark-border: rgba(255, 255, 255, 0.12);
+  
+  /* Layout */
+  --sb-sidebar-width: 182px;
+  --sb-header-height: 60px;
+  
+  /* Animation */
+  --sb-transition-fast: 0.2s;
+  --sb-transition-normal: 0.3s;
+}
+
+/* Base Sidebar Styles */
+.sb-sidebar {
+  height: 100vh; /* Explicit height */
+  width: var(--sb-sidebar-width);
+  max-width: 85vw;
+  background-color: var(--sb-surface);
+  color: var(--sb-text-primary);
+  display: flex;
+  flex-direction: column;
+  z-index: 1000;
+  border-radius: 0px;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+  overflow: hidden !important; /* Force hide ALL scrollbars */
+  flex: 0 0 auto;
+  position: relative; /* Ensure proper stacking context */
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Remove all link underlines within sidebar */
+.sb-sidebar a {
+  text-decoration: none !important;
+}
+
+/* Mobile-only styles */
+@media (max-width: 991px) {
+  .sb-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    transform: translateX(-100%);
+    transition: transform var(--sb-transition-normal) cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .sb-sidebar.sb-open {
+    transform: translateX(0);
+  }
+}
+
+.sb-sidebar.sb-open {
+  transform: translateX(0);
+}
+
+/* Backdrop for mobile view */
+.sb-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--sb-transition-normal), visibility var(--sb-transition-normal);
+}
+
+.sb-backdrop.sb-visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Sidebar Header - Clean Professional */
+.sb-sidebar-header {
+  height: var(--sb-header-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  background-color: var(--sb-surface);
+  flex-shrink: 0;
+}
+
+.sb-logo {
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  font-size: 1.125rem;
+  color: #2c3e50;
+  letter-spacing: -0.03em;
+  cursor: pointer;
+}
+
+.sb-logo i {
+  margin-right: 10px;
+  color: var(--sb-icon-budget);
+}
+
+.sb-toggle-btn {
+  background: none;
+  border: none;
+  color: var(--sb-text-secondary);
+  cursor: pointer;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--sb-transition-fast);
+}
+
+.sb-toggle-btn:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+  color: var(--sb-text-primary);
+}
+
+/* Sidebar Navigation */
+.sb-sidebar-nav {
+  flex: 1;
+  padding: 8px 0;
+  overflow-y: auto; /* Allow scrolling only in nav if needed */
+  overflow-x: hidden;
+  min-height: 0; /* Important for flex children */
+}
+
+/* Hide scrollbar but keep functionality */
+.sb-sidebar-nav::-webkit-scrollbar {
+  width: 0;
+  display: none;
+}
+
+.sb-sidebar-nav {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.sb-nav-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.sb-nav-item {
+  margin: 1px 0;
+}
+
+.sb-nav-link {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  text-decoration: none !important;
+  color: var(--sb-text-primary) !important;
+  transition: all var(--sb-transition-fast) ease;
+  border-radius: 8px;
+  margin: 0 12px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  position: relative;
+}
+
+.sb-nav-link:visited {
+  color: var(--sb-text-primary) !important;
+}
+
+.sb-nav-link:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+  transform: translateX(2px);
+}
+
+.sb-nav-item.active .sb-nav-link {
+  background-color: rgb(0 127 255 / 14%);
+  color: var(--sb-text-primary) !important;
+  font-weight: 600;
+}
+
+.sb-nav-item.active .sb-nav-link::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 16px;
+  background-color: rgb(0 127 255 / 14%);
+  border-radius: 2px;
+}
+
+.sb-nav-link i {
+  margin-right: 12px;
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sb-nav-text {
+  color: inherit;
+  font-weight: inherit;
+}
+
+/* Colorful Icons */
+.sb-nav-item[data-view="budget"] .material-icons { color: var(--sb-icon-budget); }
+.sb-nav-item[data-view="expense"] .material-icons { color: var(--sb-icon-expense); }
+.sb-nav-item[data-view="recurring"] .material-icons { color: var(--sb-icon-recurring); }
+.sb-nav-item[data-view="netWorth"] .material-icons { color: var(--sb-icon-networth); }
+.sb-nav-item[data-view="income"] .material-icons { color: var(--sb-icon-income); }
+.sb-nav-item[data-view="reports"] .material-icons { color: var(--sb-icon-reports); }
+.sb-nav-item[data-view="categories"] .material-icons { color: var(--sb-icon-categories); }
+.sb-nav-item[data-view="settings"] .material-icons { color: var(--sb-icon-settings); }
+
+/* Also color the Reports (spreadsheet) link */
+.sb-nav-item:has(a[onclick*="openSpreadsheet"]) .material-icons { color: var(--sb-icon-reports); }
+
+/* Sidebar Footer */
+.sb-sidebar-footer {
+  padding: 12px 16px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0; /* Prevent footer from shrinking */
+  margin-top: auto; /* Push to bottom */
+}
+
+.sb-user-info {
+  display: flex;
+  align-items: center;
+  color: var(--sb-text-secondary);
+  font-size: 0.9rem;
+}
+
+.sb-user-info i {
+  margin-right: 8px;
+}
+
+.sb-app-info {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.75rem;
+  color: var(--sb-text-secondary);
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+}
+
+.sb-app-info a {
+  text-decoration: none !important;
+  color: var(--sb-text-secondary) !important;
+  transition: color var(--sb-transition-fast);
+}
+
+.sb-app-info a:hover {
+  color: var(--sb-text-primary) !important;
+}
+
+.sb-app-info a:visited {
+  color: var(--sb-text-secondary) !important;
+}
+
+.sb-version-link .sb-version {
+  font-weight: 600;
+  color: var(--sb-text-primary);
+}
+
+/* Content Adjustments */
+.sb-content-area {
+  transition: margin-left var(--sb-transition-normal) cubic-bezier(0.4, 0, 0.2, 1);
+  width: 100%;
+  margin-left: 0 !important; /* Ensure no margin on mobile */
+}
+
+/* Toggle Button in Main Content for Mobile - Professional Design */
+.sb-mobile-toggle {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  width: 48px;
+  height: 48px;
+  border-radius: 24px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  z-index: 998;
+  transition: all var(--sb-transition-fast);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+}
+
+.sb-mobile-toggle::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.sb-mobile-toggle:hover::before {
+  opacity: 1;
+}
+
+.sb-mobile-toggle:hover {
+  transform: scale(1.05) translateY(-2px);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+}
+
+.sb-mobile-toggle:active {
+  transform: scale(0.98);
+}
+
+/* Dark Mode - Professional Style */
+body.dark-mode .sb-sidebar {
+  background-color: #1C1C1E !important;
+  color: var(--sb-dark-text-primary);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Header stays minimal in dark mode */
+body.dark-mode .sb-sidebar-header {
+  background-color: #1C1C1E !important;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+body.dark-mode .sb-logo {
+  color: var(--sb-dark-text-primary) !important;
+}
+
+body.dark-mode .sb-logo i {
+  color: var(--sb-icon-budget) !important;
+}
+
+body.dark-mode .sb-toggle-btn {
+  color: var(--sb-dark-text-primary) !important;
+}
+
+body.dark-mode .sb-nav-link {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+body.dark-mode .sb-nav-link:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Active nav items in dark mode */
+body.dark-mode .sb-nav-item.active .sb-nav-link {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #FFFFFF !important;
+}
+
+body.dark-mode .sb-nav-item.active .sb-nav-link::before {
+  background-color: var(--sb-icon-budget);
+}
+
+/* Keep colorful icons in dark mode */
+body.dark-mode .sb-nav-item .material-icons {
+  opacity: 0.9;
+}
+
+body.dark-mode .sb-sidebar-header,
+body.dark-mode .sb-sidebar-footer {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+body.dark-mode .sb-app-info a {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+body.dark-mode .sb-app-info a:hover {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+/* Mobile toggle dark mode */
+body.dark-mode .sb-mobile-toggle {
+  background: linear-gradient(135deg, #434343 0%, #1a1a1a 100%);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+body.dark-mode .sb-mobile-toggle:hover {
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+  background: linear-gradient(135deg, #4a4a4a 0%, #1a1a1a 100%);
+}
+
+/* Desktop Styles (Media Queries) */
+@media (min-width: 992px) {
+  /* Show sidebar by default on desktop */
+  .sb-sidebar {
+    position: relative;
+    max-width: var(--sb-sidebar-width);
+    transform: none; /* No transform on desktop */
+    height: 100vh; /* Explicit height on desktop */
+    overflow: hidden !important; /* Force no scrollbar */
+  }
+  
+  /* Ensure proper flex layout */
+  .sb-sidebar-nav {
+    flex: 1 1 auto;
+    min-height: 0; /* Critical for preventing overflow */
+  }
+  
+  /* Hidden sidebar variant for desktop */
+  .sb-sidebar.sb-collapsed {
+    width: 60px;
+    min-width: 60px;
+  }
+  
+  /* Hide logo and other text elements when collapsed */
+  .sb-sidebar.sb-collapsed .sb-logo {
+    display: none; /* Hide the entire logo container */
+  }
+  
+  .sb-sidebar.sb-collapsed .sb-nav-text,
+  .sb-sidebar.sb-collapsed .sb-user-email,
+  .sb-sidebar.sb-collapsed .sb-app-info {
+    display: none;
+  }
+  
+  /* Center the toggle button when collapsed */
+  .sb-sidebar.sb-collapsed .sb-sidebar-header {
+    justify-content: center;
+    padding: 0;
+  }
+  
+  .sb-sidebar.sb-collapsed .sb-toggle-btn {
+    margin: 0;
+  }
+  
+  /* Content adjustments not needed in flex layout */
+  /* Content will automatically adjust with flex */
+  
+  /* Hide mobile-only elements */
+  .sb-mobile-toggle {
+    display: none;
+  }
+}
+
+/* Remove the black line when sidebar is collapsed */
+.sb-sidebar.sb-collapsed .sb-nav-item.active .sb-nav-link::before {
+  display: none;
+}
+
+/* Center icons and adjust padding when collapsed */
+.sb-sidebar.sb-collapsed .sb-nav-link {
+  padding: 10px 0;
+  margin: 0 8px;
+  justify-content: center;
+}
+
+/* Remove margin from icons when collapsed to perfectly center them */
+.sb-sidebar.sb-collapsed .sb-nav-link i {
+  margin-right: 0;
+}
+
+/* Add this to your existing styles around line 200: */
+
+.sb-logo-image {
+  width: 35px;
+  height: 35px;
+  margin-right: 8px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+/* Adjust collapsed sidebar to hide logo image too */
+.sb-sidebar.sb-collapsed .sb-logo-image {
+  display: none;
+}
+
+/* Optional: Add hover effect */
+.sb-logo:hover .sb-logo-image {
+  transform: scale(1.05);
+  transition: transform 0.2s ease;
+}
+</style>

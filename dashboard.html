@@ -1,0 +1,1325 @@
+<!-- BudgetDashboardHTML.html - Budget Dashboard Template -->
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet">
+<div id="dashboard-load-test" style="display:none;" data-translate="dashboard_load_test">Dashboard HTML loaded</div>
+<div id="budgetView" class="view">
+  <div class="view-header">
+    <div class="view-actions">
+      <!-- Unified Month/Year Banner -->
+      <div class="month-banner">
+        <div class="month-banner-inner">
+          <div class="month-selector">
+            <button id="prevMonthBudget" class="month-nav-btn" aria-label="Previous month">
+              <i class="material-icons">chevron_left</i>
+            </button>
+            <div id="monthYearDisplayBudget" class="month-year-display editable" title="Click to edit month/year">
+              <!-- Will be populated by JS -->
+            </div>
+            <button id="nextMonthBudget" class="month-nav-btn" aria-label="Next month">
+              <i class="material-icons">chevron_right</i>
+            </button>
+          </div>
+          <div class="refresh-info">
+            <span id="lastRefreshTimeBudget" class="last-refresh" data-translate="updated_just_now">Updated just now</span>
+            <button id="refreshBudget" class="btn refresh-btn" title="Refresh Budget Data">
+              <i class="material-icons">refresh</i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div id="budgetContent" class="view-content">
+    <div class="dashboard-container">
+      <!-- First Column: Financial Summary & Chart -->
+      <div class="col-left">
+        <!-- Old summary card - now hidden since moved to budget card -->
+        <div class="dashboard-card budget-summary-card" style="display: none;">
+          <div class="budget-summary-row">
+            <div>
+              <div class="value-label" data-translate="income">Income</div>
+              <div id="income-value-old" class="value-amount">€0</div>
+            </div>
+            <div>
+              <div class="value-label" data-translate="spent">Spent</div>
+              <div id="spent-value-old" class="value-amount">€0</div>
+            </div>
+            <div>
+              <div id="left-to-spend-label-old" class="value-label" data-translate="left_to_spend">Left to Spend</div>
+              <div id="left-to-spend-value-old" class="value-amount">€0</div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Bottom: Monthly Expense Donut Chart -->
+        <div class="dashboard-card donut-chart-card">
+          <h3 class="donut-chart-header" data-translate="expense_breakdown">Monthly Expense Breakdown</h3>
+          <div class="donut-chart-container">
+            <canvas id="expense-donut-chart"></canvas>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Second Column: Budget Categories -->
+      <div class="dashboard-card budget-data-card">
+        <!-- Income/Spent/Left Summary moved here -->
+        <div class="budget-summary-integrated">
+          <div class="budget-summary-row">
+            <div>
+              <div class="value-label" data-translate="income">Income</div>
+              <div id="income-value" class="value-amount">€0</div>
+            </div>
+            <div>
+              <div class="value-label" data-translate="spent">Spent</div>
+              <div id="spent-value" class="value-amount">€0</div>
+            </div>
+            <div>
+              <div id="left-to-spend-label" class="value-label" data-translate="left_to_spend">Left to Spend</div>
+              <div id="left-to-spend-value" class="value-amount">€0</div>
+            </div>
+          </div>
+        </div>
+        
+        <div id="budget-alert" class="budget-alert">
+          <!-- Budget alert message will be populated dynamically -->
+        </div>
+        
+        <div class="budget-table-container">
+          <table class="budget-table">
+            <thead>
+              <tr>
+                <th data-translate="zategory"></th>
+                <th data-translate="budgeted">Goal</th>
+                <th data-translate="actual">Actual</th>
+                <th data-translate="zprogress"></th>
+              </tr>
+            </thead>
+            <tbody id="budget-categories-body">
+               <!-- Will be populated dynamically -->
+    
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      <!-- Third Column: Subscription Summary & List -->
+      <div class="col-right">
+        <!-- Integrated: Subscription List Card with Summary -->
+        <div class="dashboard-card subscription-list-card clickable-subscription-card" onclick="navigateToSubscriptions()" title="Click to view all subscriptions">
+          <!-- Subscription Summary integrated here -->
+          <div class="subscription-summary-integrated">
+            <div class="subscription-info">
+              <!-- Will be populated dynamically -->
+            </div>
+          </div>
+          
+          <div class="subscription-list-container">
+            <table class="subscription-table">
+              <tbody id="subscription-list-body">
+                <!-- Will be populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+/* ======================================================
+   SIMBUDGET DASHBOARD STYLES - COMPLETE CONSOLIDATED
+   ======================================================
+   All dashboard-specific styles in one place
+*/
+
+/* Add global font styling */
+body, .dashboard-container {
+  font-family: sans-serif;
+}
+
+/* Numbers in subscription table */
+.subscription-table td.amount-column {
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+/* Actual values in budget table */
+.actual-value {
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+/* Reset and base styles to avoid conflicts */
+.dashboard-container *,
+.dashboard-container *::before,
+.dashboard-container *::after {
+  box-sizing: border-box;
+}
+
+/* ======================
+   LAYOUT: GRID STRUCTURE - IMPROVED DESKTOP SPACING
+   ====================== */
+/* Dashboard Container - Optimized 2-column layout */
+.dashboard-container {
+  display: grid !important;
+  grid-template-columns: minmax(450px, 1.6fr) minmax(320px, 1fr) !important;
+  gap: 24px !important;
+  margin: 0 !important;
+  padding: 20px !important; /* Default padding */
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* DESKTOP IMPROVEMENT: Increased padding for 2-column layout */
+@media screen and (min-width: 1200px) {
+  .dashboard-container {
+    padding: 40px 300px !important; /* Increased from 60px for 2-column layout */
+  }
+}
+
+@media screen and (min-width: 1440px) {
+  .dashboard-container {
+    padding: 40px 300px !important; /* Increased from 80px for 2-column layout */
+  }
+}
+
+@media screen and (min-width: 1600px) {
+  .dashboard-container {
+    padding: 40px 300px !important; /* Additional padding for very large screens */
+  }
+}
+
+/* Left Column - Hidden since content moved to budget card */
+.col-left {
+  display: none !important;
+}
+
+/* Main Column - Budget Categories with integrated summary */
+.budget-data-card {
+  grid-column: 1 / 2 !important;
+  grid-row: 1 !important;
+  height: auto !important;
+  overflow: auto !important;
+  min-width: 0;
+}
+
+/* Right Column - Subscriptions */
+.col-right {
+  grid-column: 2 / 3 !important;
+  grid-row: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 20px !important;
+  min-width: 0;
+}
+
+
+
+/* ======================
+   CARD STYLES - MOVED FROM STYLES.HTML
+   ====================== */
+.dashboard-card {
+  background-color: #ffffff;
+  border-radius: 0px;
+  padding: 0 20px 15px 20px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  transition: box-shadow 0.3s ease;
+  margin-bottom: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.dashboard-card:hover {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+}
+
+/* White Background Cards */
+.budget-data-card,
+.donut-chart-card {
+  background-color: #ffffff;
+}
+
+/* Modern subscription card */
+.subscription-list-card {
+  background-color: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  transition: box-shadow 0.3s ease;
+}
+
+.subscription-list-card:not(.clickable-subscription-card):hover {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+}
+
+
+
+
+/* Dark mode specific cards styling - MOVED FROM STYLES.HTML */
+body.dark-mode .dashboard-card.budget-data-card:not(.budget-summary-integrated),
+body.dark-mode .dashboard-card.subscription-card,
+body.dark-mode .chart-container,
+body.dark-mode .donut-chart-card,
+body.dark-mode .subscription-list-card {
+  background-color: #182f46 !important;
+  border-color: #243f5a !important;
+}
+
+body.dark-mode .dashboard-card.budget-data-card *:not(.progress-bar):not(.progress-bar-container):not(.budget-summary-integrated):not(.budget-summary-integrated *),
+body.dark-mode .dashboard-card.subscription-card *,
+body.dark-mode .chart-container *,
+body.dark-mode .subscription-table th,
+body.dark-mode .subscription-list-header,
+body.dark-mode .donut-chart-container,
+body.dark-mode .donut-chart-header {
+  color: white !important;
+}
+
+/* Dark mode for income/spent/left to spend card */
+body.dark-mode .budget-summary-card {
+  background-color: #1F618D !important;
+  color: white !important;
+}
+
+body.dark-mode .budget-summary-card .value-label {
+  color: white !important;
+}
+
+body.dark-mode .budget-summary-card .value-amount {
+  color: white !important;
+}
+
+/* Dark mode for integrated summary */
+body.dark-mode .budget-summary-integrated {
+  background: linear-gradient(135deg, #4c1d95 0%, #5b21b6 100%) !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+  border-bottom: 1px solid rgba(139, 92, 246, 0.3);
+  box-shadow: 0 4px 12px rgba(76, 29, 149, 0.3);
+}
+
+body.dark-mode .budget-summary-integrated .value-label {
+  color: rgba(255, 255, 255, 0.85) !important;
+  font-weight: 600;
+}
+
+body.dark-mode .budget-summary-integrated .value-amount {
+  color: white !important;
+  font-weight: 800;
+}
+
+/* Dark mode for subscription summary card */
+body.dark-mode .subscription-summary {
+  background-color: #1F618D !important;
+  color: white !important;
+}
+
+/* Dark mode for subscription summary - softer */
+body.dark-mode .subscription-summary-integrated {
+  background: linear-gradient(135deg, #5b21b6 0%, #7c3aed 100%) !important;
+  color: #ffffff !important;
+}
+
+body.dark-mode .subscription-summary-integrated .subscription-info {
+  color: inherit !important;
+}
+
+/* Make text more visible on the darker background */
+body.dark-mode .dashboard-card.budget-data-card *,
+body.dark-mode .dashboard-card.subscription-card *,
+body.dark-mode .chart-container * {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Keep chart labels readable */
+body.dark-mode .chart-container .chart-label {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Fix for dashboard card size stability - MOVED FROM STYLES.HTML */
+.dashboard-card.budget-data-card {
+  flex-grow: 0 !important;
+  flex-shrink: 0 !important;
+  height: fit-content !important;
+  width: fit-content !important;
+  box-sizing: border-box !important;
+}
+
+/* Fix for container that might be causing resizing */
+.dashboard-card-container {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 16px !important; /* Reduced gap from var(--spacing-md) */
+  justify-content: flex-start !important;
+  align-items: flex-start !important;
+}
+
+/* ======================
+   BUDGET SUMMARY CARDS
+   ====================== */
+.budget-summary-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.budget-summary-integrated {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 10px 50px;
+  margin: 0 -20px 0 -20px;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+}
+
+.budget-summary-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  align-items: center;
+}
+
+.budget-summary-integrated .budget-summary-row {
+  margin-bottom: 0;
+}
+
+.budget-summary-integrated .value-label {
+  color: rgba(255, 255, 255, 0.9) !important;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0.2px;
+}
+
+.budget-summary-integrated .value-amount {
+  color: white !important;
+  font-size: 24px;
+  font-weight: 800;
+  margin-top: 4px;
+}
+
+.value-label {
+  font-size: 12px;
+  color: black;
+  margin-bottom: 3px;
+  font-family: sans-serif;
+}
+
+.value-amount {
+  font-size: 19px;
+  font-weight: 600;
+  color: #2c3e50;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+/* ======================
+   DONUT CHART 
+   ====================== */
+.donut-chart-card {
+  display: none;
+  padding: 0;
+  overflow: hidden;
+}
+
+.donut-chart-container {
+  width: 100%;
+  height: 340px;
+  padding: 20px;
+  background-color: #fff;
+  border-radius: 0px;
+}
+
+.donut-chart-header {
+  background-color: #fff;
+  padding: 12px 16px;
+  margin: 0;
+  border-bottom: 1px solid #eee;
+  font-weight: 500;
+  color: #2c3e50;
+  border-radius: 0px;
+  font-size: 14px;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+/* ======================
+   BUDGET DATA SECTION
+   ====================== */
+.budget-alert {
+  background-color: #fff3e0;
+  color: #2c3e50;
+  padding: 10px 16px;
+  margin: 0;
+  margin-bottom: 0;
+  font-weight: 500;
+  text-align: center;
+  border-radius: 0px;
+  border-bottom: 1px solid #eeeeee;
+  font-size: 18px;
+}
+
+.budget-alert.warning {
+  background-color: #ffecb3;
+  color: #e65100;
+}
+
+.budget-alert.success {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+}
+
+.budget-alert.info {
+  background-color: #e3f2fd;
+  color: #0d47a1;
+}
+
+.budget-table-container {
+  padding: 0 16px 16px;
+  overflow-x: auto;
+  margin-top: 0;
+}
+
+/* ======================
+   BUDGET TABLE - IMPROVED COLUMN SPACING
+   ====================== */
+.budget-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0;
+}
+
+/* IMPROVED: Reduced gap between Category and Budgeted by 30% */
+.budget-table th,
+.budget-table td {
+  padding: 4px 4px !important; /* Reduced horizontal padding from 6px to 4px (33% reduction) */
+  text-align: left;
+  border-bottom: 1px solid #e8e8e8;
+  font-size: 14px !important;
+  position: relative;
+}
+
+/* ONLY expand padding on LARGE screens */
+@media screen and (min-width: 1200px) and (min-height: 900px) {
+  .budget-table th,
+  .budget-table td {
+    padding: 14px 6px !important; /* Proportionally reduced from 8px to 6px */
+    font-size: 15px !important;
+  }
+}
+
+.budget-table th {
+  font-weight: 600;
+  color: #607d8b;
+  position: sticky;
+  top: 0;
+  background-color: white;
+  z-index: 10;
+  font-size: 14px !important;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+/* Dark mode table header */
+body.dark-mode .budget-table th {
+  background-color: #182f46 !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+body.dark-mode .budget-table th,
+body.dark-mode .budget-table td {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.category-name {
+  font-weight: 600;
+  font-size: 16px !important;
+  font-family: sans-serif;
+  color: #1f2937;
+}
+
+/* Only expand category name on large screens */
+@media screen and (min-width: 1200px) and (min-height: 900px) {
+  .category-name {
+    font-size: 15px !important;
+  }
+}
+
+/* ======================
+   SAVINGS ROW STYLING - LAST ROW TARGET
+   ====================== */
+.budget-table tbody tr:last-child {
+  border-top: 3px solid #86efac !important;
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 50%, #a7f3d0 100%) !important;
+  box-shadow: inset 0 1px 0 rgba(16, 185, 129, 0.15);
+}
+
+.budget-table tbody tr:last-child td {
+  font-weight: 700 !important;
+  color: #047857 !important;
+  background-color: transparent !important;
+}
+
+.budget-table tbody tr:last-child .category-name {
+  font-weight: 800 !important;
+  color: #065f46 !important;
+  font-size: 17px !important;
+}
+
+.budget-table tbody tr:last-child .budget-value {
+  font-weight: 800 !important;
+  color: #047857 !important;
+  font-size: 16px !important;
+}
+
+.budget-table tbody tr:last-child .actual-value {
+  font-weight: 800 !important;
+  color: #065f46 !important;
+  font-size: 16px !important;
+}
+
+/* Dark mode savings row */
+body.dark-mode .budget-table tbody tr:last-child {
+  border-top: 2px solid #34d399 !important;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.2) 100%) !important;
+  box-shadow: inset 0 1px 0 rgba(16, 185, 129, 0.2);
+}
+
+body.dark-mode .budget-table tbody tr:last-child td {
+  background-color: transparent !important;
+  color: #6ee7b7 !important;
+}
+
+body.dark-mode .budget-table tbody tr:last-child .category-name,
+body.dark-mode .budget-table tbody tr:last-child .budget-value,
+body.dark-mode .budget-table tbody tr:last-child .actual-value {
+  color: #6ee7b7 !important;
+}
+
+/* Progress bar - MOVED FROM STYLES.HTML */
+.progress-cell {
+  width: 90px;
+  vertical-align: middle;
+  padding-top: 8px !important;
+  padding-bottom: 8px !important;
+}
+
+/* Only expand progress cell on large screens */
+@media screen and (min-width: 1200px) and (min-height: 900px) {
+  .progress-cell {
+    padding-top: 14px !important;
+    padding-bottom: 14px !important;
+  }
+}
+
+.progress-bar-container {
+  height: 10px;
+  background-color: #f0f2f5;
+  border-radius: 10px;
+  overflow: hidden;
+  margin: 0;
+  position: relative;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #4ade80 0%, #22c55e 100%);
+  border-radius: 10px;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.progress-bar.over-budget {
+  background: linear-gradient(90deg, #f87171 0%, #ef444496 100%);
+}
+
+.progress-bar.near-limit {
+  background: linear-gradient(90deg, #fbbf24 0%, #f59e0b 100%);
+}
+
+/* Dark mode progress bar styles - MOVED FROM STYLES.HTML */
+body.dark-mode .progress-bar-container {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid #243f5a !important;
+  overflow: visible !important;
+}
+
+body.dark-mode .progress-bar {
+  background-color: rgb(109, 234, 113) !important;
+  box-shadow: 0 0 5px rgb(109, 234, 113) !important;
+  visibility: visible !important;
+}
+
+body.dark-mode .progress-bar.over-budget {
+  background-color: #f44336 !important;
+  box-shadow: 0 0 5px rgba(244, 67, 54, 0.7) !important;
+}
+
+body.dark-mode .progress-percentage {
+  color: rgba(255, 255, 255, 0.9) !important;
+  opacity: 1 !important;
+}
+
+/* Progress bar placeholder for current month savings */
+.progress-bar-placeholder {
+  height: 6px;
+  text-align: center;
+  color: #888;
+  font-size: 14px;
+  line-height: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+body.dark-mode .progress-bar-placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* ======================
+   MACBOOK PRO 13" SPECIFIC FIXES
+   ====================== */
+/* Target specifically 13" MacBook Pro resolutions */
+@media screen and (max-width: 1440px) and (max-height: 900px) {
+  .budget-table th,
+  .budget-table td {
+    padding: 6px 4px !important; /* Maintained reduced horizontal padding */
+    font-size: 13px !important;
+  }
+  
+  .category-name, .budget-value, .actual-value {
+    font-size: 13px !important;
+  }
+  
+  .progress-percentage {
+    font-size: 9px !important;
+  }
+  
+  .progress-bar-container {
+    height: 5px;
+    margin-bottom: 1px;
+  }
+  
+  .budget-alert {
+    padding: 8px 12px !important;
+    font-size: 16px !important;
+  }
+  
+  .progress-cell {
+    padding: 6px 4px !important; /* Match table cell padding exactly */
+  }
+}
+
+/* Additional safeguard for smaller screens regardless of resolution */
+@media screen and (max-height: 850px) {
+  .budget-table th,
+  .budget-table td {
+    padding: 6px 4px !important; /* Maintained reduced horizontal padding */
+    font-size: 13px !important;
+  }
+  
+  .progress-cell {
+    padding: 6px 4px !important;
+  }
+}
+
+/* ======================
+   SUBSCRIPTION SECTION
+   ====================== */
+.subscription-summary {
+  background-color: #d6f1f5;
+  color: #2c3e50;
+  border-radius: 0px;
+  padding: 16px;
+  font-weight: 500;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.subscription-summary-integrated {
+  background: linear-gradient(135deg, #9d6bff 0%, #8f84ac 100%);
+  color: #ffffff;
+  padding: 10px 30px;
+  margin: 0 -20px 16px -20px;
+  text-align: left;
+  font-size: 15px;
+  border-bottom: none;
+  border-radius: 0;
+  box-shadow: 0 8px 18px rgba(88, 71, 178, 0.18);
+}
+
+.subscription-summary-integrated .subscription-info {
+  color: inherit !important;
+  font-weight: 700;
+}
+
+.subscription-info {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  font-size: 16px;
+  font-weight: 500;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+@media (min-width: 1024px) {
+  .subscription-summary-integrated .subscription-info {
+    font-size: 17px;
+  }
+}
+
+.subscription-count, 
+.subscription-total, 
+.subscription-percentage {
+  white-space: nowrap;
+}
+
+.subscription-divider {
+  color: rgba(44, 62, 80, 0.5);
+  margin: 0 4px;
+}
+
+.subscription-icon {
+  font-size: 22px;
+  margin-bottom: 8px;
+}
+
+
+
+
+
+.subscription-list-header {
+  padding: 12px 16px;
+  margin: 0;
+  background-color: #fff;
+  border-bottom: 1px solid #eee;
+  font-weight: 500;
+  color: #2c3e50;
+  border-radius: 0px;
+  font-size: 14px;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+/* ======================
+   SUBSCRIPTION TABLE
+   ====================== */
+.subscription-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.subscription-table th,
+.subscription-table td {
+  padding: 6px 6px;
+  text-align: left;
+  border-bottom: 1px solid #e8e8e8;
+  font-size: 12px;
+  color: rgba(44, 62, 80, 0.7);
+}
+
+.subscription-table th {
+  font-weight: 600;
+  color: #607d8b;
+  position: sticky;
+  top: 0;
+  background-color: white;
+  z-index: 10;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+.amount-column {
+  text-align: right;
+}
+
+/* Dark mode subscription table */
+body.dark-mode .subscription-table th,
+body.dark-mode .subscription-table td {
+  border-bottom: 1px solid rgba(36, 63, 90, 0.3) !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+body.dark-mode .subscription-table th {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+body.dark-mode .subscription-list-card {
+  background-color: #1a1a1a !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.06) !important;
+  border-right: 2px solid rgba(255, 255, 255, 0.2) !important;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.2) !important;
+}
+
+/* ======================
+   EDITABLE BUDGET VALUES
+   ====================== */
+.budget-value {
+  cursor: pointer;
+  font-size: 14px !important;
+  font-family: 'Lato', sans-serif;
+  font-weight: 600;
+  color: #9ca3af;
+}
+
+/* Only expand on large screens */
+@media screen and (min-width: 1200px) and (min-height: 900px) {
+  .budget-value {
+    font-size: 15px !important;
+  }
+}
+
+.budget-value.editable {
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-radius: 4px;
+  padding: 4px 6px;
+  position: relative;
+}
+
+.budget-value.editable:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+.budget-value.editable:focus {
+  outline: none;
+  background-color: rgba(0, 0, 0, 0.04);
+  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.3);
+}
+
+.budget-value.editing {
+  background-color: rgba(25, 118, 210, 0.05);
+}
+
+.budget-value.saving::after {
+  content: '';
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 10px;
+  height: 10px;
+  border: 2px solid #1976d2;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.budget-value.saved {
+  background-color: rgba(76, 175, 80, 0.1);
+  transition: background-color 0.5s ease;
+}
+
+.budget-value.error {
+  background-color: rgba(244, 67, 54, 0.1);
+  transition: background-color 0.5s ease;
+}
+
+@keyframes spin {
+  0% { transform: translateY(-50%) rotate(0deg); }
+  100% { transform: translateY(-50%) rotate(360deg); }
+}
+
+/* ======================
+   LARGE SCREEN MARGINS
+   ====================== */
+@media screen and (min-width: 1700px) {
+  .view-content {
+    margin-left: 150px !important;
+    margin-right: 150px !important;
+  }
+}
+
+@media screen and (min-width: 2400px) {
+  .view-content {
+    margin-left: 400px !important;
+    margin-right: 400px !important;
+  }
+}
+
+/* ======================
+   RESPONSIVE BREAKPOINTS
+   ====================== */
+/* Medium screens - 2 columns */
+@media (max-width: 1100px) {
+  .dashboard-container {
+    grid-template-columns: minmax(250px, 1fr) minmax(300px, 1fr) !important;
+  }
+  
+  .col-left {
+    grid-column: 1 / 2 !important;
+  }
+  
+  .budget-data-card {
+    grid-column: 2 / 3 !important;
+    grid-row: 1 / span 3 !important;
+  }
+  
+  .col-right {
+    grid-column: 1 / 2 !important;
+    grid-row: 4 !important;
+  }
+}
+
+/* Small screens - 1 column */
+@media (max-width: 850px) {
+  .dashboard-container {
+    grid-template-columns: 1fr !important;
+    padding: 10px !important;
+  }
+  
+  .col-left,
+  .budget-data-card,
+  .col-right {
+    grid-column: 1 / 2 !important;
+    grid-row: auto !important;
+  }
+  
+  .value-amount {
+    font-size: 18px;
+  }
+}
+
+/* Mobile layout fixes */
+@media (max-width: 768px) {
+  .view-content, 
+  .dashboard-container,
+  .dashboard-content {
+    display: grid !important;
+    grid-template-areas: 
+      "income"
+      "budget"
+      "subscription-text"
+      "subscription-summary"
+      "subscription-list"
+      "chart" !important;
+    grid-gap: 20px !important;
+  }
+  
+.view-content
+   {
+    padding: 10px 10px 200px 10px !important;
+    flex: 1;
+   overflow-y: auto;
+  }
+
+
+  .income-spent-box,
+  .budget-summary-card,
+  [class*="income"],
+  [class*="budget-summary"] {
+    grid-area: income !important;
+  }
+  
+  .dashboard-card.budget-data-card,
+  [class*="budget-data"] {
+    grid-area: budget !important;
+  }
+  
+  .subscription-header,
+  .subscription-text,
+  [class*="subscription-t"] {
+    grid-area: subscription-text !important;
+  }
+  
+  .subscription-summary,
+  [class*="subscription-summary"] {
+    grid-area: subscription-summary !important;
+  }
+  
+  .subscription-list-container,
+  .dashboard-card.subscription-card,
+  [class*="subscription-l"],
+  [class*="subscription-table"] {
+    grid-area: subscription-list !important;
+  }
+  
+  .donut-chart-header, 
+  .donut-chart-card,
+  .chart-container,
+  .pie-chart-container,
+  .donut-chart-container,
+  [class*="chart"] {
+    grid-area: chart !important;
+  }
+  
+  .donut-chart-card, 
+  .subscription-list-card {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  
+  .budget-table {
+    border-collapse: collapse !important;
+  }
+
+  .dashboard-card {
+
+       padding: 0 2px;
+
+  }
+  
+  /* CLEAN: Simple table styling with proper HTML structure */
+  .budget-table th,
+  .budget-table td {
+    padding: 7px 5px !important;
+    vertical-align: middle !important;
+    border-bottom: 1px solid #e8e8e8 !important;
+    font-size: 12px !important;
+    line-height: 1.4 !important;
+  }
+  
+  /* ESSENTIAL: Make sure category names show and align properly */
+  .budget-table .category-name {
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    display: table-cell !important;
+    vertical-align: middle !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+  
+  /* Progress cell specific styling - FIXED */
+  .progress-cell {
+    text-align: center !important;
+    padding: 7px 8px !important;
+    width: 80px !important;
+    min-width: 80px !important;
+  }
+  
+  .progress-bar-container {
+    width: 100% !important;
+    margin-bottom: 3px !important;
+  }
+  
+  .progress-percentage {
+    font-size: 11px !important;
+    font-weight: bold !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    text-align: center !important;
+    width: 100% !important;
+    display: block !important;
+  }
+  
+  /* Column widths - ADJUSTED */
+  .budget-table th:first-child,
+  .budget-table td:first-child {
+    width: 35% !important;
+    min-width: 90px !important;
+  }
+  
+  .budget-table th:nth-child(2),
+  .budget-table td:nth-child(2),
+  .budget-table th:nth-child(3),
+  .budget-table td:nth-child(3) {
+    width: 20% !important;
+  }
+  
+  .budget-table th:nth-child(4),
+  .budget-table td:nth-child(4) {
+    width: 25% !important;
+    min-width: 80px !important;
+  }
+}
+
+/* Very small screens */
+@media (max-width: 480px) {
+  .budget-table th,
+  .budget-table td {
+    padding: 4px 3px !important;
+    font-size: 11px !important;
+  }
+
+  .category-name {
+    font-size: 12px !important;
+  }
+
+  .budget-summary-integrated {
+    padding: 8px 12px !important;
+  }
+
+  .budget-summary-row {
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+    width: 100% !important;
+    gap: 4px;
+  }
+
+  .budget-summary-row > div {
+    flex: 1;
+    min-width: 0;
+    margin-bottom: 0 !important;
+    padding: 0 2px !important;
+    text-align: center !important;
+  }
+
+  .budget-summary-integrated .value-label {
+    font-size: 9px !important;
+    line-height: 1.2 !important;
+    white-space: nowrap !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    font-weight: 600 !important;
+    letter-spacing: 0px !important;
+  }
+
+  .budget-summary-integrated .value-amount {
+    font-size: 16px !important;
+    line-height: 1.3 !important;
+    white-space: nowrap !important;
+    font-weight: 800 !important;
+  }
+}
+
+.category-emoji {
+  margin-right: 8px !important;
+  display: inline-block;
+}
+
+/* Highlight subscriptions due today */
+.subscription-table tr.due-today {
+  background-color: #fff3e0;
+  font-weight: 700;
+  position: relative;
+}
+
+.subscription-table tr.due-today td:first-child::before {
+  content: '🕐';
+  margin-right: 6px;
+  font-size: 12px;
+}
+
+/* Highlight subscriptions due soon (within 3 days) */
+.subscription-table tr.due-soon {
+  background-color: #fff3e0;
+  font-weight: 600;
+}
+
+/* Dark mode support */
+body.dark-mode .subscription-table tr.due-today {
+  background-color: rgba(255, 152, 0, 0.2) !important;
+  font-weight: 700;
+}
+
+body.dark-mode .subscription-table tr.due-soon {
+  background-color: rgba(255, 152, 0, 0.2) !important;
+  font-weight: 600;
+}
+
+
+/* Indicator column for subscription arrows */
+.indicator-column {
+  width: 20px;
+  text-align: center;
+  padding: 6px 4px;
+  color: #ff9800;
+  font-weight: bold;
+}
+
+/* Next payment styling */
+.next-payment {
+  background-color: rgba(255, 193, 7, 0.2);
+  position: relative;
+}
+
+/* Make sure our new class has priority over existing classes */
+tr.next-payment:not(.due-today):not(.due-soon) td {
+  font-weight: 500;
+}
+
+/* Combine styles when a payment is both next and due soon/today */
+tr.next-payment.due-soon td {
+  background-color: rgba(255, 152, 0, 0.02);
+}
+
+tr.next-payment.due-today td {
+  background-color: rgba(255, 152, 0, 0.02);
+}
+
+/* Clickable subscription card styles */
+.clickable-subscription-card {
+  cursor: pointer;
+  transition: box-shadow 0.3s ease;
+  position: relative;
+}
+
+.clickable-subscription-card:hover {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1) !important;
+}
+
+.clickable-subscription-card:active {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Add a subtle visual indicator */
+.clickable-subscription-card::after {
+  content: '→';
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  font-size: 20px;
+  color: rgba(107, 114, 128, 0.3);
+  transition: all 0.3s ease;
+  font-weight: bold;
+}
+
+.clickable-subscription-card:hover::after {
+  color: #667eea;
+  transform: translateX(4px);
+}
+
+/* Dark mode support */
+body.dark-mode .clickable-subscription-card:hover {
+  border-right: 5px solid #7B68EE !important;
+  border-bottom: 5px solid #7B68EE !important;
+}
+
+body.dark-mode .clickable-subscription-card::after {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+body.dark-mode .clickable-subscription-card:hover::after {
+  color: #7B68EE;
+}
+</style>
+
+<script>
+// Navigation function for subscription card click
+function navigateToSubscriptions() {
+  // Use the same navigation logic as the sidebar
+  if (window.SimBudget && SimBudget.Views) {
+    // Update active state in sidebar
+    document.querySelectorAll(".sb-nav-item").forEach((navItem) => {
+      navItem.classList.remove("active");
+    });
+    
+    // Add active class to recurring nav item
+    const recurringNavItem = document.querySelector('.sb-nav-item[data-view="recurring"]');
+    if (recurringNavItem) {
+      recurringNavItem.classList.add("active");
+    }
+    
+    // Switch to the subscriptions view
+    SimBudget.Views.switchTo("recurring");
+    
+    // Close sidebar on mobile if open
+    const sidebar = document.getElementById("sidebar");
+    const backdrop = document.getElementById("sidebarBackdrop");
+    if (sidebar && sidebar.classList.contains("sb-open")) {
+      sidebar.classList.remove("sb-open");
+      if (backdrop) backdrop.classList.remove("sb-visible");
+      document.body.style.overflow = "";
+    }
+  }
+}
+</script>

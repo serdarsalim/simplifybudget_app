@@ -1,0 +1,947 @@
+<!-- settings.html - Apple-style Settings Panel for SimBudget -->
+<div class="settings-container">
+  
+  <!-- ============= ACCOUNT SECTION ============= -->
+  <div class="settings-section">
+    <h2 data-translate="account">Account</h2>
+    <div class="user-profile">
+      <div class="user-info">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div class="user-email" id="userEmail">Loading...</div>
+          <div id="trialStatus" class="trial-status-inline">
+            Loading...
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Google Sheet Configuration (now part of Account) -->
+    <div class="form-group">
+    <div class="sheet-config-row">
+      <!-- Copy Database Button (25%) -->
+      <div class="sheet-config-col template-col">
+        <button id="newDatabase" class="btn-sheet-action btn-template">
+          <i class="material-icons" style="font-size: 16px; margin-right: 4px;">content_copy</i>
+          <span data-translate="new_database">New Spreadsheet</span>
+        </button>
+      </div>
+      
+      <!-- Pick Sheet Button (25%) -->
+      <div class="sheet-config-col url-col">
+        <button id="pickSheetFile" class="btn-sheet-action btn-picker">
+          <i class="material-icons" style="font-size: 16px; margin-right: 4px;">folder_open</i>
+          <span data-translate="select_existing">Select Existing</span>
+        </button>
+      </div>
+      
+      <!-- Disconnect Button (33.33%) -->
+      <div class="sheet-config-col test-col">
+        <button id="disconnectDatabase" class="btn-sheet-action btn-disconnect">
+          <i class="material-icons" style="font-size: 16px; margin-right: 4px;">link_off</i>
+          <span data-translate="disconnect">Disconnect</span>
+        </button>
+      </div>
+    </div>
+    
+    <!-- Status Row (Full width) -->
+    <div class="sheet-config-row" style="margin-top: 10px;">
+      <div class="sheet-config-col" style="flex: 1;">
+        <div id="sheetStatus" class="sheet-status">
+          <span data-translate="no_sheet_selected">No sheet selected</span>
+        </div>
+      </div>
+    </div>
+    
+    <p class="help-text" data-translate="sheet_url_help">
+      New Database creates a fresh budget sheet in your Google Drive. Select Existing lets you choose a sheet you've already created. Your financial data stays private in your own Google Drive.
+    </p>
+  </div>
+
+  <!-- Data Tools Row - Same Style -->
+  <div class="form-group" style="display: none;">
+    <div class="sheet-config-row">
+      <!-- Check Health Button (20%) -->
+      <div class="sheet-config-col template-col">
+        <button id="checkDataHealth" class="btn-sheet-action btn-template" onclick="SettingsPage.checkDataHealth()">
+          <span data-translate="check_health">Check</span>
+        </button>
+      </div>
+      
+      <!-- Help Text (60%) -->
+      <div class="sheet-config-col url-col">
+        <div style="padding: 8px 12px; font-size: 14px; color: #666;" data-translate="data_tools_help">
+          Generate missing transaction IDs for pasted data. Check data integrity issues.
+        </div>
+      </div>
+      
+      <!-- Fix IDs Button (20%) -->
+      <div class="sheet-config-col test-col">
+        <button id="fixTransactionIds" class="btn-sheet-action btn-test" onclick="SettingsPage.fixTransactionIds()">
+         
+          <span data-translate="fix_ids">Fix IDs</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+  <!-- ============= DISPLAY SETTINGS ============= -->
+  <div class="settings-section" data-section="display">
+    <h2 data-translate="display_settings">Display Settings</h2>
+
+    <div class="settings-rows-wrapper">
+    <!-- Language -->
+<div class="settings-row">
+  <div class="settings-label" data-translate="language">Language</div>
+  <div class="settings-control">
+    <div class="select-wrapper">
+      <select id="languageSelector" class="settings-select">
+        <option value="en" data-translate="english">English</option>
+        <option value="es" data-translate="spanish">Español</option>
+        <option value="de" data-translate="german">Deutsch</option>
+        <option value="fr" data-translate="french">Français</option>
+       <option value="ms" data-translate="malay">Bahasa Melayu</option>
+      <option value="tr" data-translate="turkish">Türkçe</option>
+      <option value="pt" data-translate="portuguese">Português</option>
+      <option value="ja" data-translate="japanese">日本語</option>
+      </select>
+    </div>
+  </div>
+</div>
+    
+    <!-- Currency Symbol - Updated to match other settings -->
+    <div class="settings-row">
+      <div class="settings-label" data-translate="currency">Base Currency</div>
+      <div class="settings-control">
+        <div class="select-wrapper">
+          <select id="currencySelector" class="settings-select">
+            <!-- Options will be added by JavaScript -->
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Display Currency -->
+    <div class="settings-row">
+      <div class="settings-label" data-translate="display_currency">Display Currency</div>
+      <div class="settings-control">
+        <div class="select-wrapper">
+          <select id="displayCurrencySelector" class="settings-select">
+            <!-- Options will be added by JavaScript -->
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Exchange Rate (shown when display currency differs from base) -->
+    <div class="settings-row" id="exchangeRateRow" style="display: none;">
+      <div class="settings-label">
+        <span id="exchangeRateLabel">Exchange Rate</span>
+      </div>
+      <div class="settings-control">
+        <input type="number" id="exchangeRateInput" class="settings-input"
+               placeholder="1.00" step="0.01" min="0.01"
+               style="width: 120px; padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;">
+      </div>
+    </div>
+
+    <!-- Show Decimals Toggle -->
+    <div class="settings-row">
+      <div class="settings-label" data-translate="show_decimals">Show Decimal Places</div>
+      <div class="settings-control">
+        <div class="toggle-container">
+          <input type="checkbox" id="showDecimals" class="toggle-input">
+          <label for="showDecimals" class="toggle-label"></label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Show Category Totals in Calendar Toggle -->
+    <div class="settings-row">
+      <div class="settings-label" data-translate="show_category_totals">Show Category Totals in Calendar</div>
+      <div class="settings-control">
+        <div class="toggle-container">
+          <input type="checkbox" id="showCategoryTotals" class="toggle-input">
+          <label for="showCategoryTotals" class="toggle-label"></label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Show Currency Symbol in Calendar Toggle -->
+    <div class="settings-row">
+      <div class="settings-label" data-translate="show_currency_symbol_grid">Show Currency Symbol in Calendar</div>
+      <div class="settings-control">
+        <div class="toggle-container">
+          <input type="checkbox" id="showCurrencySymbolGrid" class="toggle-input">
+          <label for="showCurrencySymbolGrid" class="toggle-label"></label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Default Net Worth Chart -->
+    <div class="settings-row">
+      <div class="settings-label" data-translate="default_networth_chart">Default Net Worth Chart</div>
+      <div class="settings-control">
+        <div class="select-wrapper">
+          <select id="netWorthDefaultChart" class="settings-select">
+            <option value="performance">Performance</option>
+            <option value="timeline">Timeline</option>
+            <option value="allocation">Allocation</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Date Format -->
+    <div class="settings-row" style="display:none">
+      <div class="settings-label" data-translate="date_format">Date Format</div>
+      <div class="settings-control">
+        <div class="select-wrapper">
+          <select id="dateFormat" class="settings-select">
+            <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+            <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+            <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Dark Mode Toggle -->
+    <div class="settings-row">
+      <div class="settings-label" data-translate="dark_mode">Dark Mode</div>
+      <div class="settings-control">
+        <div class="toggle-container">
+          <input type="checkbox" id="darkMode" class="toggle-input">
+          <label for="darkMode" class="toggle-label"></label>
+        </div>
+      </div>
+    </div>
+    </div><!-- close settings-rows-wrapper -->
+  </div>
+  
+  <!-- ============= BUDGET PREFERENCES ============= -->
+  <div class="settings-section" style="display: none">
+    <h2 data-translate="budget_preferences">Budget Preferences</h2>
+    
+    <!-- Show Remaining Toggle -->
+    <div class="settings-row">
+      <div class="settings-label" data-translate="show_remaining">Show Remaining Budget</div>
+      <div class="settings-control">
+        <div class="toggle-container">
+          <input type="checkbox" id="showRemaining" class="toggle-input">
+          <label for="showRemaining" class="toggle-label"></label>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Enable Alerts Toggle -->
+    <div class="settings-row">
+      <div class="settings-label" data-translate="enable_alerts">Enable Budget Alerts</div>
+      <div class="settings-control">
+        <div class="toggle-container">
+          <input type="checkbox" id="enableAlerts" class="toggle-input">
+          <label for="enableAlerts" class="toggle-label"></label>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- ============= FOOTER WITH SAVE BUTTONS ============= -->
+  
+  <!-- ============= FOOTER WITH STATUS MESSAGE ONLY ============= -->
+  <div class="settings-footer">
+    <div id="settingsStatus" class="status-message hidden"></div>
+  </div>
+
+</div>
+
+
+<style>
+
+/* ======================================================
+   SETTINGS STYLES - DASHBOARD STYLE MATCHING
+   ======================================================
+   Clean, professional styling matching the dashboard design system
+*/
+
+/* ============= COLOR VARIABLES ============= */
+:root {
+  /* Colors - Dashboard Palette */
+  --settings-primary: #2c3e50;         /* Dashboard dark blue */
+  --settings-primary-light: #DDA15E;   /* Golden accent */
+  --settings-primary-dark: #1e2b37;    /* Darker blue */
+  --settings-accent: #d6f1f5;          /* Coral accent */
+  --settings-success: #4caf50;         /* Success green */
+  --settings-error: #f44336;           /* Error red */
+  
+  /* Background and surfaces */
+  --settings-background: #f5f5f7;      /* Light gray background */
+  --settings-surface: #ffffff;         /* White cards */
+  --settings-border: #e1e1e1;          /* Light borders */
+  
+  /* Text colors */
+  --settings-text-primary: #2c3e50;    /* Dark blue text */
+  --settings-text-secondary: #86868b;  /* Medium gray text */
+  
+  /* Dark mode colors */
+  --settings-dark-background: #1c1c1e; /* Dark background */
+  --settings-dark-surface: #1e1e1e;    /* Dark card surface */
+  --settings-dark-border: rgba(255, 255, 255, 0.12); /* Dark borders */
+  --settings-dark-text-primary: rgba(255, 255, 255, 0.87);   /* White text */
+  --settings-dark-text-secondary: rgba(255, 255, 255, 0.6); /* Light gray text */
+  --settings-header-gradient: linear-gradient(135deg, #6c5098 0%, #8f79b1 100%);
+  --settings-header-gradient-dark: linear-gradient(135deg, #4d415f 0%, #7849c8 100%);
+  --settings-card-shadow: 0 8px 18px rgba(90, 72, 196, 0.06);
+  
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+}
+
+/* ============= MAIN CONTAINER ============= */
+.settings-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: var(--spacing-md);
+  background-color: var(--settings-background);
+}
+
+/* ============= SECTION STYLING ============= */
+.settings-section {
+  background-color: var(--settings-surface);
+  border-radius: 0px;
+  margin-bottom: var(--spacing-lg);
+  border: none;
+  box-shadow: var(--settings-card-shadow);
+  overflow: hidden;
+}
+
+.settings-section h2 {
+  margin: 0;
+  padding: 14px 20px;
+  font-size: 18px;
+  font-weight: 500;
+  color: #ffffff;
+  background: var(--settings-header-gradient);
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+  margin-bottom: var(--spacing-md);
+}
+
+/* ============= USER PROFILE ============= */
+.user-profile {
+  padding: 0 var(--spacing-lg) var(--spacing-lg);
+}
+
+.user-info {
+  padding: var(--spacing-sm) 0;
+}
+
+.user-email {
+  font-weight: 500;
+  font-size: 16px;
+  color: var(--settings-text-primary);
+  margin-bottom: var(--spacing-xs);
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+.user-role {
+  font-size: 14px;
+  color: var(--settings-text-secondary);
+}
+
+/* ============= FORM STYLING ============= */
+.form-group {
+  padding: 0 var(--spacing-lg) var(--spacing-lg);
+  margin-right: 20px;
+}
+
+label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--settings-text-primary);
+  margin-bottom: var(--spacing-sm);
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+.input-group {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.settings-input {
+  flex: 1;
+  padding: 10px 12px;
+  font-size: 14px;
+  border: 1px solid var(--settings-border);
+  border-radius: 0px;
+  background-color: var(--settings-surface);
+  color: var(--settings-text-primary);
+}
+
+.settings-input:focus {
+  border-color: var(--settings-primary);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(44, 62, 80, 0.2);
+}
+
+.currency-input {
+  max-width: 80px;
+  text-align: center;
+  font-weight: 500;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+.help-text {
+  margin-top: var(--spacing-xs);
+  font-size: 12px;
+  color: var(--settings-text-secondary);
+}
+
+/* ============= SETTINGS ROW (DASHBOARD STYLE) ============= */
+.settings-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-bottom: 1px solid var(--settings-border);
+}
+
+.settings-row:last-child {
+  border-bottom: none;
+}
+
+.settings-label {
+  color: var(--settings-text-primary);
+  font-size: 16px;
+}
+
+.settings-control {
+  display: flex;
+  align-items: center;
+}
+
+/* ============= SELECT DROPDOWN ============= */
+.select-wrapper {
+  position: relative;
+}
+
+.settings-select {
+  appearance: none;
+  min-width: 120px;
+  max-width: 220px;
+  padding: 8px 12px;
+  font-size: 14px;
+  border: 1px solid var(--settings-border);
+  border-radius: 0px;
+  background-color: var(--settings-surface);
+  color: var(--settings-text-primary);
+  padding-right: 24px; /* Space for the dropdown arrow */
+}
+
+.settings-select:focus {
+  border-color: var(--settings-primary);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(44, 62, 80, 0.2);
+}
+
+/* Custom dropdown arrow */
+.select-wrapper::after {
+  content: '';
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 5px solid var(--settings-text-secondary);
+  pointer-events: none;
+}
+
+/* ============= TOGGLE SWITCH (APPLE STYLE) ============= */
+.toggle-container {
+  position: relative;
+  display: inline-block;
+}
+
+.toggle-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-label {
+  display: block;
+  width: 51px;
+  height: 31px;
+  border-radius: 31px;
+  background-color: #e9e9ea; /* Light gray when off */
+  cursor: pointer;
+  position: relative;
+}
+
+/* Toggle switch thumb/slider */
+.toggle-label::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+  background-color: white;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16);
+  transition: transform 0.2s; /* Only animation is the toggle switch movement */
+}
+
+/* Checked state */
+.toggle-input:checked + .toggle-label {
+  background-color: var(--settings-primary);
+}
+
+.toggle-input:checked + .toggle-label::before {
+  transform: translateX(20px);
+}
+
+/* ============= BUTTON STYLING ============= */
+.btn {
+  padding: 8px 16px;
+  border-radius: 0px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.btn.secondary {
+  background-color: transparent;
+  border: 1px solid var(--settings-primary);
+  color: var(--settings-primary);
+}
+
+.btn.secondary:hover {
+  background-color: rgba(44, 62, 80, 0.05);
+}
+
+/* ============= SETTINGS FOOTER ============= */
+.settings-footer {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: var(--spacing-lg);
+}
+
+/* Button group takes 20% width */
+.settings-footer .button-group {
+  flex: 0 0 20%;
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+}
+
+/* Ensure the status message doesn't collapse when hidden */
+.status-message.hidden {
+  visibility: hidden;
+  display: block !important; /* Override any display:none */
+}
+
+/* Status message takes 80% width and maintains height */
+#settingsStatus {
+  flex: 0 0 80%;
+  min-height: 24px; /* Maintains consistent height */
+}
+
+.button-group {
+  display: flex;
+  gap: var(--spacing-md);
+}
+
+/* ============= STATUS MESSAGE ============= */
+.status-message {
+  display: flex;
+  align-items: center;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: 0px;
+  font-size: 14px;
+  background-color: #f0f0f0;
+  margin-bottom: var(--spacing-md);
+  border-top: 1px solid rgba(0, 0, 0, 0.3);
+  border-left: 1px solid rgba(0, 0, 0, 0.3);
+  border-right: 2px solid #334a60;
+  border-bottom: 2px solid #334a60;
+}
+
+.status-message.success {
+  background-color: rgba(76, 175, 80, 0.1);
+  color: var(--settings-success);
+  border-left: 3px solid var(--settings-success);
+}
+
+.status-message.error {
+  background-color: rgba(244, 67, 54, 0.1);
+  color: var(--settings-error);
+  border-left: 3px solid var(--settings-error);
+}
+
+.status-message.hidden {
+  display: none;
+}
+
+/* ============= DARK MODE ============= */
+body.dark-mode {
+  background-color: var(--settings-dark-background);
+  color: var(--settings-dark-text-primary);
+}
+
+body.dark-mode .settings-container {
+  background-color: var(--settings-dark-background);
+}
+
+body.dark-mode .settings-section {
+  background-color: var(--settings-dark-surface);
+  box-shadow: 0 16px 32px rgba(15, 10, 43, 0.45);
+}
+
+/* Section headers become dark in dark mode */
+body.dark-mode .settings-section h2 {
+  background: var(--settings-header-gradient-dark) !important;
+  color: #ffffff;
+}
+
+body.dark-mode .settings-label,
+body.dark-mode .user-email,
+body.dark-mode label {
+  color: var(--settings-dark-text-primary);
+}
+
+body.dark-mode .user-role,
+body.dark-mode .help-text {
+  color: var(--settings-dark-text-secondary);
+}
+
+body.dark-mode .settings-row {
+  border-color: var(--settings-dark-border);
+}
+
+body.dark-mode .settings-input,
+body.dark-mode .settings-select {
+  background-color: var(--settings-dark-surface);
+  border-color: var(--settings-dark-border);
+  color: var(--settings-dark-text-primary);
+}
+
+body.dark-mode .toggle-label {
+  background-color: #39393d; /* Darker gray when off */
+}
+
+/* Toggle checked state in dark mode */
+body.dark-mode .toggle-input:checked + .toggle-label {
+  background-color: var(--settings-primary-light);
+}
+
+body.dark-mode .btn.secondary {
+  color: var(--settings-primary-light);
+  border-color: var(--settings-primary-light);
+}
+
+body.dark-mode .btn.secondary:hover {
+  background-color: rgba(221, 161, 94, 0.1);
+}
+
+/* Status messages in dark mode */
+body.dark-mode .status-message {
+  background-color: var(--settings-dark-surface);
+  color: var(--settings-dark-text-primary);
+}
+
+/* ============= RESPONSIVE STYLES ============= */
+
+/* Desktop: 2-column layout for Display Settings */
+@media (min-width: 1024px) {
+  .settings-section[data-section="display"] .settings-rows-wrapper {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+  }
+
+
+  .settings-section[data-section="display"] .settings-row:nth-child(odd):last-child,
+  .settings-section[data-section="display"] .settings-row:nth-child(even):last-child {
+    border-bottom: none;
+  }
+
+  .settings-section[data-section="display"] .settings-row:nth-child(even) {
+    border-right: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .input-group {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--spacing-sm);
+  }
+  
+  .settings-footer {
+    flex-direction: column;
+    gap: var(--spacing-md);
+  }
+  
+  .settings-footer .status-message {
+    width: 100%;
+  }
+  
+  .button-group {
+  display: flex;
+  justify-content: flex-end; /* Aligns items to the right */
+  gap: var(--spacing-sm);
+}
+}
+
+@media (max-width: 480px) {
+  .settings-container {
+    padding: var(--spacing-sm);
+  }
+  
+  .settings-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+  }
+  
+  .settings-control {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  
+  .settings-select {
+    width: 100%;
+  }
+  
+  .button-group {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+/* Google Sheet Configuration Row Layout */
+.sheet-config-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 16px;
+  margin-bottom: var(--spacing-md);
+}
+
+.sheet-config-col.template-col {
+  flex: 0 0 33.33%;
+  min-width: 80px;
+}
+
+.sheet-config-col.url-col {
+  flex: 0 0 33.33%;
+}
+
+/* Make sure the input takes the full width of its container */
+.sheet-config-col.url-col .settings-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.sheet-config-col.test-col {
+  flex: 0 0 33.33%;
+  min-width: 80px;
+  text-align: right;
+}
+
+.sheet-config-col button {
+  width: 100%;
+  white-space: nowrap;
+}
+
+/* Add these overrides to your existing mobile media query */
+@media (max-width: 480px) {
+  .sheet-config-row {
+    flex-direction: column;
+    gap: var(--spacing-sm);
+  }
+  
+  .sheet-config-col.template-col,
+  .sheet-config-col.url-col,
+  .sheet-config-col.test-col {
+    flex: 0 0 100%;
+    width: 100%;
+    text-align: left;
+  }
+}
+
+/* ADD this CSS around line 700 (after existing button styles): */
+
+/* ============= CUSTOM SHEET ACTION BUTTONS ============= */
+.btn-sheet-action {
+  width: 80%;
+  height: 40px;
+  border-radius: 0px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: 'Lato', sans-serif;
+  cursor: pointer;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  
+
+}
+
+/* Template button – deep navy gradient */
+.btn-template {
+  background: linear-gradient(135deg, #1B263B 0%, #415A77 100%);
+  color: #FFFFFF;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+/* New Spreadsheet button – green gradient */
+#newDatabase {
+  background: linear-gradient(135deg, #2E7D32 0%, #4CAF50 100%) !important;
+  color: #FFFFFF;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+#newDatabase:hover {
+  background: linear-gradient(135deg, #1B5E20 0%, #388E3C 100%) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+}
+
+.btn-template:hover {
+  background: linear-gradient(135deg, #131d2e 0%, #324a65 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+}
+
+/* Picker button – dark teal gradient */
+.btn-picker {
+  background: linear-gradient(135deg, #1B3A46 0%, #206A5D 100%);
+  color: #FFFFFF;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.btn-picker:hover {
+  background: linear-gradient(135deg, #162d36 0%, #1A594C 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+}
+
+
+.btn-template:active {
+  transform: translateY(0px);
+  box-shadow: 0 1px 2px rgba(13, 71, 161, 0.2);
+}
+
+/* Test button - Golden accent */
+.btn-test {
+  background: #87bc45;
+  color: white;
+  box-shadow: 0 2px 4px rgba(221, 161, 94, 0.2);
+}
+
+.btn-test:hover {
+  background: #6bbf91;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(221, 161, 94, 0.3);
+}
+
+.btn-test:active {
+  transform: translateY(0px);
+  box-shadow: 0 1px 2px rgba(221, 161, 94, 0.2);
+}
+
+
+
+.btn-picker:active {
+  transform: translateY(0px);
+  box-shadow: 0 1px 2px rgba(13, 71, 161, 0.2);
+}
+
+/* Disconnect button - Red accent */
+.btn-disconnect {
+  background: linear-gradient(135deg, #c0392b 0%, #e74c3c 100%);
+  color: white;
+  box-shadow: 0 2px 4px rgba(192, 57, 43, 0.2);
+}
+
+.btn-disconnect:hover {
+  background: linear-gradient(135deg, #a93226 0%, #ec7063 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(192, 57, 43, 0.3);
+}
+
+.btn-disconnect:active {
+  transform: translateY(0px);
+  box-shadow: 0 1px 2px rgba(192, 57, 43, 0.2);
+}
+
+/* Icon spacing in template button */
+.btn-template i {
+  margin-right: 4px !important;
+}
+
+
+
+body.dark-mode .btn-template {
+  background: linear-gradient(135deg, #1a237e 0%, #0d47a1 100%);
+}
+
+body.dark-mode .btn-template:hover {
+  background: linear-gradient(135deg, #0d47a1 0%, #1565c0 100%);
+}
+
+body.dark-mode .btn-test {
+  background: linear-gradient(135deg, #b8860b 0%, #d4ac0d 100%);
+}
+
+body.dark-mode .btn-test:hover {
+  background: linear-gradient(135deg, #d4ac0d 0%, #f1c40f 100%);
+}
+
+body.dark-mode .btn-picker {
+  background: linear-gradient(135deg, #1a237e 0%, #0d47a1 100%);
+}
+
+body.dark-mode .btn-picker:hover {
+  background: linear-gradient(135deg, #0d47a1 0%, #1565c0 100%);
+}
+
+body.dark-mode .btn-disconnect {
+  background: linear-gradient(135deg, #922b21 0%, #c0392b 100%);
+}
+
+body.dark-mode .btn-disconnect:hover {
+  background: linear-gradient(135deg, #c0392b 0%, #e74c3c 100%);
+}
+
+/* Mobile responsiveness */
+@media (max-width: 480px) {
+  .btn-sheet-action {
+    height: 40px;
+    font-size: 13px;
+  }
+}
+
+</style>

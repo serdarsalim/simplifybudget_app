@@ -1,0 +1,6133 @@
+<script>
+/**
+ * NetWorthManager - Enhanced Professional Net Worth tracking component with Chart Visualization and Asset Allocation
+ * UPDATED: Removed manual change tracking, added auto-calculated changes, improved modal, added remove toggle
+ */
+var NetWorthManager = (function() {
+  // Private variables
+  let _initialized = false;
+  let _netWorthData = {
+    summary: {
+      totalNetWorth: 0,
+      totalAssets: 0,
+      totalDebts: 0,
+      previousNetWorth: 0,
+      change: 0,
+      currentMonth: '',
+      currentYear: '',
+      previousMonth: '',
+      previousYear: ''
+    },
+    entries: []
+  };
+  
+  // Current viewing month/year
+  let _currentMonth = new Date().getMonth();
+  let _currentYear = new Date().getFullYear();
+  
+  // Chart variables
+  let _chart = null;
+  let _chartTimespan = 'thisyear';
+  let _chartMode = 'allocation';
+  let _selectedYear = new Date().getFullYear(); // For performance chart year selection
+  let _assetNameColors = {}; 
+  const VALID_CHART_MODES = ['performance', 'timeline', 'allocation'];
+  
+  // Remove mode toggle
+  let _removeMode = false;
+
+  // Translation helper function
+  function getTranslation(key) {
+    // Try to use the global translation function if available
+    if (typeof window.getTranslation === 'function' && typeof getLanguageFromSettings === 'function') {
+      try {
+        const lang = getLanguageFromSettings();
+        const translated = window.getTranslation(key, lang);
+        return translated;
+      } catch (e) {
+        console.error('Translation error:', e);
+      }
+    }
+    
+    // Try direct access to translation objects if loaded
+    if (typeof ENGLISH_TRANSLATIONS !== 'undefined' && ENGLISH_TRANSLATIONS[key]) {
+      return ENGLISH_TRANSLATIONS[key];
+    }
+    
+    // Fallback to key if translation system not available
+    return key;
+  }
+
+  function normalizeChartMode(mode) {
+    return VALID_CHART_MODES.includes(mode) ? mode : 'allocation';
+  }
+
+  function getDefaultChartMode() {
+    let mode = 'allocation';
+
+    try {
+      if (typeof SimBudget !== 'undefined' &&
+          SimBudget.Settings &&
+          typeof SimBudget.Settings.getSetting === 'function') {
+        const setting = SimBudget.Settings.getSetting('netWorthDefaultChart');
+        if (setting) {
+          mode = setting;
+        }
+      } else if (typeof CacheManager !== 'undefined' &&
+                 CacheManager &&
+                 typeof CacheManager.getSettings === 'function') {
+        const cachedSettings = CacheManager.getSettings();
+        if (cachedSettings && cachedSettings.netWorthDefaultChart) {
+          mode = cachedSettings.netWorthDefaultChart;
+        }
+      }
+    } catch (error) {
+      console.warn('NetWorthManager: unable to determine default chart mode', error);
+    }
+
+    return normalizeChartMode(mode);
+  }
+  
+  // Hardcoded asset categories
+  
+  const ASSET_CATEGORIES = {
+    'Liquid Assets': {
+      name: 'Liquid Assets',
+      isDebt: false,
+      suggestedTypes: [
+        'Cash',
+        'Bank Account',
+        'Checking Account', 
+        'Savings Account',
+        'Current Account',
+        'Giro Account',
+        'Transaction Account',
+        'Emergency Fund',
+        'Money Market',
+        'Certificate of Deposit',
+        'Term Deposit',
+        'Fixed Deposit',
+        'High-Yield Savings',
+        'Digital Wallet',
+        'E-Wallet',
+        'Mobile Money',
+        'Payment App Balance',
+        'Prepaid Account',
+        'Virtual Bank Account',
+        'Multi-Currency Account',
+        'Prepaid Cards',
+        'Gift Cards',
+        'Travel Cards',
+        'Foreign Currency',
+        'Petty Cash',
+        'Business Cash',
+        'Safe Deposit',
+        'Treasury Bills',
+        'Commercial Paper'
+      ],
+      color: '#3498db'
+    },
+    'Investments': {
+      name: 'Investments', 
+      isDebt: false,
+      suggestedTypes: [
+        'Stocks',
+        'Bonds',
+        'Mutual Funds',
+        'ETFs',
+        'Index Funds',
+        'REITs',
+        'Real Estate Crowdfunding',
+        'Bitcoin',
+        'Ethereum',
+        'Cryptocurrency',
+        'NFTs',
+        'Options',
+        'Futures',
+        'Forex',
+        'Derivatives',
+        'Commodities',
+        'Gold Investment',
+        'Silver Investment',
+        'P2P Lending',
+        'Crowdfunding',
+        'Angel Investment',
+        'Venture Capital',
+        'Private Equity',
+        'Hedge Funds',
+        'Unit Trusts',
+        'Investment Trusts',
+        'ISA (UK)',
+        'TFSA (Canada)',
+        'Superannuation (Australia)',
+        'KiwiSaver (NZ)',
+        'Retirement Account',
+        'Pension',
+        '401k',
+        '403b',
+        'IRA',
+        'Roth IRA',
+        'SEP IRA',
+        'HSA Investment',
+        '529 Plan',
+        'RESP (Canada)',
+        'PEA (France)',
+        'NISA (Japan)',
+        'PPR (Portugal)',
+        'Riester (Germany)',
+        'Pillar 3a (Switzerland)',
+        'Life Insurance Cash Value',
+        'Annuities',
+        'Structured Products',
+        'Sukuk (Islamic Bonds)',
+        'Shariah Investments'
+      ],
+      color: '#2ecc71'
+    },
+    'Physical Assets': {
+      name: 'Physical Assets',
+      isDebt: false, 
+      suggestedTypes: [
+        'Primary Residence',
+        'Vacation Home',
+        'Rental Property',
+        'Land',
+        'Commercial Property',
+        'Real Estate',
+        'Car',
+        'Motorcycle',
+        'Boat',
+        'RV/Caravan',
+        'Aircraft',
+        'Classic Car',
+        'Electric Vehicle',
+        'Gold Bullion',
+        'Silver Bullion',
+        'Platinum',
+        'Precious Metals',
+        'Jewelry',
+        'Watches',
+        'Diamonds',
+        'Art Collection',
+        'Paintings',
+        'Sculptures',
+        'Antiques',
+        'Collectibles',
+        'Rare Books',
+        'Wine Collection',
+        'Stamps',
+        'Coins',
+        'Sports Memorabilia',
+        'Musical Instruments',
+        'Designer Items',
+        'Furniture',
+        'Electronics',
+        'Home Appliances',
+        'Computer Equipment',
+        'Camera Equipment',
+        'Tools',
+        'Machinery',
+        'Farm Equipment',
+        'Livestock',
+        'Horses',
+        'Solar Panels',
+        'Business Equipment',
+        'Inventory',
+        'Patents',
+        'Trademarks',
+        'Domain Names'
+      ],
+      color: '#f39c12'
+    },
+    'Debts': {
+      name: 'Debts',
+      isDebt: true,
+      suggestedTypes: [
+        'Mortgage',
+        'Home Equity Loan',
+        'HELOC',
+        'Second Mortgage',
+        'Reverse Mortgage',
+        'Car Loan',
+        'Auto Lease',
+        'Motorcycle Loan',
+        'Boat Loan',
+        'RV Loan',
+        'Personal Loan',
+        'Credit Card',
+        'Store Credit Card',
+        'Charge Card',
+        'Student Loan',
+        'Parent PLUS Loan',
+        'Private Student Loan',
+        'Medical Debt',
+        'Dental Loan',
+        'Payday Loan',
+        'Title Loan',
+        'Pawn Shop Loan',
+        'Business Loan',
+        'SBA Loan',
+        'Equipment Financing',
+        'Invoice Financing',
+        'Merchant Cash Advance',
+        'Tax Debt',
+        'IRS Payment Plan',
+        'State Tax Debt',
+        'Property Tax Debt',
+        'Family Loan',
+        'Friend Loan',
+        'Overdraft',
+        'Bank Line of Credit',
+        'Margin Loan',
+        'Securities Loan',
+        'Crypto Loan',
+        'DeFi Loan',
+        'Microfinance Loan',
+        'Peer-to-Peer Loan',
+        'Consolidation Loan',
+        'Bridge Loan',
+        'Hard Money Loan',
+        'Construction Loan',
+        'Land Loan',
+        'Vacation Loan',
+        'Wedding Loan',
+        'Legal Fees Owed',
+        'Child Support',
+        'Alimony',
+        'Buy Now Pay Later',
+        'Installment Plan',
+        'Deferred Payment'
+      ],
+      color: '#e74c3c'
+    }
+  };
+  
+  // FIX BUG 1: Updated color palette with exact colors provided
+  const ASSET_TYPE_COLORS_PALETTE = [
+  '#F8CBA8', '#FF6F61', '#FFD166', '#06D6A0', '#00FFBF', '#ffc6ff',
+   '#2ECC71', '#83D0C9', '#38A3A5', '#F08080', 
+  '#FFB74D', '#FFD54F', '#4FC3F7', '#4DD0E1', '#81C784', '#A5D6A7',
+  '#FF8A65', '#FFCC80', '#BA68C8', '#CE93D8', '#FFF176', '#FFEB3B'
+ ];
+  
+  // Asset type to color mapping (will be dynamically assigned)
+  let ASSET_TYPE_COLORS = {};
+  
+  // DOM element cache
+  const _elements = {};
+  
+  function getElement(id) {
+    if (!_elements[id]) {
+      _elements[id] = document.getElementById(id);
+    }
+    return _elements[id];
+  }
+  
+  // Rollover protection flag
+  let _autoRolloverCompleted = false;
+  
+
+/**
+ * Initialize the Net Worth Manager
+ */
+function init(containerId, cachedData) {
+  const container = containerId ? document.getElementById(containerId) : document.getElementById('netWorthContent');
+  
+  if (!container) {
+    console.error('NetWorthManager: Container element not found');
+    return;
+  }
+  
+  _elements['netWorthContent'] = container;
+  _chartMode = getDefaultChartMode();
+  
+  // Process whatever data we receive
+  if (cachedData && Array.isArray(cachedData) && cachedData.length > 0) {
+    _netWorthData = {
+      entries: cachedData
+    };
+    
+    // Process the data
+    processNetWorthData(cachedData);
+  } else {
+    // Show empty state or loading
+    showLoadingState();
+    fetchFreshNetWorthData();
+  }
+  
+  initializeMonthNavigation();
+  _initialized = true;
+}
+  
+  function showLoadingState() {
+    // Update the top bar indicator instead of showing overlay
+    const refreshElement = document.getElementById('lastNetWorthRefresh');
+    const refreshBtn = document.getElementById('refreshNetWorth');
+    
+    if (refreshElement) {
+      refreshElement.textContent = 'Loading...';
+      refreshElement.style.color = '#f39c12';
+      refreshElement.style.fontWeight = 'bold';
+    }
+    
+    if (refreshBtn) {
+      refreshBtn.classList.add('loading');
+    }
+    
+    // Don't clear the container - keep existing content visible
+  }
+  
+  /**
+   * Hide loading indicator
+   */
+  function hideLoadingIndicator() {
+    const refreshElement = document.getElementById('lastNetWorthRefresh');
+    const refreshBtn = document.getElementById('refreshNetWorth');
+    
+    if (refreshBtn) {
+      refreshBtn.classList.remove('loading');
+    }
+    
+    // Update last refresh time
+    if (refreshElement) {
+      const now = new Date();
+      const timeString = now.toLocaleTimeString('en-US', { 
+        hour: 'numeric', 
+        minute: '2-digit',
+        hour12: true 
+      });
+      refreshElement.textContent = `Last updated: ${timeString}`;
+      refreshElement.style.color = '';
+      refreshElement.style.fontWeight = '';
+    }
+  }
+  
+
+  
+
+  
+  function fetchFreshNetWorthData() {
+    if (!window.API || typeof API.getNetWorthData !== 'function') {
+      console.error('NetWorthManager: API.getNetWorthData not available');
+      showErrorState(getTranslation('api_not_available'));
+      return;
+    }
+    
+    API.getNetWorthData(
+      function(result) {
+        if (result && result.success) {
+          
+          
+          // Validate and clean entries before processing
+          const cleanedEntries = (result.entries || []).map(entry => {
+            // Ensure all required fields exist
+            return {
+              ...entry,
+              amount: entry.amount !== undefined && entry.amount !== null && entry.amount !== '' 
+                ? parseFloat(entry.amount) || 0 
+                : 0,
+              type: entry.type || '',
+              name: entry.name || '',
+              asset: entry.asset || '',
+              date: entry.date || '',
+              notes: entry.notes || ''
+            };
+          });
+          
+          processNetWorthData(cleanedEntries);
+          
+          // Update last refresh time and hide loading indicator
+          updateLastRefreshTime();
+          hideLoadingIndicator();
+          
+          if (window.CacheManager && typeof CacheManager.setNetWorthWithTimestamp === 'function') {
+            CacheManager.setNetWorthWithTimestamp(cleanedEntries, result.timestamp);
+          }
+        } else {
+          console.error('NetWorthManager: Invalid server response:', result);
+          // Remove loading state from refresh button on error
+          const refreshBtn = document.getElementById('refreshNetWorth');
+          if (refreshBtn) {
+            refreshBtn.classList.remove('loading');
+          }
+          showErrorState(result ? result.error : getTranslation('invalid_server_response'));
+        }
+      },
+      function(error) {
+        console.error('NetWorthManager: Error loading data:', error);
+        // Remove loading state from refresh button on error
+        const refreshBtn = document.getElementById('refreshNetWorth');
+        if (refreshBtn) {
+          refreshBtn.classList.remove('loading');
+        }
+        showErrorState(getTranslation('error_loading_data') + error);
+      }
+    );
+  }
+  
+  function showErrorState(message) {
+    const container = getElement('netWorthContent');
+    if (!container) return;
+    
+    updateBannerNetWorth(null);
+    setupSummaryObserver();
+    
+    // Check if this is a first-time user (no spreadsheet connected)
+    if (message && message.includes('No spreadsheet ID found')) {
+      // Show friendly welcome message instead of error
+      container.innerHTML = `
+        <div 
+          style="
+            text-align: center;
+            padding: 80px 20px 40px;
+            max-width: 800px;
+            margin: 0 auto;
+          "
+        >
+          <div style="margin-bottom: 20px;">
+            <i class="material-icons" style="font-size: 48px; color: #4CAF50;">trending_up</i>
+          </div>
+          <h3 style="margin-bottom: 20px;">👋 Welcome to Net Worth Tracking!</h3>
+          
+          <p style="margin-bottom: 20px;">
+            Track your assets and liabilities over time to see your financial progress.
+          </p>
+          
+          <p style="margin-bottom: 30px; font-size: 16px; color: #666;">
+            Connect your spreadsheet to get started with net worth tracking.
+          </p>
+          
+          <div style="margin: 30px 0;">
+            <button 
+              onclick="if(window.SimBudget && SimBudget.Views) { SimBudget.Views.switchTo('settings'); }" 
+              style="
+                background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+                color: white;
+                border: none;
+                padding: 15px 30px;
+                font-size: 18px;
+                border-radius: 8px;
+                cursor: pointer;
+                box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+                transition: transform 0.2s, box-shadow 0.2s;
+                margin-bottom: 20px;
+              "
+              onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 12px rgba(0,0,0,0.3)';"
+              onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.2)';"
+            >
+              🚀 Open Settings to Get Started
+            </button>
+          </div>
+        </div>
+      `;
+    } else {
+      // Show regular error state for other errors
+      container.innerHTML = `
+        <div class="nw-error">
+          <div class="nw-error-icon">
+            <i class="material-icons">error_outline</i>
+          </div>
+          <h3 data-translate="error_loading_net_worth_data">Error Loading Net Worth Data</h3>
+          <p>${message}</p>
+          <button onclick="NetWorthManager.refresh()" class="nw-btn nw-btn-primary">
+            <i class="material-icons">refresh</i> <span data-translate="try_again">Try Again</span>
+          </button>
+        </div>
+      `;
+    }
+    
+    // Apply translations to the dynamically created error content
+    if (window.SimBudget && SimBudget.applyTranslations) {
+      SimBudget.applyTranslations();
+    }
+  }
+  
+  function processNetWorthData(entries) {
+  _netWorthData.entries = entries || [];
+  
+  // FIX: Assign colors FIRST, before any rendering
+  assignColorsToAssetTypes();
+  
+  checkAutoRollover();
+  calculateSummary();
+  renderNetWorthView();
+}
+  
+  // FIX BUG 1: Function to assign colors to unique asset types
+  function assignColorsToAssetTypes() {
+    const uniqueTypes = new Set();
+    
+    // Collect all unique asset types
+    _netWorthData.entries.forEach(entry => {
+      if (entry.type) {
+        uniqueTypes.add(entry.type);
+      }
+    });
+    
+    // Sort types for consistent color assignment
+    const sortedTypes = Array.from(uniqueTypes).sort();
+    
+    // Clear existing colors
+    ASSET_TYPE_COLORS = {};
+    
+    // Assign colors from palette
+    sortedTypes.forEach((type, index) => {
+      ASSET_TYPE_COLORS[type] = ASSET_TYPE_COLORS_PALETTE[index % ASSET_TYPE_COLORS_PALETTE.length];
+    });
+    
+  }
+  
+  function assignColorsToAssetNames(assets) {
+    // Get all unique asset names that need colors
+    const needsColor = assets.filter(asset => !_assetNameColors[asset.name]);
+    
+    // Get already used colors
+    const usedColors = new Set(Object.values(_assetNameColors));
+    
+    // Find available colors
+    const availableColors = ASSET_TYPE_COLORS_PALETTE.filter(color => !usedColors.has(color));
+    
+    // Assign colors
+    needsColor.forEach((asset, index) => {
+      if (availableColors[index]) {
+        _assetNameColors[asset.name] = availableColors[index];
+      } else {
+        // If we run out of unique colors, start reusing from the beginning
+        _assetNameColors[asset.name] = ASSET_TYPE_COLORS_PALETTE[index % ASSET_TYPE_COLORS_PALETTE.length];
+      }
+    });
+  }
+  
+  function checkAutoRollover() {
+    if (_autoRolloverCompleted) {
+      return;
+    }
+    
+    const realNow = new Date();
+    
+    if (_currentMonth !== realNow.getMonth() || _currentYear !== realNow.getFullYear()) {
+      return;
+    }
+    
+    const currentMonthEntries = getCurrentMonthEntries();
+    if (currentMonthEntries.length > 0) {
+      _autoRolloverCompleted = true;
+      return;
+    }
+    
+    const previousMonthEntries = getPreviousMonthEntries();
+    if (previousMonthEntries.length === 0) {
+      _autoRolloverCompleted = true;
+      return;
+    }
+    
+    _autoRolloverCompleted = true;
+    
+    const uniqueEntries = {};
+    previousMonthEntries.forEach(entry => {
+      const key = `${entry.asset}|${entry.name}`;
+      uniqueEntries[key] = entry;
+    });
+    
+    const newEntries = Object.values(uniqueEntries).map((entry, index) => {
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                         'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const currentMonthDate = `${monthNames[_currentMonth]} ${_currentYear}`;
+      return {
+        ...entry,
+        date: currentMonthDate,
+        id: `rollover-${_currentYear}-${_currentMonth}-${Date.now()}-${index}`,
+        notes: entry.notes || '',
+        // Ensure amount is a valid number
+        amount: entry.amount !== undefined && entry.amount !== null && entry.amount !== '' 
+          ? parseFloat(entry.amount) || 0 
+          : 0
+      };
+    });
+    
+    
+    _netWorthData.entries = _netWorthData.entries.concat(newEntries);
+    saveNetWorthEntries(newEntries);
+    
+    // Immediately update the UI to show the copied data
+    renderNetWorthView();
+    bindEventHandlers();
+    
+    setTimeout(() => {
+      showMessage(Utils.translateCategory('automatically_copied_assets').replace('{count}', newEntries.length).replace('{prevMonthName}', getPreviousMonthName()), 'success');
+    }, 1000);
+  }
+  
+  function calculateSummary() {
+    const currentMonthData = getCurrentMonthEntries();
+    const previousMonthData = getPreviousMonthEntries();
+    
+    let totalAssets = 0;
+    let totalDebts = 0;
+    
+    currentMonthData.forEach(entry => {
+      const category = ASSET_CATEGORIES[entry.asset];
+      if (!category) return;
+      
+      // Parse amount, treating null/undefined/empty as 0
+      const amount = parseFloat(entry.amount) || 0;
+      
+      if (category.isDebt) {
+        totalDebts += Math.abs(amount);
+      } else {
+        totalAssets += amount;
+      }
+    });
+    
+    const totalNetWorth = totalAssets - totalDebts;
+    
+    let previousNetWorth = 0;
+    previousMonthData.forEach(entry => {
+      const category = ASSET_CATEGORIES[entry.asset];
+      if (!category) return;
+      
+      // Parse amount, treating null/undefined/empty as 0
+      const amount = parseFloat(entry.amount) || 0;
+      
+      if (category.isDebt) {
+        previousNetWorth -= Math.abs(amount);
+      } else {
+        previousNetWorth += amount;
+      }
+    });
+    
+    const change = totalNetWorth - previousNetWorth;
+    
+    _netWorthData.summary = {
+      totalNetWorth: totalNetWorth,
+      totalAssets: totalAssets,
+      totalDebts: totalDebts,
+      previousNetWorth: previousNetWorth,
+      change: change,
+      currentMonth: getMonthName(_currentMonth),
+      currentYear: _currentYear,
+      previousMonth: getPreviousMonthName(),
+      previousYear: getPreviousYear()
+    };
+    
+    updateBannerNetWorth(totalNetWorth);
+  }
+  
+  function updateBannerNetWorth(totalNetWorth) {
+    const summaryContainer = document.getElementById('netWorthBannerSummary');
+    const valueElement = document.getElementById('netWorthBannerValue');
+    
+    if (!summaryContainer || !valueElement) {
+      return;
+    }
+    
+    if (typeof totalNetWorth === 'number' && !isNaN(totalNetWorth)) {
+      valueElement.textContent = formatCurrency(totalNetWorth);
+      const summaryElement = document.querySelector('.nw-total-header');
+      if (!summaryElement) {
+        summaryContainer.classList.remove('hidden');
+      }
+    } else {
+      summaryContainer.classList.add('hidden');
+      valueElement.textContent = '';
+    }
+  }
+  
+  function calculateCategoryTotal(categoryKey) {
+    const currentMonthData = getCurrentMonthEntries();
+    const categoryEntries = currentMonthData.filter(entry => entry.asset === categoryKey);
+    
+    let total = 0;
+    categoryEntries.forEach(entry => {
+      const amount = parseFloat(entry.amount) || 0;
+      total += amount;
+    });
+    
+    return total;
+  }
+  
+  function calculateCategoryChange(categoryKey) {
+    const currentTotal = calculateCategoryTotal(categoryKey);
+    
+    // Calculate previous month total
+    const previousMonthData = getPreviousMonthEntries();
+    const previousCategoryEntries = previousMonthData.filter(entry => entry.asset === categoryKey);
+    
+    let previousTotal = 0;
+    previousCategoryEntries.forEach(entry => {
+      const amount = parseFloat(entry.amount) || 0;
+      previousTotal += amount;
+    });
+    
+    return currentTotal - previousTotal;
+  }
+  
+  function getPreviousMonthEntries() {
+    const prevMonth = _currentMonth === 0 ? 11 : _currentMonth - 1;
+    const prevYear = _currentMonth === 0 ? _currentYear - 1 : _currentYear;
+    
+    // FIX BUG 2: Use proper date comparison
+    return getEntriesForMonth(prevMonth, prevYear);
+  }
+  
+  function getCurrentMonthEntries() {
+    // FIX BUG 2: Use proper date comparison
+    return getEntriesForMonth(_currentMonth, _currentYear);
+  }
+  
+  // FIX BUG 2: New robust function for filtering entries by month/year
+  function getEntriesForMonth(month, year) {
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    
+    return _netWorthData.entries.filter(entry => {
+      if (!entry.date) return false;
+      
+      // Handle MMM YYYY format (e.g., "Nov 2024")
+      const parts = entry.date.split(' ');
+      if (parts.length === 2) {
+        const monthStr = parts[0];
+        const yearStr = parts[1];
+        
+        const monthIndex = monthNames.indexOf(monthStr);
+        if (monthIndex !== -1) {
+          const entryYear = parseInt(yearStr, 10);
+          const entryMonth = monthIndex;
+          
+          const matches = entryMonth === month && entryYear === year;
+          
+          if (matches) {
+            if (entry.amount === null || entry.amount === undefined || entry.amount === '') {
+              entry.amount = 0;
+            }
+          }
+          
+          return matches;
+        }
+      }
+      
+      return false;
+    });
+  }
+  
+    function formatDateKey(month, year) {
+    // Array of translation keys for abbreviated months
+    const monthKeys = [
+      "jan", "feb", "mar", "apr", "may", "jun", 
+      "jul", "aug", "sep", "oct", "nov", "dec"
+    ];
+    
+    // Get the key for current month
+    const monthKey = monthKeys[month];
+    
+    // Use translation if available, fallback to default abbreviation
+    let translatedMonth;
+    if (window.SimBudget && SimBudget.translations && SimBudget.translations[monthKey]) {
+      translatedMonth = SimBudget.translations[monthKey];
+    } else {
+      // Fallback to default abbreviations
+      const defaultMonths = [
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      ];
+      translatedMonth = defaultMonths[month];
+    }
+    
+    return `${translatedMonth} ${year}`;
+  }
+  
+    function getMonthName(monthNumber) {
+    // Array of translation keys for months
+    const monthKeys = [
+      "january", "february", "march", "april", "may", "june", 
+      "july", "august", "september", "october", "november", "december"
+    ];
+    
+    // Get the key for current month
+    const monthKey = monthKeys[monthNumber];
+    
+    // Use translation if available, fallback to default month name
+    let translatedMonth;
+    if (window.SimBudget && SimBudget.translations && SimBudget.translations[monthKey]) {
+      translatedMonth = SimBudget.translations[monthKey];
+    } else {
+      // Fallback to locale string if translations not available
+      translatedMonth = new Date(new Date().getFullYear(), monthNumber, 1)
+        .toLocaleString('default', { month: 'long' });
+    }
+    
+    return translatedMonth;
+  }
+  
+  function getPreviousMonthName() {
+    const prevMonth = _currentMonth === 0 ? 11 : _currentMonth - 1;
+    return getMonthName(prevMonth);
+  }
+  
+  function getPreviousYear() {
+    return _currentMonth === 0 ? _currentYear - 1 : _currentYear;
+  }
+  
+  function navigateMonth(direction) {
+    let newMonth = _currentMonth + direction;
+    let newYear = _currentYear;
+    
+    if (newMonth > 11) {
+      newMonth = 0;
+      newYear++;
+    } else if (newMonth < 0) {
+      newMonth = 11;
+      newYear--;
+    }
+    
+    const realNow = new Date();
+    const realCurrentMonth = realNow.getMonth();
+    const realCurrentYear = realNow.getFullYear();
+    
+    const maxAllowedMonth = realCurrentMonth === 11 ? 0 : realCurrentMonth + 1;
+    const maxAllowedYear = realCurrentMonth === 11 ? realCurrentYear + 1 : realCurrentYear;
+    
+    if (newYear > maxAllowedYear || (newYear === maxAllowedYear && newMonth > maxAllowedMonth)) {
+      return;
+    }
+    
+    _currentMonth = newMonth;
+    _currentYear = newYear;
+    _autoRolloverCompleted = false;
+    
+    const currentMonthEntries = getCurrentMonthEntries();
+    
+    if (currentMonthEntries.length === 0 && isFutureMonth()) {
+      showFutureMonthScreen();
+    } else {
+      calculateSummary();
+      renderNetWorthView();
+    }
+    
+    updateMonthYearDisplay();
+  }
+  
+  function isFutureMonth() {
+    const realNow = new Date();
+    const currentView = new Date(_currentYear, _currentMonth, 1);
+    const realCurrent = new Date(realNow.getFullYear(), realNow.getMonth(), 1);
+    
+    return currentView > realCurrent;
+  }
+  
+  function showFutureMonthScreen() {
+    const container = getElement('netWorthContent');
+    if (!container) return;
+    
+    updateBannerNetWorth(null);
+    setupSummaryObserver();
+    
+    const monthName = getMonthName(_currentMonth);
+    const prevMonthName = getPreviousMonthName();
+    const prevYear = getPreviousYear();
+    
+    container.innerHTML = `
+      <div class="nw-future-message">
+        <div class="nw-future-icon">
+          <i class="material-icons">event_busy</i>
+        </div>
+        <h3>${Utils.translateCategory('no_data_exists_for_month').replace('{monthName}', monthName).replace('{year}', _currentYear)}</h3>
+        <p>${Utils.translateCategory('can_only_record_current_next_month')}</p>
+        <button id="copyFromPrevBtn" class="nw-btn nw-btn-primary">
+          <i class="material-icons">content_copy</i> ${Utils.translateCategory('copy_data_from_prev_month').replace('{prevMonthName}', prevMonthName).replace('{prevYear}', prevYear)}
+        </button>
+      </div>
+    `;
+    
+    const copyBtn = getElement('copyFromPrevBtn');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', function() {
+        copyFromPreviousMonth();
+      });
+    }
+  }
+  
+  function copyFromPreviousMonth() {
+    try {
+      // Validate current state
+      if (!isFutureMonth() && getCurrentMonthEntries().length > 0) {
+        showMessage(getTranslation('current_month_has_data'), 'warning');
+        return;
+      }
+      
+      // Get previous month data
+      const previousMonthEntries = getPreviousMonthEntries();
+      const prevMonthName = getPreviousMonthName();
+      const prevYear = getPreviousYear();
+      
+      if (previousMonthEntries.length === 0) {
+        showMessage(`No data found in ${prevMonthName} ${prevYear} to copy`, 'error');
+        return;
+      }
+      
+      // Show loading state
+      showMessage(getTranslation('copying_data_from_previous_month'), 'info');
+      
+      // Check for existing entries to avoid duplicates
+      const existingEntries = getCurrentMonthEntries();
+      const existingKeys = new Set();
+      
+      existingEntries.forEach(entry => {
+        const key = `${entry.asset}|${entry.name}|${entry.type}`;
+        existingKeys.add(key);
+      });
+      
+      // Prepare new entries
+      const newEntries = [];
+      const skippedEntries = [];
+      
+      previousMonthEntries.forEach(entry => {
+        const key = `${entry.asset}|${entry.name}|${entry.type}`;
+        
+        if (!existingKeys.has(key)) {
+          // Validate required fields
+          if (!entry.asset || !entry.name) {
+            console.warn('Skipping invalid entry:', entry);
+            return;
+          }
+          
+          // Create new entry with current month date
+          const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                             'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          const currentMonthDate = `${monthNames[_currentMonth]} ${_currentYear}`;
+          const newEntry = {
+            ...entry,
+            date: currentMonthDate,
+            id: `copy-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            notes: entry.notes || '',
+            // Ensure amount is valid number, default to 0 if invalid
+            amount: entry.amount !== undefined && entry.amount !== null && entry.amount !== '' 
+              ? parseFloat(entry.amount) || 0 
+              : 0
+          };
+          
+          newEntries.push(newEntry);
+        } else {
+          skippedEntries.push(entry.name);
+        }
+      });
+      
+      // Handle results
+      if (newEntries.length === 0) {
+        if (skippedEntries.length > 0) {
+          showMessage(`All ${skippedEntries.length} entries from ${prevMonthName} already exist in current month`, 'info');
+        } else {
+          showMessage(`No valid entries found to copy from ${prevMonthName}`, 'warning');
+        }
+        return;
+      }
+      
+      // Add entries to data
+      _netWorthData.entries = _netWorthData.entries.concat(newEntries);
+      
+      // Save to server
+      saveNetWorthEntries(newEntries);
+      
+      // Update UI
+      assignColorsToAssetTypes();
+      calculateSummary();
+      renderNetWorthView();
+      bindEventHandlers();
+      
+      // Show success message with details
+      let message = Utils.translateCategory('automatically_copied_assets').replace('{count}', newEntries.length).replace('{prevMonthName}', `${prevMonthName} ${prevYear}`);
+      if (skippedEntries.length > 0) {
+        message += ` (${skippedEntries.length} already existed)`;
+      }
+      showMessage(message, 'success');
+      
+      
+    } catch (error) {
+      console.error('NetWorth: Error copying from previous month:', error);
+      showMessage(getTranslation('error_copying_data_from_previous_month'), 'error');
+    }
+  }
+  
+  function updateMonthYearDisplay() {
+    const displayElement = document.getElementById('monthYearDisplayNetWorth');
+    if (displayElement) {
+      displayElement.textContent = `${getMonthName(_currentMonth)} ${_currentYear}`;
+    }
+  }
+  
+  function initializeMonthNavigation() {
+    const prevMonthBtn = document.getElementById('prevMonthNetWorth');
+    const nextMonthBtn = document.getElementById('nextMonthNetWorth');
+    const refreshBtn = document.getElementById('refreshNetWorth');
+    
+    if (prevMonthBtn) {
+      const newPrevBtn = prevMonthBtn.cloneNode(true);
+      prevMonthBtn.parentNode.replaceChild(newPrevBtn, prevMonthBtn);
+      newPrevBtn.addEventListener('click', function() {
+        navigateMonth(-1);
+      });
+    }
+    
+    if (nextMonthBtn) {
+      const newNextBtn = nextMonthBtn.cloneNode(true);
+      nextMonthBtn.parentNode.replaceChild(newNextBtn, nextMonthBtn);
+      newNextBtn.addEventListener('click', function() {
+        navigateMonth(1);
+      });
+    }
+    
+    if (refreshBtn) {
+      const newRefreshBtn = refreshBtn.cloneNode(true);
+      refreshBtn.parentNode.replaceChild(newRefreshBtn, refreshBtn);
+      newRefreshBtn.addEventListener('click', function() {
+        refresh();
+      });
+    }
+    
+    // Add click-to-edit functionality for month/year display
+    const monthYearDisplay = document.getElementById('monthYearDisplayNetWorth');
+    if (monthYearDisplay) {
+      const newDisplay = monthYearDisplay.cloneNode(true);
+      monthYearDisplay.parentNode.replaceChild(newDisplay, monthYearDisplay);
+      newDisplay.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        showMonthYearEditor('monthYearDisplayNetWorth');
+      });
+    }
+    
+    updateMonthYearDisplay();
+  }
+  
+  // Chart functions - FIXED BUG 2: Proper month filtering
+
+  // Get available years from data for performance chart
+  function getAvailableYears() {
+    if (!_netWorthData || !_netWorthData.entries || _netWorthData.entries.length === 0) {
+      return [new Date().getFullYear()];
+    }
+
+    const years = new Set();
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    _netWorthData.entries.forEach(entry => {
+      if (!entry.date) return;
+
+      const parts = entry.date.split(' ');
+      if (parts.length === 2) {
+        const yearStr = parts[1];
+        const year = parseInt(yearStr, 10);
+        if (!isNaN(year)) {
+          years.add(year);
+        }
+      }
+    });
+
+    // Convert to sorted array (oldest to newest)
+    const sortedYears = Array.from(years).sort((a, b) => a - b);
+
+    // If no years found, return current year
+    if (sortedYears.length === 0) {
+      return [new Date().getFullYear()];
+    }
+
+    // For mobile, limit to last 5 years
+    const isMobile = window.innerWidth < 768;
+    if (isMobile && sortedYears.length > 5) {
+      return sortedYears.slice(-5); // Get last 5 years only
+    }
+
+    return sortedYears;
+  }
+
+  // Calculate monthly performance for a specific year
+  function calculateMonthlyPerformance(year) {
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthlyData = [];
+    const monthlyPercentages = [];
+
+    // Get current date to determine which months to show
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth(); // 0-11
+
+    // Determine the last month to show
+    let lastMonthToShow = 11; // December by default
+    if (year === currentYear) {
+      lastMonthToShow = currentMonth; // Only show up to current month for current year
+    } else if (year > currentYear) {
+      // Future year - show no data
+      return {
+        monthlyPercentages: [],
+        yearlyPerformance: 0
+      };
+    }
+
+    // Calculate net worth for each month of the year (up to lastMonthToShow)
+    for (let month = 0; month <= lastMonthToShow; month++) {
+      const monthEntries = getEntriesForMonth(month, year);
+      let totalNetWorth = 0;
+      let hasEntries = monthEntries.length > 0;
+
+      monthEntries.forEach(entry => {
+        const category = ASSET_CATEGORIES[entry.asset];
+        if (!category) return;
+
+        const amount = parseFloat(entry.amount) || 0;
+        if (Math.abs(amount) < 1) return;
+
+        if (category.isDebt) {
+          totalNetWorth -= Math.abs(amount);
+        } else {
+          totalNetWorth += amount;
+        }
+      });
+
+      monthlyData.push({
+        month: monthNames[month],
+        netWorth: totalNetWorth,
+        hasEntries: hasEntries
+      });
+    }
+
+    // Calculate percentage changes
+    for (let i = 0; i < monthlyData.length; i++) {
+      const currentNetWorth = monthlyData[i].netWorth;
+      const currentHasEntries = monthlyData[i].hasEntries;
+      let previousNetWorth = 0;
+      let previousHasEntries = false;
+
+      if (i === 0) {
+        // For January, compare to December of previous year
+        const prevYearDecEntries = getEntriesForMonth(11, year - 1);
+        previousHasEntries = prevYearDecEntries.length > 0;
+
+        prevYearDecEntries.forEach(entry => {
+          const category = ASSET_CATEGORIES[entry.asset];
+          if (!category) return;
+
+          const amount = parseFloat(entry.amount) || 0;
+          if (Math.abs(amount) < 1) return;
+
+          if (category.isDebt) {
+            previousNetWorth -= Math.abs(amount);
+          } else {
+            previousNetWorth += amount;
+          }
+        });
+      } else {
+        previousNetWorth = monthlyData[i - 1].netWorth;
+        previousHasEntries = monthlyData[i - 1].hasEntries;
+      }
+
+      // Only calculate and show percentage if both current and previous months have data
+      let percentChange = 0;
+      let shouldShow = false;
+
+      if (currentHasEntries && previousHasEntries) {
+        shouldShow = true;
+        if (previousNetWorth !== 0) {
+          percentChange = ((currentNetWorth - previousNetWorth) / Math.abs(previousNetWorth)) * 100;
+        } else if (currentNetWorth !== 0) {
+          // If previous is 0 but current is not, show 100% or -100%
+          percentChange = currentNetWorth > 0 ? 100 : -100;
+        }
+      }
+
+      monthlyPercentages.push({
+        month: monthlyData[i].month,
+        percentage: percentChange,
+        netWorth: currentNetWorth,
+        hasData: shouldShow
+      });
+    }
+
+    // Calculate yearly performance by summing all monthly percentages
+    let yearlyPerformance = 0;
+    monthlyPercentages.forEach(month => {
+      if (month.hasData) {
+        yearlyPerformance += month.percentage;
+      }
+    });
+
+    return {
+      monthlyPercentages,
+      yearlyPerformance
+    };
+  }
+
+    function getChartData(timespan) {
+    const months = getMonthsForTimespan(timespan);
+    const labels = [];
+    const netWorthData = [];
+    const assetTypeData = {};
+    
+    months.forEach(monthData => {
+      const monthKey = `${monthData.shortName} ${monthData.year}`;
+      labels.push(monthKey);
+      
+      // FIX BUG 2: Use the robust month filtering function
+      const monthEntries = getEntriesForMonth(monthData.month, monthData.year);
+      
+      let totalAssets = 0;
+      let totalDebts = 0;
+      const typeAmounts = {};
+      
+      monthEntries.forEach(entry => {
+        const category = ASSET_CATEGORIES[entry.asset];
+        if (!category) return;
+        
+        // Parse amount, treating null/undefined/empty as 0
+        const amount = parseFloat(entry.amount) || 0;
+        
+        // NEW: Skip amounts less than 1 for chart rendering
+        if (Math.abs(amount) < 1) return;
+        
+        const type = entry.type || 'Other';
+        
+        if (!typeAmounts[type]) {
+          typeAmounts[type] = 0;
+        }
+        
+        // Include all values in calculations, even if 0
+        if (category.isDebt) {
+          typeAmounts[type] -= Math.abs(amount);
+          totalDebts += Math.abs(amount);
+        } else {
+          typeAmounts[type] += amount;
+          totalAssets += amount;
+        }
+      });
+      
+      netWorthData.push(totalAssets - totalDebts);
+      
+      // Store amounts for each asset type
+      Object.keys(typeAmounts).forEach(type => {
+        if (!assetTypeData[type]) {
+          assetTypeData[type] = new Array(labels.length).fill(0);
+        }
+        assetTypeData[type][labels.length - 1] = typeAmounts[type];
+      });
+    });
+    
+    // Ensure all arrays are the same length
+    Object.keys(assetTypeData).forEach(type => {
+      while (assetTypeData[type].length < labels.length) {
+        assetTypeData[type].push(0);
+      }
+    });
+    
+    // Add projections if viewing 'thisyear' timespan
+    const projections = calculateProjections(timespan);
+    const allLabels = [...labels, ...projections.projectedLabels];
+    const allNetWorthData = [...netWorthData, ...projections.projectedValues];
+    
+    // Mark where projections start for visual styling
+    const projectionStartIndex = labels.length;
+    
+    return {
+      labels: allLabels,
+      netWorthData: allNetWorthData,
+      assetTypeData,
+      projectionStartIndex: projectionStartIndex,
+      hasProjections: projections.projectedLabels.length > 0
+    };
+  }
+  
+  function getMonthsForTimespan(timespan) {
+    const months = [];
+    const now = new Date();
+    let startDate;
+    
+    switch (timespan) {
+        case 'thisyear':
+      startDate = new Date(now.getFullYear(), 0, 1); // January 1st of current year
+      break;
+      case '12m':
+        startDate = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+        break;
+      case '2yr':
+        startDate = new Date(now.getFullYear() - 2, now.getMonth(), 1);
+        break;
+      case '3yr':
+        startDate = new Date(now.getFullYear() - 3, now.getMonth(), 1);
+        break;
+      case '5yr':
+        startDate = new Date(now.getFullYear() - 5, now.getMonth(), 1);
+        break;
+      case 'all':
+        // Find earliest entry
+        if (_netWorthData.entries.length > 0) {
+          const earliestDate = new Date(Math.min(..._netWorthData.entries.map(e => new Date(e.date || now))));
+          startDate = new Date(earliestDate.getFullYear(), earliestDate.getMonth(), 1);
+        } else {
+          startDate = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+        }
+        break;
+      default:
+        startDate = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+    }
+    
+    const currentDate = new Date(startDate);
+    while (currentDate <= now) {
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      months.push({
+        month: currentDate.getMonth(),
+        year: currentDate.getFullYear(),
+        shortName: monthNames[currentDate.getMonth()]
+      });
+      currentDate.setMonth(currentDate.getMonth() + 1);
+    }
+    
+    return months;
+  }
+  
+  function calculateProjections(timespan) {
+    // Only calculate projections for 'thisyear' timespan
+    if (timespan !== 'thisyear') {
+      return { projectedLabels: [], projectedValues: [] };
+    }
+    
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+    
+    // Get historical data for trend calculation (last 3-6 months)
+    const historicalMonths = Math.min(6, currentMonth + 1); // Don't go beyond current year
+    const trendData = [];
+    
+    for (let i = Math.max(0, currentMonth - historicalMonths + 1); i <= currentMonth; i++) {
+      const monthEntries = getEntriesForMonth(i, currentYear);
+      let totalNetWorth = 0;
+      
+      monthEntries.forEach(entry => {
+        const category = ASSET_CATEGORIES[entry.asset];
+        if (!category) return;
+        
+        const amount = parseFloat(entry.amount) || 0;
+        if (Math.abs(amount) < 1) return;
+        
+        if (category.isDebt) {
+          totalNetWorth -= Math.abs(amount);
+        } else {
+          totalNetWorth += amount;
+        }
+      });
+      
+      trendData.push(totalNetWorth);
+    }
+    
+    // Calculate average monthly change
+    let totalChange = 0;
+    let changeCount = 0;
+    
+    for (let i = 1; i < trendData.length; i++) {
+      totalChange += trendData[i] - trendData[i - 1];
+      changeCount++;
+    }
+    
+    const avgMonthlyChange = changeCount > 0 ? totalChange / changeCount : 0;
+    
+    // Generate projections for remaining months of the year
+    const projectedLabels = [];
+    const projectedValues = [];
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    
+    if (trendData.length > 0) {
+      // Get the current month's actual net worth value as starting point
+      const currentMonthEntries = getEntriesForMonth(currentMonth, currentYear);
+      let currentMonthValue = 0;
+      
+      currentMonthEntries.forEach(entry => {
+        const category = ASSET_CATEGORIES[entry.asset];
+        if (!category) return;
+        
+        const amount = parseFloat(entry.amount) || 0;
+        if (Math.abs(amount) < 1) return;
+        
+        if (category.isDebt) {
+          currentMonthValue -= Math.abs(amount);
+        } else {
+          currentMonthValue += amount;
+        }
+      });
+      
+      // Start projections from NEXT month, using current month's value as base
+      let lastValue = currentMonthValue;
+      
+      for (let month = currentMonth + 1; month <= 11; month++) {
+        lastValue += avgMonthlyChange;
+        projectedLabels.push(`${monthNames[month]} ${currentYear}`);
+        projectedValues.push(lastValue);
+      }
+    }
+    
+    return { projectedLabels, projectedValues };
+  }
+  
+  function renderNetWorthChart() {
+  const currentYear = new Date().getFullYear();
+  
+  // Get available years for performance mode
+  const availableYears = getAvailableYears();
+
+  return `
+    <div class="nw-chart-container">
+      <div class="nw-chart-wrapper">
+        <canvas id="netWorthChart" width="800" height="400"></canvas>
+      </div>
+      <div class="nw-chart-header">
+        <div class="nw-chart-controls">
+          <div class="nw-mode-buttons">
+            <button class="nw-mode-btn ${_chartMode === 'performance' ? 'active' : ''}" id="performanceBtn" title="Performance">
+              <i class="material-icons">bar_chart</i>
+            </button>
+            <button class="nw-mode-btn ${_chartMode === 'timeline' ? 'active' : ''}" id="timelineBtn" title="Timeline">
+              <i class="material-icons">show_chart</i>
+            </button>
+            <button class="nw-mode-btn ${_chartMode === 'allocation' ? 'active' : ''}" id="allocationBtn" title="Allocation">
+              <i class="material-icons">pie_chart</i>
+            </button>
+          </div>
+
+          <div class="nw-timespan-controls ${_chartMode === 'performance' ? '' : 'hidden'}" id="performanceYearControls">
+            ${availableYears.map(year =>
+              `<button class="nw-timespan-btn ${_selectedYear === year ? 'active' : ''}" data-year="${year}">${year}</button>`
+            ).join('')}
+          </div>
+
+          <div class="nw-timespan-controls ${_chartMode === 'timeline' ? '' : 'hidden'}" id="timelineTimespanControls">
+            <button class="nw-timespan-btn ${_chartTimespan === 'thisyear' ? 'active' : ''}" data-timespan="thisyear">${currentYear}</button>
+            <button class="nw-timespan-btn ${_chartTimespan === '12m' ? 'active' : ''}" data-timespan="12m">12m</button>
+            <button class="nw-timespan-btn ${_chartTimespan === '2yr' ? 'active' : ''}" data-timespan="2yr">2yr</button>
+            <button class="nw-timespan-btn ${_chartTimespan === '3yr' ? 'active' : ''}" data-timespan="3yr">3yr</button>
+            <button class="nw-timespan-btn ${_chartTimespan === '5yr' ? 'active' : ''}" data-timespan="5yr">5yr</button>
+            <button class="nw-timespan-btn nw-all-btn ${_chartTimespan === 'all' ? 'active' : ''}" data-timespan="all" data-translate="all_button">All</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+  
+  // FIX BUG 3: Enhanced Chart.js plugin for proper value positioning
+  // Replace your existing valuesPlugin with this boundary-aware version:
+ const valuesPlugin = {
+  id: 'valuesAboveBars',
+  afterDatasetsDraw: function(chart) {
+    const ctx = chart.ctx;
+    const chartData = getChartData(_chartTimespan);
+    
+    if (!chartData || !chartData.netWorthData || chartData.netWorthData.length === 0) {
+      return;
+    }
+    
+    // CRITICAL: Get the actual drawing boundaries
+    const chartArea = chart.chartArea;
+    const topBoundary = chartArea.top + 5; // Small margin from top
+    
+    // Format values
+    const values = chartData.netWorthData.map(value => {
+      if (Math.abs(value) >= 1000000) {
+        return `${Math.round(value / 1000000)}M`;
+      } else if (Math.abs(value) >= 1000) {
+        return `${Math.round(value / 1000)}k`;
+      } else {
+        return `${Math.round(value)}`;
+      }
+    });
+    
+    const changes = chartData.netWorthData.map((value, index) => {
+      if (index === 0) return '';
+      const change = value - chartData.netWorthData[index - 1];
+      const sign = change >= 0 ? '+' : '';
+      if (Math.abs(change) >= 1000000) {
+        return `${sign}${Math.round(change / 1000000)}M`;
+      } else if (Math.abs(change) >= 1000) {
+        return `${sign}${Math.round(change / 1000)}k`;
+      } else {
+        return `${sign}${Math.round(change)}`;
+      }
+    });
+    
+    // Get net worth line dataset
+    const netWorthDatasetIndex = chart.data.datasets.length - 1;
+    const netWorthMeta = chart.getDatasetMeta(netWorthDatasetIndex);
+    
+    if (!netWorthMeta || !netWorthMeta.data) return;
+    
+    // Draw values with strict boundary checking
+    chart.data.labels.forEach((label, index) => {
+      const point = netWorthMeta.data[index];
+      if (!point) return;
+      
+      const x = point.x;
+      let highestY = point.y;
+      
+      // Find the highest stacked bar
+      for (let i = 0; i < chart.data.datasets.length - 1; i++) {
+        const barMeta = chart.getDatasetMeta(i);
+        if (barMeta && barMeta.data && barMeta.data[index]) {
+          const bar = barMeta.data[index];
+          highestY = Math.min(highestY, bar.y);
+        }
+      }
+      
+      // Calculate label positions
+      const fontSize = window.innerWidth < 768 ? 10 : 12;
+      const valueY = highestY - (window.innerWidth < 768 ? 20 : 25);
+      const changeY = highestY - (window.innerWidth < 768 ? 8 : 10);
+      
+      // CRITICAL: Only draw if within boundaries
+      if (valueY >= topBoundary) {
+        ctx.save();
+        ctx.fillStyle = '#2c3e50';
+        ctx.font = `bold ${fontSize}px Lato, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(values[index], x, valueY);
+        
+        // Draw change only if there's enough space
+        if (changes[index] && changeY >= topBoundary && changeY > valueY + fontSize) {
+          const changeColor = changes[index].startsWith('+') ? '#4caf50' : '#f44336';
+          ctx.fillStyle = changeColor;
+          ctx.font = `600 ${fontSize - 2}px Lato, sans-serif`;
+          ctx.fillText(changes[index], x, changeY);
+        }
+        
+        ctx.restore();
+      }
+    });
+  }
+ };
+  
+  function updateChartModeUI() {
+    // Update button active states
+    const performanceBtn = document.getElementById('performanceBtn');
+    const timelineBtn = document.getElementById('timelineBtn');
+    const allocationBtn = document.getElementById('allocationBtn');
+
+    if (performanceBtn) performanceBtn.classList.toggle('active', _chartMode === 'performance');
+    if (timelineBtn) timelineBtn.classList.toggle('active', _chartMode === 'timeline');
+    if (allocationBtn) allocationBtn.classList.toggle('active', _chartMode === 'allocation');
+
+    // Update timespan controls visibility
+    const performanceYearControls = document.getElementById('performanceYearControls');
+    const timelineTimespanControls = document.getElementById('timelineTimespanControls');
+
+    if (performanceYearControls) {
+      performanceYearControls.classList.toggle('hidden', _chartMode !== 'performance');
+    }
+
+    if (timelineTimespanControls) {
+      timelineTimespanControls.classList.toggle('hidden', _chartMode !== 'timeline');
+    }
+
+    const chartContainer = document.querySelector('.nw-chart-container');
+    if (chartContainer) {
+      chartContainer.classList.toggle('allocation-mode', _chartMode === 'allocation');
+    }
+  }
+
+  function initializeChart() {
+    if (_chartMode === 'performance') {
+      initializePerformanceChart();
+    } else if (_chartMode === 'timeline') {
+      initializeTimelineChart();
+    } else {
+      initializeAllocationChart();
+    }
+  }
+
+  function initializeTimelineChart() {
+  const canvas = document.getElementById('netWorthChart');
+  if (!canvas) return;
+  
+  const ctx = canvas.getContext('2d');
+  const chartData = getChartData(_chartTimespan);
+  
+  // Destroy existing chart
+  if (_chart) {
+    _chart.destroy();
+  }
+  
+  const datasets = [];
+  
+  // Sort asset types for consistent stacking order
+  const sortedTypes = Object.keys(chartData.assetTypeData).sort();
+  
+  sortedTypes.forEach(type => {
+    const color = ASSET_TYPE_COLORS[type] || '#95a5a6';
+    // Only add dataset if it has at least one non-zero value
+    const hasNonZeroValue = chartData.assetTypeData[type].some(val => val !== 0);
+    
+    if (hasNonZeroValue || sortedTypes.length === 1) { // Always show if it's the only type
+      datasets.push({
+        label: type,
+        data: chartData.assetTypeData[type],
+        backgroundColor: color,
+        borderColor: color,
+        borderWidth: 1,
+        type: 'bar',
+        stack: 'assets',
+        order: 2 // Bars drawn first
+      });
+    }
+  });
+  
+  // Add net worth line - separate datasets for historical and projected
+  if (chartData.hasProjections) {
+    // Historical data only (no future values)
+    const historicalData = new Array(chartData.labels.length).fill(null);
+    for (let i = 0; i < chartData.projectionStartIndex; i++) {
+      historicalData[i] = chartData.netWorthData[i];
+    }
+    
+    datasets.push({
+      label: 'Net Worth',
+      data: historicalData,
+      borderColor: '#2c3e50',
+      backgroundColor: 'transparent',
+      type: 'line',
+      tension: 0.4,
+      pointBackgroundColor: '#2c3e50',
+      pointBorderColor: '#fff',
+      pointBorderWidth: 2,
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      borderWidth: 3,
+      order: 1
+    });
+    
+    // Projected data only (no historical values)
+    const projectionData = new Array(chartData.labels.length).fill(null);
+    for (let i = chartData.projectionStartIndex; i < chartData.netWorthData.length; i++) {
+      projectionData[i] = chartData.netWorthData[i];
+    }
+    
+    datasets.push({
+      label: 'Projected Net Worth',
+      data: projectionData,
+      borderColor: 'rgba(231, 76, 60, 0.7)',
+      backgroundColor: 'transparent',
+      type: 'line',
+      tension: 0.4,
+      pointBackgroundColor: 'rgba(231, 76, 60, 0.7)',
+      pointBorderColor: '#fff',
+      pointBorderWidth: 2,
+      pointRadius: 3,
+      pointHoverRadius: 5,
+      borderWidth: 2,
+      borderDash: [8, 4], // Dashed line for projections
+      order: 1
+    });
+  } else {
+    // No projections, show regular line
+    datasets.push({
+      label: 'Net Worth',
+      data: chartData.netWorthData,
+      borderColor: '#2c3e50',
+      backgroundColor: 'transparent',
+      type: 'line',
+      tension: 0.4,
+      pointBackgroundColor: '#2c3e50',
+      pointBorderColor: '#fff',
+      pointBorderWidth: 2,
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      borderWidth: 3,
+      order: 1
+    });
+  }
+  
+  // Detect mobile
+  const isMobile = window.innerWidth < 768;
+  
+  // BOUNDARY-AWARE VALUES PLUGIN - BUILT INTO THE CHART
+  const boundaryAwareValuesPlugin = {
+    id: 'valuesAboveBars',
+    afterDatasetsDraw: function(chart) {
+      const ctx = chart.ctx;
+      
+      if (!chartData || !chartData.netWorthData || chartData.netWorthData.length === 0) {
+        return;
+      }
+      
+      // GET STRICT BOUNDARIES FROM CHART.JS
+      const chartArea = chart.chartArea;
+      const topLimit = chartArea.top + 2; // Absolute top boundary with tiny margin
+      const bottomLimit = chartArea.bottom - 2; // Absolute bottom boundary
+      
+      // Format values efficiently
+      const values = chartData.netWorthData.map(value => {
+        if (Math.abs(value) >= 1000000) {
+          return `${Math.round(value / 1000000)}M`;
+        } else if (Math.abs(value) >= 1000) {
+          return `${Math.round(value / 1000)}k`;
+        } else {
+          return `${Math.round(value)}`;
+        }
+      });
+      
+      const changes = chartData.netWorthData.map((value, index) => {
+        if (index === 0) return '';
+        const change = value - chartData.netWorthData[index - 1];
+        const sign = change >= 0 ? '+' : '';
+        if (Math.abs(change) >= 1000000) {
+          return `${sign}${Math.round(change / 1000000)}M`;
+        } else if (Math.abs(change) >= 1000) {
+          return `${sign}${Math.round(change / 1000)}k`;
+        } else {
+          return `${sign}${Math.round(change)}`;
+        }
+      });
+      
+      // Get the net worth line dataset (last dataset)
+      const netWorthDatasetIndex = chart.data.datasets.length - 1;
+      const netWorthMeta = chart.getDatasetMeta(netWorthDatasetIndex);
+      
+      if (!netWorthMeta || !netWorthMeta.data) return;
+      
+      // Calculate font sizes
+      const valueFontSize = isMobile ? 9 : 12;
+      const changeFontSize = isMobile ? 8 : 10;
+      const lineHeight = valueFontSize + 2;
+      
+      // Draw values with ABSOLUTE boundary enforcement
+      // Different display intervals based on device and timeframe
+      const shouldShowQuarterly = _chartTimespan === '3yr' || _chartTimespan === '5yr' || _chartTimespan === 'all';
+      
+      chart.data.labels.forEach((label, index) => {
+        // On mobile: different intervals based on timeframe
+        if (isMobile) {
+          // Current Year and 12m: show every month
+          if (_chartTimespan === 'thisyear' || _chartTimespan === '12m') {
+            // Show all months - no skipping
+          }
+          // 2yr: show every 2 months
+          else if (_chartTimespan === '2yr' && index % 2 !== 0) return;
+          // 3yr, 5yr, All: show every 4 months
+          else if ((_chartTimespan === '3yr' || _chartTimespan === '5yr' || _chartTimespan === 'all') && index % 4 !== 0) return;
+        } else {
+          // On desktop: show quarterly for longer timeframes, monthly for shorter
+          if (shouldShowQuarterly && index % 3 !== 0) return;
+        }
+        const point = netWorthMeta.data[index];
+        if (!point) return;
+        
+        const x = point.x;
+        let highestY = point.y; // Start with net worth line position
+        
+        // Find the actual highest point considering all stacked bars
+        for (let i = 0; i < chart.data.datasets.length - 1; i++) { // Exclude the line dataset
+          const barMeta = chart.getDatasetMeta(i);
+          if (barMeta && barMeta.data && barMeta.data[index]) {
+            const bar = barMeta.data[index];
+            // For stacked bars, we need the topmost position
+            highestY = Math.min(highestY, bar.y); // Lower y value = higher position
+          }
+        }
+        
+        // Calculate label positions with spacing
+        const valueSpacing = isMobile ? 16 : 22;
+        const changeSpacing = isMobile ? 6 : 8;
+        
+        const valueY = highestY - valueSpacing;
+        const changeY = highestY - changeSpacing;
+        
+        // CRITICAL: Only draw values if they fit within the top boundary
+        if (valueY >= topLimit && valueY <= bottomLimit) {
+          ctx.save();
+          ctx.fillStyle = document.body.classList.contains('dark-mode') ? '#DDA15E' : '#2c3e50';
+          ctx.font = `bold ${valueFontSize}px Lato, sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          
+          // Ensure we're not drawing outside canvas bounds
+          if (x >= chartArea.left && x <= chartArea.right) {
+            ctx.fillText(values[index], x, valueY);
+          }
+          
+             // Draw change value only if there's enough space and it fits
+          if (changes[index] && changeY >= topLimit && changeY <= bottomLimit && changeY !== valueY) {
+              const isPositive = changes[index].startsWith('+');
+              const isDarkMode = document.body.classList.contains('dark-mode');
+              const changeColor = isDarkMode 
+                  ? (isPositive ? '#66bb6a' : '#ef5350') // Lighter green/red in dark mode
+                  : (isPositive ? '#4caf50' : '#f44336'); // Normal green/red in light mode
+              ctx.fillStyle = changeColor;
+              ctx.font = `600 ${changeFontSize}px Lato, sans-serif`;
+              ctx.fillText(changes[index], x, changeY);
+          }
+          
+          ctx.restore();
+        }
+      });
+    }
+  };
+  
+  _chart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: chartData.labels,
+      datasets: datasets
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      
+      // CRITICAL: Reserve space for labels to prevent overflow
+      layout: {
+        padding: {
+          top: isMobile ? 25 : 35,     // Reserve space for value labels
+          bottom: isMobile ? 5 : 10,   // Minimal bottom space 
+          left: isMobile ? 5 : 10,
+          right: isMobile ? 5 : 10
+        }
+      },
+      
+      // Force chart to fit within container
+      elements: {
+        point: {
+          radius: isMobile ? 3 : 4,
+          hoverRadius: isMobile ? 4 : 6
+        }
+      },
+      
+      interaction: {
+        mode: 'nearest',
+        intersect: true
+      },
+      
+      plugins: {
+        legend: {
+          display: !isMobile, // Hide legend on mobile to save space
+          position: 'left', 
+          align: 'center',
+          fullSize: false,
+          maxHeight: 200,
+          labels: {
+            usePointStyle: true,
+            padding: 10,
+            font: {
+              size: 11,
+              family: 'Lato, sans-serif'
+            },
+            boxWidth: 15,
+            boxHeight: 15
+          }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(0,0,0,0.8)',
+          titleColor: '#fff',
+          bodyColor: '#fff',
+          titleFont: {
+            size: 13,
+            weight: 'bold'
+          },
+          bodyFont: {
+            size: 12
+          },
+          padding: 10,
+          displayColors: true,
+          callbacks: {
+            label: function(context) {
+              const value = context.parsed.y;
+              return `${context.dataset.label}: ${formatCurrency(value)}`;
+            }
+          }
+        }
+      },
+      
+      scales: {
+        x: {
+          stacked: true,
+          grid: {
+            display: false
+          },
+          ticks: {
+            font: {
+              size: isMobile ? 9 : 11,
+              family: 'Lato, sans-serif'
+            },
+            // Rotate labels based on device and timeframe
+            maxRotation: function() {
+              if (isMobile) {
+                // Mobile: 45 degrees for all timeframes
+                return 45;
+              } else {
+                // Desktop: 0 degrees for Current Year and 12m, 90 for others
+                return (_chartTimespan === 'thisyear' || _chartTimespan === '12m') ? 0 : 90;
+              }
+            }(),
+            minRotation: function() {
+              if (isMobile) {
+                // Mobile: 45 degrees for all timeframes
+                return 45;
+              } else {
+                // Desktop: 0 degrees for Current Year and 12m, 90 for others
+                return (_chartTimespan === 'thisyear' || _chartTimespan === '12m') ? 0 : 90;
+              }
+            }(),
+            // Show all labels for short timeframes on mobile
+            autoSkip: false,
+            callback: function(value, index) {
+              if (isMobile) {
+                // Current Year and 12m: show all months
+                if (_chartTimespan === 'thisyear' || _chartTimespan === '12m') {
+                  return this.getLabelForValue(value);
+                }
+                // 2yr: show every 2 months
+                else if (_chartTimespan === '2yr') {
+                  return index % 2 === 0 ? this.getLabelForValue(value) : '';
+                }
+                // 3yr, 5yr, All: show every 4 months
+                else if (_chartTimespan === '3yr' || _chartTimespan === '5yr' || _chartTimespan === 'all') {
+                  return index % 4 === 0 ? this.getLabelForValue(value) : '';
+                }
+              }
+              // Desktop: show all labels
+              return this.getLabelForValue(value);
+            }
+          }
+        },
+        y: {
+          stacked: true,
+          beginAtZero: true,
+          // Tighter scaling to prevent labels going outside
+          suggestedMax: function(context) {
+            const maxValue = Math.max(...context.chart.data.datasets.map(d => 
+              Math.max(...d.data.filter(v => v !== null && v !== undefined))
+            ));
+            return maxValue * (isMobile ? 1.08 : 1.12); // Tighter scaling on mobile
+          },
+          position: isMobile ? 'bottom' : 'left',
+          grid: {
+            color: 'rgba(0,0,0,0.08)',
+            drawBorder: false
+          },
+          ticks: {
+            callback: function(value) {
+              if (Math.abs(value) >= 1000000) {
+                return `${value / 1000000}M`;
+              } else if (Math.abs(value) >= 1000) {
+                return `${value / 1000}k`;
+              }
+              return value;
+            },
+            font: {
+              size: isMobile ? 9 : 11,
+              family: 'Lato, sans-serif'
+            },
+            maxTicksLimit: isMobile ? 5 : 8 // Fewer ticks on mobile
+          }
+        }
+      }
+    },
+    plugins: [boundaryAwareValuesPlugin] // Use our boundary-aware plugin
+  });
+ }
+
+
+
+  function initializePerformanceChart() {
+    const canvas = document.getElementById('netWorthChart');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+
+    // Destroy existing chart
+    if (_chart) {
+      _chart.destroy();
+    }
+
+    // Get performance data for selected year
+    const performanceData = calculateMonthlyPerformance(_selectedYear);
+
+    // Always show all 12 months, but use null for months without data (no bar will render)
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const allMonthsData = monthNames.map(monthName => {
+      const monthData = performanceData.monthlyPercentages.find(d => d.month === monthName);
+      if (monthData && monthData.hasData) {
+        return monthData.percentage;
+      }
+      return null; // null = no bar will be rendered for this month
+    });
+
+    const labels = monthNames;
+    const data = allMonthsData;
+    const colors = data.map(val => val === null ? 'transparent' : (val >= 0 ? 'rgba(76, 175, 80, 0.8)' : 'rgba(244, 67, 54, 0.8)'));
+
+    // Calculate actual min and max from the data
+    const validData = data.filter(val => val !== null);
+    const dataMin = validData.length > 0 ? Math.min(...validData) : 0;
+    const dataMax = validData.length > 0 ? Math.max(...validData) : 0;
+
+    // Calculate padding (10% of the range)
+    const range = Math.abs(dataMax - dataMin);
+    const padding = range > 0 ? range * 0.1 : 1;
+
+    // Apply padding correctly - subtract for min, add for max
+    const yMin = dataMin - padding;
+    const yMax = dataMax + padding;
+
+    const isMobile = window.innerWidth < 768;
+
+    _chart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Monthly Performance',
+          data: data,
+          backgroundColor: colors,
+          borderColor: colors.map(c => c.replace('0.8', '1')),
+          borderWidth: 2,
+          borderRadius: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          mode: 'index',
+          intersect: false
+        },
+        plugins: {
+          legend: {
+            display: false
+          },
+          tooltip: {
+            enabled: true,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            padding: 12,
+            titleFont: {
+              size: 13,
+              family: 'Lato, sans-serif'
+            },
+            bodyFont: {
+              size: 12,
+              family: 'Lato, sans-serif'
+            },
+            callbacks: {
+              label: function(context) {
+                const percentage = context.parsed.y;
+                return `Performance: ${percentage.toFixed(2)}%`;
+              }
+            }
+          },
+          title: {
+            display: true,
+            text: `${_selectedYear}: ${performanceData.yearlyPerformance.toFixed(2)}%`,
+            font: {
+              size: isMobile ? 14 : 16,
+              weight: 'bold',
+              family: 'Lato, sans-serif'
+            },
+            color: performanceData.yearlyPerformance >= 0 ? '#4caf50' : '#f44336',
+            padding: {
+              top: 10,
+              bottom: 20
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: {
+              display: false,
+              drawBorder: false
+            },
+            ticks: {
+              font: {
+                size: isMobile ? 10 : 12,
+                family: 'Lato, sans-serif'
+              },
+              padding: isMobile ? 8 : 10
+            }
+          },
+          y: {
+            display: true,
+            position: 'left',
+            min: yMin,
+            max: yMax,
+            grid: {
+              display: false,
+              drawBorder: false
+            },
+            border: {
+              display: false
+            },
+            ticks: {
+              callback: function(value, index, ticks) {
+                // Only show min, zero, and max values
+                if (index === 0 || index === ticks.length - 1) {
+                  return value.toFixed(2) + '%';
+                }
+                // Show zero if it's close to a tick value
+                if (Math.abs(value) < 0.01 && dataMin < 0 && dataMax > 0) {
+                  return '0.00%';
+                }
+                return '';
+              },
+              font: {
+                size: isMobile ? 9 : 11,
+                family: 'Lato, sans-serif'
+              },
+              color: '#666'
+            }
+          }
+        },
+        layout: {
+          padding: {
+            bottom: isMobile ? 20 : 25
+          }
+        }
+      },
+      plugins: [{
+        id: 'performanceLabels',
+        afterDraw: function(chart) {
+          const ctx = chart.ctx;
+          const meta = chart.getDatasetMeta(0);
+          const xAxis = chart.scales.x;
+
+          ctx.save();
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'top';
+
+          meta.data.forEach((bar, index) => {
+            const percentage = data[index];
+
+            // Skip null values (months without data)
+            if (percentage === null) return;
+
+            // Show decimals on desktop, whole numbers on mobile
+            const label = isMobile
+              ? `${Math.round(percentage)}%`
+              : `${percentage.toFixed(2)}%`;
+
+            // Position label below the x-axis labels (month names)
+            const x = bar.x;
+            // xAxis.bottom is where the x-axis labels end, add spacing below that
+            const y = xAxis.bottom + (isMobile ? 5 : 8);
+
+            // Bigger font on desktop
+            ctx.font = `${isMobile ? '10' : '13'}px Lato, sans-serif`;
+            ctx.fillStyle = percentage >= 0 ? '#4caf50' : '#f44336';
+            ctx.fillText(label, x, y);
+          });
+
+          ctx.restore();
+        }
+      }]
+    });
+  }
+
+  function initializeAllocationChart() {
+  const canvas = document.getElementById('netWorthChart');
+  if (!canvas) return;
+
+  const ctx = canvas.getContext('2d');
+
+  // Destroy existing chart
+  if (_chart) {
+    _chart.destroy();
+  }
+
+  // Get current month entries only
+  const currentMonthEntries = getCurrentMonthEntries();
+
+  // Group by asset name and calculate totals
+  const assetsByName = {};
+  let totalAssets = 0;
+
+  currentMonthEntries.forEach(entry => {
+    const category = ASSET_CATEGORIES[entry.asset];
+    if (!category || !entry.name) return;
+
+    const amount = parseFloat(entry.amount) || 0;
+
+    // Skip amounts less than 1 for allocation chart
+    if (Math.abs(amount) < 1) return;
+
+    // Only include positive values (assets, not debts)
+    if (!category.isDebt && amount > 0) {
+      if (!assetsByName[entry.name]) {
+        assetsByName[entry.name] = {
+          name: entry.name,
+          amount: 0,
+          type: entry.type
+        };
+      }
+      assetsByName[entry.name].amount += amount;
+      totalAssets += amount;
+    }
+  });
+
+    // Convert to array and sort by amount
+    const sortedAssets = Object.values(assetsByName)
+      .sort((a, b) => b.amount - a.amount);
+
+    // Assign colors to asset names if not already assigned
+    assignColorsToAssetNames(sortedAssets);
+
+    // Prepare data for donut chart
+    const labels = sortedAssets.map(asset => asset.name);
+    const data = sortedAssets.map(asset => (asset.amount / totalAssets) * 100);
+    const backgroundColors = sortedAssets.map(asset => _assetNameColors[asset.name]);
+
+    const isMobile = window.innerWidth < 768;
+
+    _chart = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: labels,
+        datasets: [{
+          data: data,
+          backgroundColor: backgroundColors,
+          borderWidth: 2,
+          borderColor: '#fff'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '60%', // Makes it a donut (vs pie)
+        layout: {
+          padding: {
+            top: 20,
+            bottom: 20,
+            left: 20,
+            right: 20
+          }
+        },
+        plugins: {
+          legend: {
+            display: false // Hide legend, we'll draw labels inside
+          },
+          tooltip: {
+            backgroundColor: 'rgba(0,0,0,0.8)',
+            titleColor: '#fff',
+            bodyColor: '#fff',
+            titleFont: {
+              size: 13,
+              weight: 'bold',
+              family: 'Lato, sans-serif'
+            },
+            bodyFont: {
+              size: 12,
+              family: 'Lato, sans-serif'
+            },
+            padding: 12,
+            callbacks: {
+              label: function(context) {
+                const asset = sortedAssets[context.dataIndex];
+                const percentage = data[context.dataIndex].toFixed(1);
+                return `${asset.name}: ${formatCurrency(asset.amount)} (${percentage}%)`;
+              }
+            }
+          }
+        }
+      },
+      plugins: [{
+        id: 'donutLabels',
+        afterDraw: function(chart) {
+          const ctx = chart.ctx;
+          const chartArea = chart.chartArea;
+          const centerX = (chartArea.left + chartArea.right) / 2;
+          const centerY = (chartArea.top + chartArea.bottom) / 2;
+
+          ctx.save();
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+
+          chart.data.datasets[0].data.forEach((value, index) => {
+            const meta = chart.getDatasetMeta(0);
+            const arc = meta.data[index];
+
+            // Calculate position for label (between center and edge of donut)
+            const angle = (arc.startAngle + arc.endAngle) / 2;
+            const radius = (arc.innerRadius + arc.outerRadius) / 2;
+            const x = centerX + Math.cos(angle) * radius;
+            const y = centerY + Math.sin(angle) * radius;
+
+            // Only show label if segment is large enough
+            if (value > 5) {
+              const label = labels[index];
+              const percentage = `${Math.round(value)}%`;
+
+              // Draw asset name
+              ctx.font = `bold ${isMobile ? '10' : '12'}px Lato, sans-serif`;
+              ctx.fillStyle = '#fff';
+              ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+              ctx.lineWidth = 3;
+              ctx.strokeText(label, x, y - (isMobile ? 8 : 10));
+              ctx.fillText(label, x, y - (isMobile ? 8 : 10));
+
+              // Draw percentage
+              ctx.font = `${isMobile ? '9' : '11'}px Lato, sans-serif`;
+              ctx.strokeText(percentage, x, y + (isMobile ? 6 : 8));
+              ctx.fillText(percentage, x, y + (isMobile ? 6 : 8));
+            }
+          });
+
+          ctx.restore();
+        }
+      }]
+    });
+  }
+  
+  function updateChartTimespan(timespan) {
+    _chartTimespan = timespan;
+    
+    // Update button states
+    document.querySelectorAll('.nw-timespan-btn').forEach(btn => {
+      btn.classList.remove('active');
+      if (btn.getAttribute('data-timespan') === timespan) {
+        btn.classList.add('active');
+      }
+    });
+    
+    // Recreate chart with new data
+    initializeChart();
+  }
+  
+  function renderAssetDetailsModal() {
+    return `
+      <div class="nw-asset-modal" id="assetDetailsModal" style="display: none;">
+        <div class="nw-modal-overlay" id="modalOverlay"></div>
+        <div class="nw-modal-content">
+          <div class="nw-modal-header">
+            <h3 data-translate="asset_details">Asset Details</h3>
+            <button class="nw-modal-close" id="modalClose">&times;</button>
+          </div>
+          <div class="nw-modal-body">
+            <div class="nw-modal-columns">
+              <div class="nw-modal-labels">
+                <div class="nw-label-item"><span data-translate="name_label">Name:</span> <span class="nw-required">*</span></div>
+                <div class="nw-label-item"><span data-translate="category_label">Category:</span> <span class="nw-required">*</span></div>
+                <div class="nw-label-item"><span data-translate="amount_label">Amount:</span> <span class="nw-required">*</span></div>
+                <div class="nw-label-item" data-translate="notes_label">Notes:</div>
+              </div>
+              <div class="nw-modal-inputs">
+                <div class="nw-input-item" data-label="Name:">
+                  <input type="text" id="assetName" class="nw-form-input">
+                </div>
+                <div class="nw-input-item" data-label="Category:">
+                  <input type="text" id="assetCategory" class="nw-form-input">
+                  <div class="nw-autocomplete-container"></div>
+                </div>
+                <div class="nw-input-item nw-amount-input" data-label="Amount:">
+                  <input type="number" id="assetAmount" class="nw-form-input" inputmode="decimal">
+                </div>
+                <div class="nw-input-item" data-label="Notes:">
+                  <textarea id="assetNotes" class="nw-form-textarea" rows="2"></textarea>
+                </div>
+              </div>
+              <div class="nw-modal-chart">
+                <div class="nw-chart-placeholder">
+                  <canvas id="assetHistoryChart" height="200"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="nw-modal-footer">
+            <button class="nw-add-btn nw-add-delete-btn" id="deleteAssetBtn" data-translate="delete_button">Delete</button>
+            <button class="nw-add-btn nw-add-cancel-btn" id="cancelAssetBtn" data-translate="cancel_button">Cancel</button>
+            <button class="nw-add-btn nw-add-save-btn" id="saveAssetBtn" data-translate="save_button">Save</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function calculateTotalNetWorth() {
+    const currentMonthEntries = getCurrentMonthEntries();
+    let totalAssets = 0;
+    let totalDebts = 0;
+
+    currentMonthEntries.forEach(entry => {
+      const category = ASSET_CATEGORIES[entry.asset];
+      if (!category) return;
+
+      const amount = parseFloat(entry.amount) || 0;
+      if (Math.abs(amount) < 1) return;
+
+      if (category.isDebt) {
+        totalDebts += Math.abs(amount);
+      } else {
+        totalAssets += amount;
+      }
+    });
+
+    return totalAssets - totalDebts;
+  }
+
+  function renderNetWorthView() {
+    const container = getElement('netWorthContent');
+    if (!container) return;
+
+    const currentMonthEntries = getCurrentMonthEntries();
+    const totalNetWorth = calculateTotalNetWorth();
+
+    // Format the month and year for display
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                       'July', 'August', 'September', 'October', 'November', 'December'];
+    const displayMonth = monthNames[_currentMonth];
+    const displayYear = _currentYear;
+
+    container.innerHTML = `
+      <div class="nw-message" id="netWorthMessage" style="display: none;"></div>
+
+      <div class="nw-total-header">
+        <h2><span data-translate="net_worth">Net Worth</span>: ${formatCurrency(totalNetWorth)}</h2>
+      </div>
+
+      ${renderNetWorthChart()}
+
+      <div class="nw-categories-grid">
+        ${Object.keys(ASSET_CATEGORIES).map(categoryKey =>
+          renderCategorySection(categoryKey, currentMonthEntries)
+        ).join('')}
+      </div>
+
+      ${renderAssetDetailsModal()}
+    `;
+    
+    // Apply translations to the dynamically created content
+    if (window.SimBudget && SimBudget.applyTranslations) {
+      SimBudget.applyTranslations();
+    }
+
+    setupSummaryObserver();
+    
+    // Initialize chart after DOM is ready
+    setTimeout(() => {
+      initializeChart();
+      bindEventHandlers();
+      updateChartModeUI();
+    }, 100);
+    
+    updateMonthYearDisplay();
+  }
+  
+  function setupSummaryObserver() {
+    const summaryElement = document.querySelector('.nw-total-header');
+    const bannerSummary = document.getElementById('netWorthBannerSummary');
+
+    if (!bannerSummary) {
+      return;
+    }
+
+    if (!summaryElement) {
+      if (window._netWorthSummaryObserver) {
+        window._netWorthSummaryObserver.disconnect();
+        window._netWorthSummaryObserver = null;
+      }
+      return;
+    }
+
+    bannerSummary.classList.add('hidden');
+
+    if (window._netWorthSummaryObserver) {
+      window._netWorthSummaryObserver.disconnect();
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && entry.intersectionRatio > 0.5) {
+            bannerSummary.classList.add('hidden');
+          } else {
+            bannerSummary.classList.remove('hidden');
+          }
+        });
+      },
+      { threshold: [0, 0.5] }
+    );
+
+    observer.observe(summaryElement);
+    window._netWorthSummaryObserver = observer;
+  }
+  
+  function renderCategorySection(categoryKey, allEntries) {
+    const category = ASSET_CATEGORIES[categoryKey];
+    const entries = allEntries.filter(entry => entry.asset === categoryKey);
+    
+    // Calculate category total and change
+    const categoryTotal = calculateCategoryTotal(categoryKey);
+    const categoryChange = calculateCategoryChange(categoryKey);
+    
+    // Format total for badge (show negative for debts)
+    const formattedTotal = category.isDebt && categoryTotal > 0 
+      ? `-${formatCurrency(categoryTotal)}` 
+      : formatCurrency(Math.abs(categoryTotal));
+    
+    // Create combined badge with total and change
+    const badgeClass = category.isDebt ? 'nw-total-badge-debt' : 'nw-total-badge-asset';
+    let totalsDisplay = '';
+    
+    if (categoryChange !== 0) {
+      const arrow = categoryChange > 0 ? '▲' : '▼';
+      const changeClass = categoryChange > 0 ? 'nw-change-positive' : 'nw-change-negative';
+      
+      // Combined badge with total and change
+      totalsDisplay = `
+        <div class="nw-total-container">
+          <span class="${badgeClass}">
+            <span class="nw-badge-total">${formattedTotal}</span>
+            <span class="nw-badge-change ${changeClass}">${formatCurrency(Math.abs(categoryChange))} ${arrow}</span>
+          </span>
+        </div>
+      `;
+    } else {
+      // Just the total badge when no change
+      totalsDisplay = `
+        <div class="nw-total-container">
+          <span class="${badgeClass}">
+            <span class="nw-badge-total">${formattedTotal}</span>
+          </span>
+        </div>
+      `;
+    }
+    
+    return `
+      <div class="nw-section">
+        <div class="nw-section-header">
+          <div class="nw-section-title-container">
+            <h3 class="nw-section-title">${Utils.translateCategory(category.name)}</h3>
+            <div class="nw-totals-display">${totalsDisplay}</div>
+          </div>
+          <div class="nw-header-controls">
+            <button class="nw-add-btn" data-category="${categoryKey}">
+              <i class="material-icons">add_circle_outline</i> <span data-translate="add">Add</span>
+            </button>
+          </div>
+        </div>
+        ${renderAssetTable(categoryKey, entries)}
+      </div>
+    `;
+  }
+  
+   function renderAssetTable(categoryKey, entries) {
+    if (entries.length === 0) {
+      return `
+        <div class="nw-empty-state">
+          <p>No ${categoryKey.toLowerCase()} found. Click ${Utils.translateCategory('add')} to create one.</p>
+        </div>
+      `;
+    }
+    
+    const category = ASSET_CATEGORIES[categoryKey];
+    
+    return `
+      <div class="nw-table-container">
+        <table class="nw-table">
+          <thead>
+            <tr>
+              <th>${Utils.translateCategory('category', 'Category')}</th>
+              <th>${Utils.translateCategory('name', 'Name')}</th>
+              <th>${Utils.translateCategory('amount', 'Amount')}</th>
+              <th>${Utils.translateCategory('change', 'Change')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${entries.map(entry => renderTableRow(entry, category)).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+  
+  function renderTableRow(entry, category) {
+    // Calculate change from previous month
+    const previousMonthEntries = getPreviousMonthEntries();
+    const previousEntry = previousMonthEntries.find(e => 
+      e.asset === entry.asset && e.name === entry.name
+    );
+    
+    const currentAmount = parseFloat(entry.amount) || 0;
+    const previousAmount = previousEntry ? (parseFloat(previousEntry.amount) || 0) : 0;
+    const change = currentAmount - previousAmount;
+    
+    // Format amount
+    const formattedAmount = formatCurrency(currentAmount);
+    
+    // Format change with color and arrow
+    let changeDisplay = '';
+    if (previousEntry && change !== 0) {
+      const changeClass = change > 0 ? 'nw-positive-change' : 'nw-negative-change';
+      const arrow = change > 0 ? '▲' : '▼';
+      changeDisplay = `<span class="${changeClass}">${formatCurrency(Math.abs(change))} ${arrow}</span>`;
+    } else if (!previousEntry) {
+      changeDisplay = '<span class="nw-new-entry">New</span>';
+    } else {
+      changeDisplay = '<span class="nw-no-change">-</span>';
+    }
+    
+    // Add class for zero-value entries
+    const zeroValueClass = currentAmount === 0 ? 'nw-zero-value' : '';
+    
+    return `
+      <tr data-id="${entry.id}" data-category="${entry.asset}" class="${zeroValueClass}">
+        <td class="nw-type-cell">
+          <div class="nw-clickable-name" data-id="${entry.id}" style="cursor: pointer;">
+            ${entry.type || ''}
+          </div>
+        </td>
+        <td class="nw-name-cell">
+          <div class="nw-clickable-name" data-id="${entry.id}" style="cursor: pointer;">
+            ${entry.name || ''}
+          </div>
+        </td>
+        <td class="nw-value-cell">
+          <div class="nw-editable" data-field="amount" data-id="${entry.id}">
+            ${formattedAmount}
+          </div>
+        </td>
+        <td class="nw-change-cell">
+          ${changeDisplay}
+        </td>
+      </tr>
+    `;
+  }
+  
+  function bindEventHandlers() {
+  // Performance button
+  const performanceBtn = document.getElementById('performanceBtn');
+  if (performanceBtn) {
+    performanceBtn.addEventListener('click', function() {
+      if (_chartMode !== 'performance') {
+        _chartMode = 'performance';
+        updateChartModeUI();
+        setTimeout(() => initializeChart(), 10);
+      }
+    });
+  }
+
+  // Timeline button
+  const timelineBtn = document.getElementById('timelineBtn');
+  if (timelineBtn) {
+    timelineBtn.addEventListener('click', function() {
+      if (_chartMode !== 'timeline') {
+        _chartMode = 'timeline';
+        updateChartModeUI();
+        setTimeout(() => initializeChart(), 10);
+      }
+    });
+  }
+
+  // Allocation button
+  const allocationBtn = document.getElementById('allocationBtn');
+  if (allocationBtn) {
+    allocationBtn.addEventListener('click', function() {
+      if (_chartMode !== 'allocation') {
+        _chartMode = 'allocation';
+        updateChartModeUI();
+        setTimeout(() => initializeChart(), 10);
+      }
+    });
+  }
+
+    // Timeline timespan controls
+    document.querySelectorAll('#timelineTimespanControls .nw-timespan-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const timespan = this.getAttribute('data-timespan');
+        if (timespan) {
+          updateChartTimespan(timespan);
+        }
+      });
+    });
+
+    // Performance year controls
+    document.querySelectorAll('#performanceYearControls .nw-timespan-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const year = parseInt(this.getAttribute('data-year'), 10);
+        if (year && year !== _selectedYear) {
+          _selectedYear = year;
+
+          // Update button states
+          document.querySelectorAll('#performanceYearControls .nw-timespan-btn').forEach(b => {
+            b.classList.remove('active');
+          });
+          this.classList.add('active');
+
+          // Re-render chart
+          setTimeout(() => initializeChart(), 10);
+        }
+      });
+    });
+    
+    document.querySelectorAll('.nw-add-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const category = this.getAttribute('data-category');
+        showAddAssetModal(category);
+      });
+    });
+    
+    // Remove toggle buttons
+    document.querySelectorAll('.nw-remove-toggle').forEach(btn => {
+      btn.addEventListener('click', function() {
+        _removeMode = !_removeMode;
+        
+        // Update all remove toggle buttons
+        document.querySelectorAll('.nw-remove-toggle').forEach(toggle => {
+          if (_removeMode) {
+            toggle.setAttribute('data-active', 'true');
+          } else {
+            toggle.removeAttribute('data-active');
+          }
+        });
+        
+        // Show/hide all delete buttons
+        document.querySelectorAll('.nw-delete-btn').forEach(deleteBtn => {
+          if (_removeMode) {
+            deleteBtn.classList.remove('nw-hidden');
+          } else {
+            deleteBtn.classList.add('nw-hidden');
+          }
+        });
+      });
+    });
+    
+    document.querySelectorAll('.nw-editable').forEach(el => {
+      el.addEventListener('click', function() {
+        makeFieldEditable(this);
+      });
+    });
+    
+    document.querySelectorAll('.nw-notes-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const id = this.getAttribute('data-id');
+        showNotesModal(id);
+      });
+    });
+    
+    document.querySelectorAll('.nw-delete-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const id = this.getAttribute('data-id');
+        deleteEntry(id);
+      });
+    });
+    
+    // Clickable asset names
+    document.querySelectorAll('.nw-clickable-name').forEach(nameElement => {
+      nameElement.addEventListener('click', function() {
+        const id = this.getAttribute('data-id');
+        showAssetDetailsModal(id);
+      });
+    });
+  }
+  
+  function makeFieldEditable(element) {
+    const field = element.getAttribute('data-field');
+    const id = element.getAttribute('data-id');
+    
+    const entry = _netWorthData.entries.find(e => e.id === id);
+    if (!entry) return;
+    
+    let currentValue;
+    let isNumericField = false;
+    
+    switch(field) {
+      case 'type':
+        currentValue = entry.type || '';
+        break;
+      case 'name':
+        currentValue = entry.name || '';
+        break;
+      case 'amount':
+        currentValue = entry.amount;
+        isNumericField = true;
+        break;
+      default:
+        return;
+    }
+    
+    const originalContent = element.innerHTML;
+    
+    if (isNumericField) {
+      element.innerHTML = `
+        <div class="nw-edit-wrapper">
+          <span class="nw-edit-currency">${getCurrencySymbol()}</span>
+          <input type="number" class="nw-edit-input" value="${currentValue}" min="0" inputmode="decimal">
+        </div>
+      `;
+    } else {
+      element.innerHTML = `
+        <div class="nw-edit-wrapper">
+          <input type="text" class="nw-edit-input nw-text-input" value="${currentValue}" placeholder="Enter ${field}">
+        </div>
+      `;
+    }
+    
+    const input = element.querySelector('input');
+    input.focus();
+    input.select();
+    
+    input.addEventListener('blur', function() {
+      let newValue = this.value.trim();
+      
+      if (isNumericField) {
+        newValue = parseFloat(newValue);
+        // Allow 0 values, only reject negative or NaN
+        if (isNaN(newValue) || newValue < 0) {
+          element.innerHTML = originalContent;
+          return;
+        }
+      } else {
+        if (!newValue && (field === 'type' || field === 'name')) {
+          alert(`${field.charAt(0).toUpperCase() + field.slice(1)} cannot be empty`);
+          element.innerHTML = originalContent;
+          return;
+        }
+      }
+      
+      switch(field) {
+        case 'type':
+          entry.type = newValue;
+          break;
+        case 'name':
+          entry.name = newValue;
+          break;
+        case 'amount':
+          entry.amount = newValue;
+          break;
+      }
+      
+      if (isNumericField) {
+        element.innerHTML = formatCurrency(newValue);
+      } else {
+        element.innerHTML = newValue;
+      }
+      
+      saveNetWorthEntries([entry]);
+      
+     if (field === 'amount' || field === 'type') {
+  // Re-assign colors if type changed
+  if (field === 'type') {
+    assignColorsToAssetTypes();
+  }
+  calculateSummary();
+  renderNetWorthView(); // This will recalculate and show changes
+} else {
+  showSaveIndicator(element);
+}
+    });
+    
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        this.blur();
+      }
+    });
+  }
+  
+  function showAddAssetModal(categoryKey) {
+    const category = ASSET_CATEGORIES[categoryKey];
+    
+    // Safety check - if category is not found, return early
+    if (!category) {
+      console.warn('Invalid category key:', categoryKey);
+      return;
+    }
+    
+    const container = getElement('netWorthContent');
+    if (!container) return;
+    
+    const backdrop = document.createElement('div');
+    backdrop.className = 'nw-modal-backdrop';
+    
+    const modal = document.createElement('div');
+    modal.className = 'nw-modal nw-enhanced-modal';
+    
+    modal.innerHTML = `
+      <div class="nw-modal-header">
+        <h3><span data-translate="add">Add</span> ${Utils.translateCategory(category.name)}</h3>
+      </div>
+      <div class="nw-modal-body">
+        <div class="nw-simple-form">
+          <div class="nw-simple-row">
+            <label><span data-translate="name_label">Name:</span> <span class="nw-required">*</span></label>
+            <input type="text" id="assetName" class="nw-form-input" required>
+          </div>
+          <div class="nw-simple-row">
+            <label><span data-translate="category_label">Category:</span> <span class="nw-required">*</span></label>
+            <div style="position: relative;">
+              <input type="text" id="assetType" class="nw-form-input" required>
+              <div class="nw-autocomplete-container"></div>
+            </div>
+          </div>
+          <div class="nw-simple-row">
+            <label><span data-translate="amount_label">Amount:</span> <span class="nw-required">*</span></label>
+            <div class="nw-amount-input">
+              <input type="number" id="assetAmount" class="nw-form-input" required min="0" inputmode="decimal">
+            </div>
+          </div>
+          <div class="nw-simple-row">
+            <label data-translate="notes_label">Notes:</label>
+            <textarea id="assetNotes" class="nw-form-input nw-form-textarea" rows="3" placeholder="Optional notes..."></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="nw-modal-footer">
+        <button class="nw-add-btn nw-add-cancel-btn" id="cancelAddAsset" data-translate="cancel_button">Cancel</button>
+        <button class="nw-add-btn nw-add-save-btn" id="saveAddAsset" disabled data-translate="save_button">Save</button>
+      </div>
+    `;
+    
+    container.appendChild(backdrop);
+    container.appendChild(modal);
+    
+    // Apply translations to the dynamically created modal
+    if (window.SimBudget && SimBudget.applyTranslations) {
+      SimBudget.applyTranslations();
+    }
+    
+    bindModalEvents(modal, backdrop, categoryKey);
+  }
+  
+    function bindModalEvents(modal, backdrop, categoryKey) {
+    const container = getElement('netWorthContent');
+    const category = ASSET_CATEGORIES[categoryKey];
+    
+    const typeInput = modal.querySelector('#assetType');
+    const nameInput = modal.querySelector('#assetName');
+    const amountInput = modal.querySelector('#assetAmount');
+    const notesInput = modal.querySelector('#assetNotes');
+    const saveBtn = modal.querySelector('#saveAddAsset');
+    const cancelBtn = modal.querySelector('#cancelAddAsset');
+    
+    // Setup autocomplete
+    const autocompleteContainer = modal.querySelector('.nw-autocomplete-container');
+    setupAutocomplete(typeInput, category.suggestedTypes, autocompleteContainer);
+    
+    // Validation function
+    function validateForm() {
+      const isValid = typeInput.value.trim() && 
+                     nameInput.value.trim() && 
+                     amountInput.value && 
+                     parseFloat(amountInput.value) >= 0;
+      
+      saveBtn.disabled = !isValid;
+    }
+    
+    // Add input listeners for validation
+    [typeInput, nameInput, amountInput].forEach(input => {
+      input.addEventListener('input', validateForm);
+    });
+    
+    // Prevent invalid characters in amount field
+    if (amountInput) {
+      const preventInvalidChars = (e) => {
+        // Allow: backspace, delete, tab, escape, enter, home, end, left, right, up, down
+        if ([8, 9, 27, 13, 46, 35, 36, 37, 38, 39, 40].indexOf(e.keyCode) !== -1 ||
+            // Allow Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
+            (e.keyCode === 65 && e.ctrlKey === true) ||
+            (e.keyCode === 67 && e.ctrlKey === true) ||
+            (e.keyCode === 86 && e.ctrlKey === true) ||
+            (e.keyCode === 88 && e.ctrlKey === true)) {
+          return;
+        }
+        // Ensure that it is a number and stop the keypress
+        if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && (e.keyCode < 96 || e.keyCode > 105)) {
+          e.preventDefault();
+        }
+        // Prevent 'e', '+', '-' characters
+        if (e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-') {
+          e.preventDefault();
+        }
+      };
+      amountInput.addEventListener('keydown', preventInvalidChars);
+    }
+    
+    // Save function
+    function saveAsset() {
+      const type = typeInput.value.trim();
+      const name = nameInput.value.trim();
+      const amount = parseFloat(amountInput.value);
+      const notes = notesInput.value.trim();
+      
+      // Validation with specific messages
+      if (!name) {
+        showMessage('Please enter a name for the asset', 'error');
+        nameInput.focus();
+        return;
+      }
+      
+      if (!type) {
+        showMessage('Please enter a category for the asset', 'error');
+        typeInput.focus();
+        return;
+      }
+      
+      if (isNaN(amount) || amount < 0) {
+        showMessage('Please enter a valid amount', 'error');
+        amountInput.focus();
+        return;
+      }
+      
+      // All validations passed, save the asset
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const dateStr = `${monthNames[_currentMonth]} ${_currentYear}`;
+      
+      const newEntry = {
+        id: `new-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        date: dateStr,
+        asset: categoryKey,
+        type: type,
+        name: name,
+        amount: amount,
+        notes: notes
+      };
+      
+      _netWorthData.entries.push(newEntry);
+      
+      // Re-assign colors after adding new entry with new type
+      assignColorsToAssetTypes();
+      
+      calculateSummary();
+      renderNetWorthView();
+      saveNetWorthEntries([newEntry]);
+      
+      showMessage(`${type}: ${name} added successfully`, 'success');
+      
+      // Close modal
+      if (container.contains(backdrop)) container.removeChild(backdrop);
+      if (container.contains(modal)) container.removeChild(modal);
+    }
+    
+    // Cancel function
+    function closeModal() {
+      if (container.contains(backdrop)) container.removeChild(backdrop);
+      if (container.contains(modal)) container.removeChild(modal);
+    }
+    
+    // Bind events
+    saveBtn.addEventListener('click', saveAsset);
+    cancelBtn.addEventListener('click', closeModal);
+    
+    // Add event listener to backdrop for click-outside functionality
+    backdrop.addEventListener('click', closeModal);
+    
+    // Prevent clicks on the modal itself from closing it
+    modal.addEventListener('click', function(e) {
+      e.stopPropagation();
+    });
+    
+    // Enter key saves if form is valid
+    modal.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !saveBtn.disabled) {
+        e.preventDefault();
+        saveAsset();
+      } else if (e.key === 'Escape') {
+        closeModal();
+      }
+    });
+    
+    // Focus first input
+    setTimeout(() => typeInput.focus(), 100);
+  }
+  
+  function showAssetDetailsModal(id) {
+    const entry = _netWorthData.entries.find(e => e.id === id);
+    if (!entry) return;
+    
+    const modal = document.getElementById('assetDetailsModal');
+    if (!modal) return;
+    
+    // Populate form fields
+    document.getElementById('assetName').value = entry.name || '';
+    document.getElementById('assetAmount').value = entry.amount || '';
+    document.getElementById('assetNotes').value = entry.notes || '';
+    document.getElementById('assetCategory').value = entry.type || '';
+    
+    // Store current entry ID for saving
+    modal.setAttribute('data-entry-id', id);
+    
+    // Show modal
+    modal.style.display = 'block';
+    
+    // Bind modal events
+    bindAssetDetailsModalEvents(modal, entry);
+    
+    // Initialize the asset history chart after DOM is ready
+    setTimeout(() => {
+      initializeAssetHistoryChart(entry);
+    }, 50);
+    
+    // Focus first input
+    setTimeout(() => document.getElementById('assetName').focus(), 100);
+  }
+  
+  
+  function initializeAssetHistoryChart(currentEntry) {
+    try {
+      // Reset chart area
+      const canvas = document.getElementById('assetHistoryChart');
+      const fallback = document.getElementById('chartFallback');
+      
+      if (canvas) {
+        canvas.style.display = 'block';
+      }
+      if (fallback) {
+        fallback.style.display = 'none';
+      }
+      
+      // Check if Chart.js is available
+      if (typeof Chart === 'undefined') {
+        console.warn('Chart.js not available for asset history');
+        showChartFallback(getTranslation('chart_library_not_available'));
+        return;
+      }
+      
+      // Check canvas element again
+      if (!canvas) {
+        console.warn('Canvas element not found');
+        showChartFallback(getTranslation('chart_container_not_found'));
+        return;
+      }
+      
+      // Collect historical data for this asset
+      const historyData = collectAssetHistory(currentEntry);
+      
+      
+      // Check if we have enough data
+      if (historyData.labels.length < 2) {
+        showChartFallback(getTranslation('not_enough_data_for_chart'));
+        return;
+      }
+      
+      // Destroy existing chart if any
+      const existingChart = Chart.getChart(canvas);
+      if (existingChart) {
+        existingChart.destroy();
+      }
+      
+      // Create the chart
+      const ctx = canvas.getContext('2d');
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: historyData.labels,
+          datasets: [{
+            label: currentEntry.name,
+            data: historyData.values,
+            borderColor: '#3498db',
+            backgroundColor: 'rgba(52, 152, 219, 0.1)',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.1,
+            pointRadius: 4,
+            pointBackgroundColor: '#3498db',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return formatCurrency(context.parsed.y);
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: {
+                display: false
+              },
+              ticks: {
+                maxTicksLimit: 14,
+                maxRotation: 45,
+                minRotation: 0
+              }
+            },
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: function(value) {
+                  return formatCurrency(value);
+                }
+              }
+            }
+          }
+        }
+      });
+      
+    } catch (error) {
+      console.error('Error creating asset history chart:', error);
+      showChartFallback(getTranslation('error_loading_chart'));
+    }
+  }
+  
+  function collectAssetHistory(targetEntry) {
+    const labels = [];
+    const values = [];
+    
+    try {
+      // Use CacheManager to get networth data properly
+      const cachedData = CacheManager.getNetWorthWithTimestamp();
+      if (!cachedData || !cachedData.entries) {
+        return { labels, values };
+      }
+      
+      const entries = cachedData.entries;
+      
+      // Group entries by date and find our target asset (last 12 months only)
+      const dateGroups = {};
+      const twelveMonthsAgo = new Date();
+      twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
+      
+      // Parse the date field from your cache structure
+      entries.forEach(entry => {
+        const isIdMatch = entry.id === targetEntry.id;
+        const isNameMatch = entry.name === targetEntry.name && entry.asset === targetEntry.asset && entry.type === targetEntry.type;
+        const hasDateAndAmount = entry.date && entry.amount !== undefined && entry.amount !== null;
+        
+        if (hasDateAndAmount && (isIdMatch || isNameMatch)) {
+          // Parse the date (format: "MMM YYYY" e.g. "Jul 2025")
+          const monthMap = { 'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6, 
+                           'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12 };
+          const [monthStr, yearStr] = entry.date.split(' ');
+          const year = parseInt(yearStr);
+          const month = monthMap[monthStr];
+          
+          if (year && month) {
+            const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+            
+            // Keep the latest entry for each month
+            if (!dateGroups[monthKey]) {
+              dateGroups[monthKey] = entry;
+            }
+          }
+        }
+      });
+      
+      // Sort by date and build chart data
+      const sortedDates = Object.keys(dateGroups).sort();
+      
+      sortedDates.forEach(monthKey => {
+        const entry = dateGroups[monthKey];
+        const [year, month] = monthKey.split('-');
+        const monthName = new Date(parseInt(year), parseInt(month) - 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+        
+        labels.push(monthName);
+        values.push(parseFloat(entry.amount) || 0);
+      });
+      
+    } catch (error) {
+      console.error('Error collecting asset history:', error);
+    }
+    
+    return { labels, values };
+  }
+  
+  function showChartFallback(message) {
+    const canvas = document.getElementById('assetHistoryChart');
+    if (canvas) {
+      // Hide canvas and show message next to it
+      canvas.style.display = 'none';
+      let fallback = document.getElementById('chartFallback');
+      if (!fallback) {
+        fallback = document.createElement('div');
+        fallback.id = 'chartFallback';
+        canvas.parentNode.appendChild(fallback);
+      }
+      fallback.innerHTML = `
+        <div style="display: flex; align-items: center; justify-content: center; height: 200px; color: #666; text-align: center;">
+          <div>
+            <i class="material-icons" style="font-size: 48px; opacity: 0.3;">show_chart</i>
+            <p style="margin-top: 10px; font-size: 14px;">${message}</p>
+          </div>
+        </div>
+      `;
+      fallback.style.display = 'block';
+    }
+  }
+  
+  function getAllMonthsWithData() {
+    const months = [];
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth();
+    
+    // Check last 24 months
+    for (let i = 0; i < 24; i++) {
+      const checkDate = new Date(currentYear, currentMonth - i, 1);
+      const year = checkDate.getFullYear();
+      const month = checkDate.getMonth();
+      const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
+      
+      if (localStorage.getItem(`networth_${monthKey}`)) {
+        months.unshift({ month, year });
+      }
+    }
+    
+    return months;
+  }
+
+  function bindAssetDetailsModalEvents(modal, entry) {
+    // Clear any existing handlers by storing them and removing them
+    if (modal._handlers) {
+      modal._handlers.forEach(handler => {
+        handler.element.removeEventListener(handler.event, handler.func);
+      });
+    }
+    modal._handlers = [];
+    
+    // Helper function to add event listener and track it
+    function addHandler(element, event, func) {
+      element.addEventListener(event, func);
+      modal._handlers.push({ element, event, func });
+    }
+    
+    // Setup autocomplete for category field
+    const categoryInput = modal.querySelector('#assetCategory');
+    const autocompleteContainer = modal.querySelector('.nw-autocomplete-container');
+    if (categoryInput && autocompleteContainer && entry.asset) {
+      const category = ASSET_CATEGORIES[entry.asset];
+      if (category && category.suggestedTypes) {
+        setupAutocomplete(categoryInput, category.suggestedTypes, autocompleteContainer);
+      }
+    }
+    
+    // Close button
+    const closeBtn = modal.querySelector('#modalClose');
+    if (closeBtn) {
+      addHandler(closeBtn, 'click', () => {
+        modal.style.display = 'none';
+      });
+    }
+    
+    // Overlay click
+    const overlay = modal.querySelector('#modalOverlay');
+    if (overlay) {
+      addHandler(overlay, 'click', () => {
+        modal.style.display = 'none';
+      });
+    }
+    
+    // Cancel button
+    const cancelBtn = modal.querySelector('#cancelAssetBtn');
+    if (cancelBtn) {
+      addHandler(cancelBtn, 'click', () => {
+        modal.style.display = 'none';
+      });
+    }
+    
+    // Save button
+    const saveBtn = modal.querySelector('#saveAssetBtn');
+    if (saveBtn) {
+      addHandler(saveBtn, 'click', () => {
+        saveAssetDetailsFromModal(modal);
+      });
+    }
+    
+    // Delete button
+    const deleteBtn = modal.querySelector('#deleteAssetBtn');
+    if (deleteBtn) {
+      addHandler(deleteBtn, 'click', () => {
+        showDeleteConfirmDialog(entry, 
+          () => {
+            // Delete directly without calling deleteEntry to avoid double confirmation
+            _netWorthData.entries = _netWorthData.entries.filter(e => e.id !== entry.id);
+            assignColorsToAssetTypes();
+            calculateSummary();
+            renderNetWorthView();
+            modal.style.display = 'none';
+            
+            // Delete from Google Sheet
+            if (window.API && typeof API.clearNetWorthRow === 'function') {
+              API.clearNetWorthRow(entry.id, function(result) {
+                if (result && result.success) {
+                  // ✅ UPDATE CACHE WITH CURRENT TIMESTAMP
+                  if (window.CacheManager && typeof CacheManager.setNetWorthWithTimestamp === 'function') {
+                    CacheManager.setNetWorthWithTimestamp(_netWorthData);
+                  }
+                }
+              });
+            }
+          },
+          () => {
+            // Do nothing on cancel
+          }
+        );
+      });
+    }
+    
+    // Keyboard events
+    const keydownHandler = (e) => {
+      if (e.key === 'Escape') {
+        modal.style.display = 'none';
+      }
+    };
+    addHandler(modal, 'keydown', keydownHandler);
+    
+    // Prevent invalid characters in amount field
+    const amountInput = modal.querySelector('#assetAmount');
+    if (amountInput) {
+      const preventInvalidChars = (e) => {
+        // Allow: backspace, delete, tab, escape, enter, home, end, left, right, up, down
+        if ([8, 9, 27, 13, 46, 35, 36, 37, 38, 39, 40].indexOf(e.keyCode) !== -1 ||
+            // Allow Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
+            (e.keyCode === 65 && e.ctrlKey === true) ||
+            (e.keyCode === 67 && e.ctrlKey === true) ||
+            (e.keyCode === 86 && e.ctrlKey === true) ||
+            (e.keyCode === 88 && e.ctrlKey === true)) {
+          return;
+        }
+        // Ensure that it is a number and stop the keypress
+        if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && (e.keyCode < 96 || e.keyCode > 105)) {
+          e.preventDefault();
+        }
+        // Prevent 'e', '+', '-' characters
+        if (e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-') {
+          e.preventDefault();
+        }
+      };
+      addHandler(amountInput, 'keydown', preventInvalidChars);
+    }
+  }
+  
+  function saveAssetDetailsFromModal(modal) {
+    const entryId = modal.getAttribute('data-entry-id');
+    const entry = _netWorthData.entries.find(e => e.id === entryId);
+    if (!entry) return;
+    
+    // Get form values
+    const name = document.getElementById('assetName').value.trim();
+    const amount = document.getElementById('assetAmount').value.trim();
+    const notes = document.getElementById('assetNotes').value.trim();
+    const category = document.getElementById('assetCategory').value.trim();
+    
+    // Validate
+    if (!name) {
+      showMessage('Please enter a name for the asset', 'error');
+      document.getElementById('assetName').focus();
+      return;
+    }
+    
+    if (!category) {
+      showMessage('Please enter a category for the asset', 'error');
+      document.getElementById('assetCategory').focus();
+      return;
+    }
+    
+    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) < 0) {
+      showMessage('Please enter a valid amount', 'error');
+      document.getElementById('assetAmount').focus();
+      return;
+    }
+    
+    // Update entry
+    entry.name = name;
+    entry.amount = parseFloat(amount);
+    entry.notes = notes;
+    entry.type = category;
+    
+    // Save and refresh
+    saveNetWorthEntries(_netWorthData.entries);
+    renderNetWorthView();
+    modal.style.display = 'none';
+    
+    showMessage(getTranslation('asset_updated_successfully'), 'success');
+  }
+  
+  function showNotesModal(id) {
+    const entry = _netWorthData.entries.find(e => e.id === id);
+    if (!entry) return;
+    
+    const container = getElement('netWorthContent');
+    if (!container) return;
+    
+    const backdrop = document.createElement('div');
+    backdrop.className = 'nw-modal-backdrop';
+    
+    const modal = document.createElement('div');
+    modal.className = 'nw-modal nw-notes-modal';
+    
+    modal.innerHTML = `
+      <div class="nw-modal-header">
+        <h3>Notes for ${entry.name}</h3>
+      </div>
+      <div class="nw-modal-body">
+        <textarea class="nw-input nw-textarea" id="assetNotes" rows="5">${entry.notes || ''}</textarea>
+      </div>
+    `;
+    
+    container.appendChild(backdrop);
+    container.appendChild(modal);
+    
+    const textarea = modal.querySelector('#assetNotes');
+    textarea.focus();
+    
+    function closeAndSave() {
+      const notes = textarea.value;
+      if (notes !== entry.notes) {
+        entry.notes = notes;
+        saveNetWorthEntries([entry]);
+        showMessage(getTranslation('notes_saved'), 'success');
+      }
+      
+      if (container.contains(backdrop)) container.removeChild(backdrop);
+      if (container.contains(modal)) container.removeChild(modal);
+    }
+    
+    backdrop.addEventListener('click', closeAndSave);
+    
+    document.addEventListener('keydown', function handleEsc(e) {
+      if (e.key === 'Escape') {
+        closeAndSave();
+        document.removeEventListener('keydown', handleEsc);
+      }
+    });
+  }
+  
+  function showDeleteConfirmDialog(entry, onConfirm, onCancel) {
+    const container = getElement('netWorthContent');
+    if (!container) return;
+    
+    const backdrop = document.createElement('div');
+    backdrop.className = 'nw-modal-backdrop';
+    
+    const modal = document.createElement('div');
+    modal.className = 'nw-modal nw-notes-modal';
+    
+    modal.innerHTML = `
+      <div class="nw-modal-header">
+        <h3 data-translate="confirm_delete">Confirm Delete</h3>
+        <button class="nw-modal-close">&times;</button>
+      </div>
+      <div class="nw-modal-body">
+        <p>${Utils.translateCategory('are_you_sure_delete').replace('{name}', entry.name)}</p>
+      </div>
+      <div class="nw-modal-footer">
+        <button class="nw-add-btn nw-add-cancel-btn" id="cancelDelete" data-translate="cancel_button">Cancel</button>
+        <button class="nw-add-btn nw-add-delete-btn" id="confirmDelete" data-translate="delete_button">Delete</button>
+      </div>
+    `;
+    
+    container.appendChild(backdrop);
+    container.appendChild(modal);
+    
+    function closeModal() {
+      if (container.contains(backdrop)) container.removeChild(backdrop);
+      if (container.contains(modal)) container.removeChild(modal);
+      if (onCancel) onCancel();
+    }
+    
+    const closeBtn = modal.querySelector('.nw-modal-close');
+    const cancelBtn = modal.querySelector('#cancelDelete');
+    
+    // Stop propagation to prevent triggering other click handlers
+    modal.addEventListener('click', function(e) {
+      e.stopPropagation();
+    });
+    
+    closeBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      closeModal();
+    });
+    
+    cancelBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      closeModal();
+    });
+    
+    backdrop.addEventListener('click', function(e) {
+      e.stopPropagation();
+      closeModal();
+    });
+    
+    modal.querySelector('#confirmDelete').addEventListener('click', function(e) {
+      e.stopPropagation();
+      closeModal();
+      if (onConfirm) onConfirm();
+    });
+  }
+  
+        function deleteEntry(id) {
+      const entry = _netWorthData.entries.find(e => e.id === id);
+      if (!entry) return;
+      
+      showDeleteConfirmDialog(entry, function() {
+        _netWorthData.entries = _netWorthData.entries.filter(e => e.id !== id);
+        assignColorsToAssetTypes();
+        calculateSummary();
+        renderNetWorthView();
+        
+        if (window.API && typeof API.clearNetWorthRow === 'function') {
+          API.clearNetWorthRow(id, function(result) {
+            if (result && result.success) {
+              // ✅ UPDATE CACHE WITH CURRENT TIMESTAMP
+              if (window.CacheManager && typeof CacheManager.setNetWorthWithTimestamp === 'function') {
+                const currentTimestamp = new Date().toISOString();
+                CacheManager.setNetWorthWithTimestamp(_netWorthData.entries, currentTimestamp);
+              }
+            }
+          }, function(error) {
+            console.error('NetWorthManager: Error deleting entry:', error);
+            showMessage(getTranslation('error_deleting_data') + error, 'error');
+          });
+        }
+        
+        showMessage(getTranslation('item_removed_successfully').replace('{name}', entry.name), 'success');
+      });
+    }
+  
+    function saveNetWorthEntries(entries) {
+    if (!window.API || typeof API.saveBatchNetWorth !== 'function') {
+      console.warn('NetWorthManager: API.saveBatchNetWorth not available');
+      return;
+    }
+    
+    API.saveBatchNetWorth(entries, function(result) {
+  if (result && result.success) {
+    // Update IDs for new entries if needed
+    if (result.entries && entries.length > 0) {
+      result.entries.forEach(serverEntry => {
+        const localIndex = _netWorthData.entries.findIndex(e => 
+          e.asset === serverEntry.asset && 
+          e.name === serverEntry.name && 
+          e.date === serverEntry.date);
+          
+        if (localIndex >= 0) {
+          _netWorthData.entries[localIndex].id = serverEntry.id;
+        }
+      });
+    }
+    
+    // ✅ UPDATE CACHE WITH CURRENT TIMESTAMP
+    if (window.CacheManager && typeof CacheManager.setNetWorthWithTimestamp === 'function') {
+      const currentTimestamp = new Date().toISOString();
+      CacheManager.setNetWorthWithTimestamp(_netWorthData.entries, currentTimestamp);
+    }
+      }
+    }, function(error) {
+      console.error('NetWorthManager: Error saving entries:', error);
+      showMessage(getTranslation('error_saving_data') + error, 'error');
+    });
+  }
+  
+  function showSaveIndicator(element) {
+    element.classList.add('nw-saving');
+    
+    setTimeout(() => {
+      element.classList.remove('nw-saving');
+      element.classList.add('nw-saved');
+      
+      setTimeout(() => {
+        element.classList.remove('nw-saved');
+      }, 1000);
+    }, 500);
+  }
+  
+  function showMessage(message, type = 'info') {
+    const messageContainer = getElement('netWorthMessage');
+    if (!messageContainer) return;
+    
+    messageContainer.textContent = message;
+    messageContainer.className = `nw-message nw-${type}-message`;
+    messageContainer.style.display = 'block';
+    
+    setTimeout(() => {
+      messageContainer.style.display = 'none';
+    }, 3000);
+  }
+  
+  function getCurrencySymbol() {
+    if (typeof Utils !== 'undefined' && Utils.getCurrencySymbol) {
+      return Utils.getCurrencySymbol();
+    }
+    
+    if (typeof SimBudget !== 'undefined' && SimBudget.Settings && SimBudget.Settings.getCurrencySymbol) {
+      return SimBudget.Settings.getCurrencySymbol();
+    }
+    
+    return '$';
+  }
+  
+  function formatCurrency(amount) {
+    // Handle null/undefined/empty values
+    if (amount === null || amount === undefined || amount === '') {
+      amount = 0;
+    }
+    
+    // Ensure it's a number
+    amount = parseFloat(amount) || 0;
+    
+    if (typeof Utils !== 'undefined' && Utils.formatCurrency) {
+      return Utils.formatCurrency(amount);
+    }
+    
+    const symbol = getCurrencySymbol();
+    const absAmount = Math.abs(amount);
+    return `${symbol}${absAmount.toLocaleString('en-US', {
+      minimumFractionDigits: 0, 
+      maximumFractionDigits: 0
+    })}`;
+  }
+  
+  function refresh() {
+    
+    _autoRolloverCompleted = false;
+    
+    // Add loading state to refresh button
+    const refreshBtn = document.getElementById('refreshNetWorth');
+    if (refreshBtn) {
+      refreshBtn.classList.add('loading');
+    }
+    
+    if (window.CacheManager && typeof CacheManager.invalidate === 'function') {
+      CacheManager.invalidate('netWorthWithTimestamp');
+    }
+    
+    showLoadingState();
+    fetchFreshNetWorthData();
+  }
+  
+  function setupAutocomplete(inputElement, suggestions, container) {
+    inputElement.addEventListener('input', function() {
+      const query = this.value.trim().toLowerCase();
+      
+      container.innerHTML = '';
+      
+      if (query.length < 1) {
+        container.style.display = 'none';
+        return;
+      }
+      
+      const matches = suggestions.filter(suggestion => 
+        suggestion.toLowerCase().includes(query)
+      );
+      
+      if (matches.length === 0) {
+        container.style.display = 'none';
+        return;
+      }
+      
+      matches.forEach(suggestion => {
+        const suggestionItem = document.createElement('div');
+        suggestionItem.className = 'nw-suggestion-item';
+        
+        const regex = new RegExp(`(${query})`, 'i');
+        const highlighted = suggestion.replace(regex, '<strong>$1</strong>');
+        
+        suggestionItem.innerHTML = highlighted;
+        
+        suggestionItem.addEventListener('click', () => {
+          inputElement.value = suggestion;
+          container.style.display = 'none';
+        });
+        
+        container.appendChild(suggestionItem);
+      });
+      
+      container.style.display = 'block';
+    });
+    
+    inputElement.addEventListener('keydown', function(e) {
+      const items = container.querySelectorAll('.nw-suggestion-item');
+      const activeItem = container.querySelector('.nw-suggestion-item.active');
+      
+      if (items.length === 0) return;
+      
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        
+        if (!activeItem) {
+          items[0].classList.add('active');
+        } else {
+          activeItem.classList.remove('active');
+          const nextItem = activeItem.nextElementSibling || items[0];
+          nextItem.classList.add('active');
+        }
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        
+        if (!activeItem) {
+          items[items.length - 1].classList.add('active');
+        } else {
+          activeItem.classList.remove('active');
+          const prevItem = activeItem.previousElementSibling || items[items.length - 1];
+          prevItem.classList.add('active');
+        }
+      } else if (e.key === 'Enter' && activeItem) {
+        e.preventDefault();
+        inputElement.value = activeItem.textContent;
+        container.style.display = 'none';
+      } else if (e.key === 'Escape') {
+        container.style.display = 'none';
+      }
+    });
+    
+    document.addEventListener('click', function(e) {
+      if (container && !container.contains(e.target) && e.target !== inputElement) {
+        container.style.display = 'none';
+      }
+    });
+  }
+  
+  function setMonthYear(month, year) {
+    
+    _currentMonth = parseInt(month);
+    _currentYear = parseInt(year);
+    
+    calculateSummary();
+    renderNetWorthView();
+  }
+  
+  /**
+   * Update last refresh time display for NetWorth view
+   */
+  function updateLastRefreshTime() {
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit',
+      hour12: true 
+    });
+    
+    const refreshElement = document.getElementById('lastRefreshTimeNetWorth');
+    if (refreshElement) {
+      const updatedAtText = window.getTranslation ? window.getTranslation('updated_at', getLanguageFromSettings()) : 'Updated at';
+      refreshElement.textContent = `${updatedAtText} ${timeStr}`;
+    }
+  }
+  
+  /**
+   * Show month/year editor popup for NetWorth
+   */
+  function showMonthYearEditor(displayElementId) {
+    const displayElement = document.getElementById(displayElementId);
+    if (!displayElement) return;
+    
+    // Create modal
+    const modal = document.createElement('div');
+    modal.className = 'month-year-editor-modal';
+    
+    // Generate month options
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    
+    const monthOptions = months.map((month, index) => 
+      `<option value="${index}" ${index === _currentMonth ? 'selected' : ''}>${month}</option>`
+    ).join('');
+    
+    // Generate year options (current year ± 5 years)
+    const currentYear = new Date().getFullYear();
+    const yearOptions = [];
+    for (let year = currentYear - 5; year <= currentYear + 5; year++) {
+      yearOptions.push(`<option value="${year}" ${year === _currentYear ? 'selected' : ''}>${year}</option>`);
+    }
+    
+    modal.innerHTML = `
+      <div class="modal-backdrop"></div>
+      <div class="modal-content">
+        <h3 data-translate="go_to_month_year">Go to Month/Year</h3>
+        <div class="editor-inputs">
+          <div class="select-group">
+            <label data-translate="month_label">Month</label>
+            <select id="monthSelect" class="month-year-select">
+              ${monthOptions}
+            </select>
+          </div>
+          <div class="select-group">
+            <label data-translate="year_label">Year</label>
+            <select id="yearSelect" class="month-year-select">
+              ${yearOptions.join('')}
+            </select>
+          </div>
+        </div>
+        <div class="editor-buttons">
+          <button class="btn editor-cancel" data-translate="cancel_button">Cancel</button>
+          <button class="btn editor-save" data-translate="go_button">Go</button>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Apply translations to the dynamically created modal
+    if (window.SimBudget && SimBudget.applyTranslations) {
+      SimBudget.applyTranslations();
+    }
+    
+    // Focus on month select (but not on mobile to prevent auto-opening dropdown)
+    const monthSelect = modal.querySelector('#monthSelect');
+    if (!window.matchMedia('(max-width: 768px)').matches) {
+      monthSelect.focus();
+    }
+    
+    // Event listeners
+    modal.querySelector('.editor-cancel').addEventListener('click', () => {
+      modal.remove();
+    });
+    
+    modal.querySelector('.modal-backdrop').addEventListener('click', () => {
+      modal.remove();
+    });
+    
+    modal.querySelector('.editor-save').addEventListener('click', () => {
+      const month = parseInt(monthSelect.value); // Already 0-based
+      const year = parseInt(modal.querySelector('#yearSelect').value);
+      
+      setMonthYear(month, year);
+      modal.remove();
+    });
+    
+    // Enter key to save
+    modal.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        modal.querySelector('.editor-save').click();
+      } else if (e.key === 'Escape') {
+        modal.remove();
+      }
+    });
+    
+    // Show modal
+    setTimeout(() => modal.classList.add('visible'), 10);
+  }
+  
+  // Public API
+  return {
+    init: init,
+    refresh: refresh,
+    setMonthYear: setMonthYear,
+    navigateMonth: navigateMonth,
+
+     // ADD THIS NEW METHOD:
+  updateDataSilently: function(entries) {
+    if (!entries || !Array.isArray(entries)) return;
+    
+    _netWorthData.entries = entries;
+    
+    // Process the new data
+    assignColorsToAssetTypes();
+    checkAutoRollover();
+    calculateSummary();
+    renderNetWorthView();
+  },
+    
+    // For debugging
+    getNetWorthData: () => _netWorthData,
+    getCurrentMonth: () => _currentMonth,
+    getCurrentYear: () => _currentYear,
+    isAutoRolloverCompleted: () => _autoRolloverCompleted,
+    resetAutoRollover: () => { _autoRolloverCompleted = false;  },
+    getAssetTypeColors: () => ASSET_TYPE_COLORS
+    
+  };
+})();
+
+// Expose globally
+window.NetWorthManager = NetWorthManager;
+</script>
+
+<style>
+/* ==============================================================
+    NET WORTH MANAGER - PROFESSIONAL STYLES WITH CHART AND ASSET ALLOCATION
+    UPDATED: Narrower desktop layout, remove toggle, calculated changes
+   ==============================================================
+*/
+
+/* ======== STICKY HEADER & SUMMARY ======== */
+#netWorthView {
+  --networth-header-height: 72px;
+}
+
+#netWorthView .view-header {
+  position: sticky;
+  top: 0;
+  z-index: 150;
+  background: var(--background, #f5f5f7);
+  box-shadow: 0 8px 20px rgba(44, 62, 80, 0.08);
+}
+
+#netWorthView .view-header .month-banner {
+  box-shadow: none !important;
+}
+
+#netWorthView .networth-banner-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.75);
+  color: #2c3e50;
+  font-family: 'Lato', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  order: 1;
+  margin: 0;
+  white-space: nowrap;
+}
+
+#netWorthView .networth-banner-summary.hidden {
+  display: none;
+}
+
+#netWorthView .networth-banner-value {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+#netWorthView .month-selector {
+  order: 0;
+  margin: 0;
+}
+
+#netWorthView .refresh-info {
+  order: 2;
+  margin: 0;
+}
+
+body.dark-mode #netWorthView .view-header {
+  background: var(--dark-background, #1c1c1e);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+body.dark-mode #netWorthView .networth-banner-summary {
+  background: rgba(28, 28, 30, 0.6);
+  color: rgba(255, 255, 255, 0.88);
+}
+
+#netWorthView .nw-total-header {
+  position: static;
+}
+
+@media (max-width: 768px) {
+  #netWorthView {
+    --networth-header-height: 88px;
+  }
+
+  #netWorthView .networth-banner-summary {
+    font-size: 12px;
+    gap: 4px;
+  }
+
+  #netWorthView .month-selector {
+    gap: 4px;
+  }
+  
+  #netWorthView .month-year-display {
+    min-width: 90px;
+    font-size: 12px;
+    padding: 2px 6px;
+  }
+  
+  .nw-total-header {
+    order: -9999 !important;
+    margin: 16px 16px 12px;
+    max-width: none;
+    width: calc(100% - 32px);
+  }
+  
+  .nw-chart-container {
+    order: -9998 !important;
+    margin: 16px 16px 24px 16px;
+  }
+}
+
+
+/* ======== MAIN CONTAINER PADDING ======== */
+.nw-loading,
+.nw-error,
+.nw-chart-container,
+.nw-categories-grid,
+.nw-future-message {
+  margin-left: 16px;
+  margin-right: 16px;
+}
+
+/* ======== LOADING & ERROR STATES ======== */
+.nw-loading,
+.nw-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+  background-color: #ffffff;
+  border-radius: 0px;
+  border-top: 1px solid rgba(0, 0, 0, 0.5);
+  border-left: 1px solid rgba(0, 0, 0, 0.5);
+  border-right: 4px solid #334a60;
+  border-bottom: 4px solid #334a60;
+  margin: 20px 0;
+}
+
+.nw-loading-text {
+  margin-top: 16px;
+  color: var(--text-secondary, #666);
+  font-size: 14px;
+}
+
+.nw-error-icon {
+  margin-bottom: 16px;
+  color: var(--error, #f44336);
+}
+
+.nw-error-icon i {
+  font-size: 48px;
+}
+
+.nw-error h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--text-primary, #333);
+  font-family: 'Lato', sans-serif;
+}
+
+.nw-error p {
+  margin: 0 0 24px;
+  color: var(--text-secondary, #666);
+  font-size: 14px;
+}
+
+/* ======== MESSAGES ======== */
+.nw-message {
+  padding: 12px 16px;
+  border-radius: 0px;
+  margin-bottom: 16px;
+  font-weight: 500;
+  font-size: 13px;
+  border-top: 1px solid rgba(0, 0, 0, 0.5);
+  border-left: 1px solid rgba(0, 0, 0, 0.5);
+  border-right: 4px solid #334a60;
+  border-bottom: 4px solid #334a60;
+}
+
+.nw-success-message {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+}
+
+.nw-error-message {
+  background-color: #ffebee;
+  color: #d32f2f;
+}
+
+.nw-info-message {
+  background-color: #e3f2fd;
+  color: #1976d2;
+}
+
+/* ======== CHART CONTAINER ======== */
+.nw-chart-container {
+  background-color: #ffffff;
+  border-radius: 0px;
+  border: none;
+  box-shadow: 0 14px 32px rgba(51, 74, 96, 0.12);
+  overflow: hidden;
+  max-width: 1200px;
+  margin: 30px auto 20px auto;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+@media (min-width: 1024px) {
+  .nw-chart-container {
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+.nw-chart-header {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px 20px 0;
+  background-color: #f8f9fa;
+  border-top: 1px solid #eee;
+}
+
+/* ======== CHART CONTROLS LAYOUT ======== */
+.nw-chart-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* ======== MODE BUTTONS ======== */
+.nw-mode-buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.nw-mode-btn {
+  background: none;
+  border: 2px solid #e0e0e0;
+  color: #666;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  font-family: 'Lato', sans-serif;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  min-width: 44px;
+  justify-content: center;
+}
+
+.nw-mode-btn i {
+  font-size: 18px;
+}
+
+.nw-mode-btn:hover {
+  border-color: #2c3e50;
+  color: #2c3e50;
+  background-color: rgba(44, 62, 80, 0.04);
+}
+
+.nw-mode-btn.active {
+  background-color: #2c3e50;
+  border-color: #2c3e50;
+  color: white;
+}
+
+/* ======== TIMESPAN CONTROLS ======== */
+.nw-timespan-controls {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.nw-timespan-controls.hidden {
+  display: none;
+}
+
+/* Performance year controls should not wrap on mobile */
+#performanceYearControls {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Hide scrollbar but keep functionality */
+#performanceYearControls::-webkit-scrollbar {
+  display: none;
+}
+
+#performanceYearControls {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.nw-timespan-btn {
+  background: none;
+  border: 2px solid #e0e0e0;
+  color: #666;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  font-family: 'Lato', sans-serif;
+}
+
+.nw-timespan-btn:hover {
+  border-color: #2c3e50;
+  color: #2c3e50;
+}
+
+.nw-timespan-btn.active {
+  background-color: #2c3e50;
+  border-color: #2c3e50;
+  color: white;
+}
+
+.nw-chart-wrapper {
+  padding: 20px;
+  padding-top: 0;
+  height: 400px;
+  position: relative;
+  min-height: 400px;
+  width: 100%;
+  overflow: hidden;
+}
+
+#netWorthChart {
+  width: 100% !important;
+  height: 100% !important;
+  max-height: 400px;
+}
+
+@media (max-width: 768px) {
+  .nw-chart-wrapper {
+    padding: 15px;
+    height: 400px;
+    min-height: 400px;
+    overflow: hidden;
+    clip-path: inset(0);
+  }
+
+  .nw-chart-container {
+    min-height: 400px;
+    overflow:hidden !important;
+  }
+  
+}
+
+
+
+
+/* ======== CATEGORIES GRID - UPDATED FOR NARROWER LAYOUT ======== */
+/* Total Net Worth Header */
+.nw-total-header {
+  max-width: 1200px;
+  margin: 20px auto 0 auto;
+  padding: 18px 30px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 0px;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.nw-total-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #ffffff;
+  font-family: 'Lato', sans-serif;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.nw-categories-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  margin-top: 8px;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Desktop: 2-column layout with narrower columns */
+@media (min-width: 1200px) {
+  .nw-categories-grid {
+    grid-template-columns: repeat(2, minmax(400px, 700px));
+    justify-content: center;
+    gap: 24px;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1199px) {
+  .nw-categories-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+}
+
+/* ======== CATEGORY SECTIONS ======== */
+.nw-section {
+  background-color: #ffffff;
+  border-radius: 0px;
+  border-top: 1px solid rgb(51 74 96 / 20%);
+  border-left: 2px solid rgb(51 74 96 / 20%);
+  border-right: 2px solid rgb(51 74 96 / 20%);
+  border-bottom: 4px solid rgb(51 74 96 / 20%);
+  overflow: visible;
+  padding-bottom: 15px;
+  min-height: 300px;
+}
+
+.nw-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #eee;
+}
+
+/* ======== ENHANCED SECTION TITLE CONTAINER ======== */
+.nw-section-title-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.nw-section-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  font-family: 'Lato', sans-serif;
+  color: #2c3e50;
+  letter-spacing: -0.02em;
+}
+
+.nw-totals-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ======== PROFESSIONAL BADGE STYLING ======== */
+.nw-total-container {
+  display: flex;
+  align-items: center;
+}
+
+.nw-total-badge-asset {
+  background-color: #e3f2fd;
+  color: #1565c0;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'Lato', sans-serif;
+  border: 1px solid #bbdefb;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nw-total-badge-debt {
+  background-color: #ffebee;
+  color: #c62828;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'Lato', sans-serif;
+  border: 1px solid #ffcdd2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nw-badge-total {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.nw-badge-change {
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+/* ======== CHANGE INDICATORS ======== */
+.nw-change {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.nw-change-positive {
+  color: #2e7d32;
+}
+
+.nw-change-negative {
+  color: #d32f2f;
+}
+
+/* ======== HEADER CONTROLS - NEW ======== */
+.nw-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nw-add-btn,
+.nw-remove-toggle {
+  background: none;
+  border: none;
+  color: #2c3e50;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+  font-weight: 500;
+}
+
+.nw-add-btn:hover {
+  background-color: rgba(44, 62, 80, 0.08);
+}
+
+.nw-remove-toggle {
+  color: #666;
+}
+
+.nw-remove-toggle:hover {
+  background-color: rgba(244, 67, 54, 0.08);
+  color: #f44336;
+}
+
+.nw-remove-toggle[data-active="true"] {
+  background-color: rgba(244, 67, 54, 0.12);
+  color: #f44336;
+}
+
+.nw-add-btn i,
+.nw-remove-toggle i {
+  font-size: 18px;
+  margin-right: 6px;
+}
+
+.nw-empty-state {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-secondary, #666);
+  font-size: 14px;
+  font-style: italic;
+}
+
+/* ======== TABLES - UPDATED FOR 5 COLUMNS ======== */
+.nw-table-container {
+  overflow: visible;
+  height: auto;
+  max-height: none;
+  width: 100%;
+}
+
+.nw-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  table-layout: auto;
+}
+
+.nw-table th,
+.nw-table td {
+  padding: 4px 4px 4px 15px;
+  text-align: left;
+  border-bottom: 1px solid #f0f0f0;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.nw-table th {
+  font-weight: 600;
+  color: var(--text-secondary, #666);
+  font-size: 11px;
+  background-color: #fafafa;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-family: 'Lato', sans-serif;
+}
+
+.nw-type-cell {
+  width: 20%;
+  font-weight: 500;
+  color: #666;
+}
+
+.nw-name-cell {
+  width: 25%;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.nw-value-cell {
+  width: 20%;
+  text-align: right;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+  color: #2c3e50;
+}
+
+.nw-change-cell {
+  width: 20%;
+  text-align: right;
+  font-family: 'Lato', sans-serif;
+  font-weight: 600;
+}
+
+.nw-actions-cell {
+  width: 15%;
+  text-align: right;
+}
+
+/* ======== CHANGE DISPLAY STYLES - NEW ======== */
+.nw-positive-change {
+  color: #4caf50;
+}
+
+.nw-negative-change {
+  color: #f44336;
+}
+
+.nw-new-entry {
+  color: #2196f3;
+  font-style: italic;
+  font-size: 12px;
+}
+
+.nw-no-change {
+  color: #999;
+  font-size: 12px;
+}
+
+/* ======== ZERO VALUE INDICATORS ======== */
+.nw-table tr.nw-zero-value {
+  opacity: 0.7;
+}
+
+.nw-table tr.nw-zero-value .nw-value-cell {
+  color: #999;
+  font-style: italic;
+}
+
+/* ======== INTERACTIVE ELEMENTS ======== */
+.nw-editable {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 6px 8px;
+  margin: -6px -8px;
+  transition: background-color 0.2s ease;
+  min-width: 60px;
+  display: inline-block;
+}
+
+.nw-editable:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+.nw-edit-wrapper {
+  display: flex;
+  align-items: center;
+  background-color: white;
+  border: 2px solid #2c3e50;
+  border-radius: 4px;
+  padding: 4px 8px;
+}
+
+.nw-edit-currency {
+  margin-right: 4px;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+  color: #666;
+}
+
+.nw-edit-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  width: 100%;
+  text-align: right;
+  font-size: 13px;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+  color: #2c3e50;
+}
+
+/* Action buttons */
+.nw-action-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #666;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin: 0 2px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.nw-action-btn:hover {
+  background-color: rgba(0, 0, 0, 0.06);
+  transform: translateY(-1px);
+}
+
+.nw-action-btn i {
+  font-size: 16px;
+}
+
+.nw-delete-btn {
+  color: var(--error, #f44336);
+}
+
+.nw-delete-btn:hover {
+  background-color: rgba(244, 67, 54, 0.08);
+}
+
+.nw-delete-btn.nw-hidden {
+  display: none;
+}
+
+.nw-notes-btn:hover {
+  background-color: rgba(102, 102, 102, 0.08);
+}
+
+/* Save indicators */
+.nw-saving {
+  position: relative;
+  opacity: 0.7;
+}
+
+.nw-saving::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 8px;
+  border: 2px solid #2c3e50;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: nw-spin 1s linear infinite;
+}
+
+.nw-saved {
+  background-color: rgba(76, 175, 80, 0.1) !important;
+  transition: background-color 0.5s ease;
+}
+
+@keyframes nw-spin {
+  0% { transform: translateY(-50%) rotate(0deg); }
+  100% { transform: translateY(-50%) rotate(360deg); }
+}
+
+/* ======== ENHANCED MODALS - UPDATED WITH 2-COLUMN LAYOUT ======== */
+.nw-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  z-index: 10001;
+  backdrop-filter: blur(2px);
+}
+
+.nw-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: white;
+  border-radius: 8px;
+  border-top: 1px solid rgba(0, 0, 0, 0.5);
+  border-left: 1px solid rgba(0, 0, 0, 0.5);
+  border-right: 4px solid #334a60;
+  border-bottom: 4px solid #334a60;
+  z-index: 10002;
+  width: auto;
+  max-width: 90vw;
+  animation: nw-modal-appear 0.3s ease-out;
+}
+
+@keyframes nw-modal-appear {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -60%);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* Enhanced modal for add asset form - UPDATED */
+.nw-enhanced-modal {
+  width: 550px;
+  max-width: 90vw;
+}
+
+.nw-notes-modal {
+  max-width: 400px;
+}
+
+.nw-modal-header {
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #f8f9fa;
+}
+
+.nw-modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  font-family: 'Lato', sans-serif;
+  color: #2c3e50;
+}
+
+.nw-modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #666;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease;
+}
+
+.nw-modal-close:hover {
+  background-color: rgba(0, 0, 0, 0.06);
+}
+
+.nw-modal-body {
+  padding: 20px 50px;
+}
+
+.nw-modal-footer {
+  padding: 12px 20px 16px;
+  border-top: 1px solid #eee;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  background-color: #f8f9fa;
+}
+
+/* ======== ENHANCED FORM LAYOUTS - 2 COLUMN DESIGN ======== */
+.nw-enhanced-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.nw-form-group {
+  display: grid;
+  grid-template-columns: 70px 1fr;
+  align-items: center;
+  gap: 16px;
+}
+
+.nw-form-label {
+  text-align: right;
+}
+
+.nw-form-label label {
+  font-weight: 600;
+  font-size: 14px;
+  color: #2c3e50;
+  font-family: 'Lato', sans-serif;
+}
+
+.nw-required {
+  color: #f44336;
+  font-size: 16px;
+  font-weight: normal;
+}
+
+.nw-form-input {
+  position: relative;
+}
+
+.nw-input {
+  padding: 12px 14px;
+  font-size: 14px;
+  background-color: white;
+  border: 2px solid #e0e0e0;
+  border-radius: 6px;
+  transition: border-color 0.2s ease;
+  font-family: inherit;
+  width: 100%;
+}
+
+.nw-input:focus {
+  outline: none;
+  border-color: #2c3e50;
+}
+
+.nw-textarea {
+  resize: vertical;
+  min-height: 80px;
+  font-family: inherit;
+}
+
+.nw-amount-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+
+
+.nw-amount {
+  padding-left: 32px;
+  font-family: 'Lato', sans-serif;
+  font-weight: 600;
+  text-align: right;
+  width: 100%;
+}
+
+/* ======== BUTTONS ======== */
+.nw-btn {
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  font-family: 'Lato', sans-serif;
+}
+
+.nw-btn i {
+  margin-right: 8px;
+  font-size: 16px;
+}
+
+.nw-btn-primary {
+  background-color: #2c3e50;
+  color: white;
+}
+
+.nw-btn-primary:hover {
+  background-color: #1e2b37;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(44, 62, 80, 0.3);
+}
+
+.nw-btn-primary:disabled {
+  background-color: #a9d4a9;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+  color: #666;
+}
+
+.nw-btn-secondary {
+  background-color: transparent;
+  border: 2px solid #2c3e50;
+  color: #2c3e50;
+}
+
+.nw-btn-secondary:hover {
+  background-color: #2c3e50;
+  color: white;
+  transform: translateY(-1px);
+}
+
+/* ======== POPUP BUTTON STYLES (matching income.js.html) ======== */
+.nw-add-btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 0px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 80px;
+}
+
+.nw-add-cancel-btn {
+  background-color: #f5f5f5;
+  color: #666;
+  border: 1px solid #ddd;
+}
+
+.nw-add-cancel-btn:hover {
+  background-color: #e8e8e8;
+  color: #2c3e50;
+}
+
+.nw-add-save-btn {
+  background-color: #2c3e50;
+  color: white;
+}
+
+.nw-add-save-btn:hover {
+  background-color: #1984c5;
+}
+
+.nw-add-save-btn:focus, .nw-add-cancel-btn:focus {
+  outline: 2px solid #2c3e50;
+  outline-offset: 2px;
+}
+
+.nw-add-delete-btn {
+  margin-right: auto;
+  background-color: #f44336;
+  color: white;
+}
+
+.nw-add-delete-btn:hover {
+  background-color: #d32f2f;
+}
+
+/* ======== FUTURE MONTH SCREEN ======== */
+.nw-future-message {
+  text-align: center;
+  padding: 60px 30px;
+  background-color: white;
+  border-radius: 0px;
+  border-top: 1px solid rgba(0, 0, 0, 0.5);
+  border-left: 1px solid rgba(0, 0, 0, 0.5);
+  border-right: 4px solid #334a60;
+  border-bottom: 4px solid #334a60;
+  margin: 20px 0;
+}
+
+.nw-future-icon {
+  margin-bottom: 20px;
+  color: #666;
+}
+
+.nw-future-icon i {
+  font-size: 64px;
+  color: #bbb;
+}
+
+.nw-future-message h3 {
+  margin: 0 0 12px;
+  font-size: 20px;
+  font-weight: 600;
+  color: #2c3e50;
+  font-family: 'Lato', sans-serif;
+}
+
+.nw-future-message p {
+  margin: 0 0 30px;
+  color: #666;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+/* ======== AUTOCOMPLETE ======== */
+.nw-autocomplete-container {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  background: white;
+  border: 2px solid #e0e0e0;
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  z-index: 1002;
+}
+
+.nw-suggestion-item {
+  padding: 10px 14px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.nw-suggestion-item:hover,
+.nw-suggestion-item.active {
+  background-color: #f5f5f5;
+}
+
+.nw-suggestion-item strong {
+  font-weight: bold;
+  color: #2c3e50;
+}
+
+/* ======== RESPONSIVE DESIGN ======== */
+@media (max-width: 768px) {
+  /* Chart controls responsive */
+  .nw-chart-controls {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+  }
+  
+   
+  .nw-timespan-btn.nw-all-btn,
+  .nw-timespan-btn[data-timespan="5yr"] {
+    display: none !important;
+  }
+
+
+
+  .nw-mode-btn {
+    width: auto;
+    justify-content: center;
+    flex: 0 0 auto;
+  }
+  
+  .nw-timespan-controls {
+    width: auto;
+    flex: 1 1 auto;
+  }
+  
+  .nw-timespan-controls.hidden {
+    display: none;
+  }
+  
+  /* Mobile responsive for enhanced section titles */
+  .nw-section-title-container {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  
+  .nw-totals-display {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  
+  .nw-total-badge-asset,
+  .nw-total-badge-debt {
+    font-size: 12px;
+    padding: 3px 8px;
+    gap: 4px;
+  }
+  
+  .nw-badge-total {
+    font-size: 12px;
+  }
+  
+  .nw-badge-change {
+    font-size: 10px;
+  }
+  
+  .nw-change {
+    font-size: 11px;
+  }
+
+  /* Chart responsive */
+  .nw-chart-header {
+    padding: 12px 0 0;
+  }
+  
+  .nw-timespan-controls {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  
+  .nw-timespan-btn {
+    flex: 1;
+    min-width: 50px;
+  }
+  
+  .nw-chart-wrapper {
+    padding: 0;
+    height: 280px;
+    min-height: 280px;
+  }
+  
+  /* Table adjustments - now only hiding change column on mobile */
+  .nw-table {
+    font-size: 12px;
+  }
+  
+  .nw-type-cell {
+    width: 25%;
+  }
+  
+  .nw-name-cell {
+    width: 35%;
+  }
+  
+  .nw-value-cell {
+    width: 25%;
+  }
+  
+  .nw-change-cell {
+    display: none;
+  }
+  
+  .nw-table th:nth-child(4) {
+    display: none;
+  }
+  
+  .nw-actions-cell {
+    width: 15%;
+    white-space: nowrap;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+  
+  .nw-action-btn {
+    width: 28px;
+    height: 28px;
+    margin: 0 1px;
+    padding: 0;
+  }
+  
+  .nw-action-btn i {
+    font-size: 16px;
+  }
+  
+  .nw-section-header {
+    padding: 12px 16px;
+  }
+  
+  .nw-header-controls {
+    gap: 4px;
+  }
+  
+  .nw-add-btn span,
+  .nw-remove-toggle span {
+    display: none;
+  }
+  
+  .nw-add-btn i,
+  .nw-remove-toggle i {
+    margin-right: 0;
+  }
+  
+  /* Mobile modal adjustments */
+  .nw-modal {
+    width: 95%;
+    max-width: 95vw;
+  }
+  
+  .nw-enhanced-modal {
+    width: 95%;
+  }
+  
+  /* Stack form on mobile */
+  .nw-form-group {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  
+  .nw-form-label {
+    text-align: left;
+  }
+  
+  .nw-modal-body {
+    padding: 16px;
+  }
+  
+  .nw-modal-header,
+  .nw-modal-footer {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .nw-mode-btn {
+    font-size: 12px;
+    padding: 6px 12px;
+  }
+  
+  .nw-mode-btn i {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 600px) {
+  .nw-enhanced-modal {
+    width: 100%;
+    /* height: 100%; */
+    border-radius: 0;
+    top: 50px;
+    left: 10px;
+    transform: none;
+  }
+}
+
+/* ======== DARK MODE SUPPORT ======== */
+body.dark-mode .nw-chart-container,
+body.dark-mode .nw-section,
+body.dark-mode .nw-modal,
+body.dark-mode .nw-future-message,
+body.dark-mode .nw-loading,
+body.dark-mode .nw-error {
+  background-color: var(--dark-surface, #1e1e1e);
+  color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
+}
+
+body.dark-mode .nw-chart-container {
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+}
+
+body.dark-mode .nw-chart-header,
+body.dark-mode .nw-section-header,
+body.dark-mode .nw-modal-header,
+body.dark-mode .nw-modal-footer {
+  background-color: transparent;
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+body.dark-mode .nw-section-title,
+body.dark-mode .nw-modal-header h3 {
+  color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
+}
+
+body.dark-mode .nw-total-header {
+  background: linear-gradient(135deg, #4c1d95 0%, #5b21b6 100%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+body.dark-mode .nw-total-header h2 {
+  color: #ffffff;
+}
+
+/* ======== DARK MODE BADGE STYLING ======== */
+body.dark-mode .nw-total-badge-asset {
+  background-color: rgba(33, 150, 243, 0.15);
+  color: #64b5f6;
+  border-color: rgba(33, 150, 243, 0.3);
+}
+
+body.dark-mode .nw-total-badge-debt {
+  background-color: rgba(244, 67, 54, 0.15);
+  color: #ef5350;
+  border-color: rgba(244, 67, 54, 0.3);
+}
+
+body.dark-mode .nw-badge-total {
+  color: inherit;
+}
+
+body.dark-mode .nw-badge-change {
+  opacity: 0.7;
+}
+
+body.dark-mode .nw-change-positive {
+  color: #66bb6a;
+}
+
+body.dark-mode .nw-change-negative {
+  color: #ef5350;
+}
+
+
+body.dark-mode .nw-loading-text {
+  color: white !important;
+}
+
+body.dark-mode .nw-mode-btn {
+  border-color: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+body.dark-mode .nw-mode-btn:hover {
+  border-color: #DDA15E;
+  color: #DDA15E;
+  background-color: rgba(221, 161, 94, 0.08);
+}
+
+body.dark-mode .nw-mode-btn.active {
+  background-color: #DDA15E;
+  border-color: #DDA15E;
+  color: #1e1e1e;
+}
+
+body.dark-mode .nw-timespan-btn {
+  border-color: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+body.dark-mode .nw-timespan-btn:hover {
+  border-color: #DDA15E;
+  color: #DDA15E;
+}
+
+body.dark-mode .nw-timespan-btn.active {
+  background-color: #DDA15E;
+  border-color: #DDA15E;
+  color: #1e1e1e;
+}
+
+body.dark-mode .nw-table th {
+  background-color: var(--dark-surface, #2c2c2e);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+body.dark-mode .nw-table td {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+body.dark-mode .nw-value-cell {
+  color: #DDA15E;
+}
+
+body.dark-mode .nw-positive-change {
+  color: #66bb6a;
+}
+
+body.dark-mode .nw-negative-change {
+  color: #ef5350;
+}
+
+body.dark-mode .nw-new-entry {
+  color: #42a5f5;
+}
+
+body.dark-mode .nw-name-cell {
+  color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
+}
+
+body.dark-mode .nw-type-cell {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+
+body.dark-mode .nw-remove-toggle:hover {
+  background-color: rgba(239, 83, 80, 0.08);
+  color: #ef5350;
+}
+
+body.dark-mode .nw-remove-toggle[data-active="true"] {
+  background-color: rgba(239, 83, 80, 0.12);
+  color: #ef5350;
+}
+
+body.dark-mode .nw-input {
+  background-color: var(--dark-surface, #2c2c2e);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
+}
+
+body.dark-mode .nw-input:focus {
+  border-color: #DDA15E;
+}
+
+body.dark-mode .nw-edit-wrapper {
+  background-color: var(--dark-surface, #2c2c2e);
+  border-color: #DDA15E;
+}
+
+body.dark-mode .nw-edit-input {
+  color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
+}
+
+body.dark-mode .nw-currency,
+body.dark-mode .nw-edit-currency {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+body.dark-mode .nw-btn-primary {
+  background-color: #abbccd;
+  color: #1e1e1e;
+}
+
+body.dark-mode .nw-btn-primary:hover {
+  background-color: #9bb0c4;
+}
+
+body.dark-mode .nw-btn-primary:disabled {
+  background-color: #5a5a5a;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+body.dark-mode .nw-btn-secondary {
+  border-color: #abbccd;
+  color: #abbccd;
+}
+
+body.dark-mode .nw-btn-secondary:hover {
+  background-color: #abbccd;
+  color: #1e1e1e;
+}
+
+/* ======== POPUP BUTTON DARK MODE STYLES (matching income.js.html) ======== */
+body.dark-mode .nw-add-cancel-btn {
+  background-color: var(--dark-surface, #1e1e1e);
+  color: var(--dark-text-secondary, rgba(255, 255, 255, 0.6));
+  border-color: var(--dark-border, rgba(255, 255, 255, 0.12));
+}
+
+body.dark-mode .nw-add-cancel-btn:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
+}
+
+body.dark-mode .nw-add-save-btn {
+  background-color: #DDA15E;
+  color: #000000 !important;
+}
+
+body.dark-mode .nw-add-save-btn:hover {
+  background-color: #c9955a;
+}
+
+body.dark-mode .nw-add-save-btn:focus, body.dark-mode .nw-add-cancel-btn:focus {
+  outline-color: #DDA15E;
+}
+
+body.dark-mode .nw-add-delete-btn {
+  background-color: #ef5350;
+  color: #f8f9fa !important
+}
+
+body.dark-mode .nw-add-delete-btn:hover {
+  background-color: #f44336;
+}
+
+body.dark-mode .nw-editable:hover,
+body.dark-mode .nw-action-btn:hover,
+body.dark-mode .nw-add-btn,
+body.dark-mode .nw-remove-toggle {
+  color: #abbccd;
+}
+
+body.dark-mode .nw-add-btn:hover {
+  background-color: rgba(171, 188, 205, 0.08);
+}
+
+body.dark-mode .nw-modal-close:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+body.dark-mode .nw-saved {
+  background-color: rgba(76, 175, 80, 0.08) !important;
+}
+
+body.dark-mode .nw-saving::after {
+  border-color: #DDA15E;
+  border-top-color: transparent;
+}
+
+body.dark-mode .nw-delete-btn {
+  color: #ef5350;
+}
+
+body.dark-mode .nw-delete-btn:hover {
+  background-color: rgba(239, 83, 80, 0.08);
+}
+
+body.dark-mode .nw-success-message {
+  background-color: rgba(46, 125, 50, 0.1);
+  color: #66bb6a;
+}
+
+body.dark-mode .nw-error-message {
+  background-color: rgba(211, 47, 47, 0.1);
+  color: #ef5350;
+}
+
+body.dark-mode .nw-info-message {
+  background-color: rgba(25, 118, 210, 0.1);
+  color: #42a5f5;
+}
+
+body.dark-mode .nw-autocomplete-container {
+  background: #2c2c2e;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+body.dark-mode .nw-suggestion-item:hover,
+body.dark-mode .nw-suggestion-item.active {
+  background-color: #3a3a3c;
+}
+
+body.dark-mode .nw-suggestion-item strong {
+  color: #DDA15E;
+}
+
+/* Zero value indicators in dark mode */
+body.dark-mode .nw-table tr.nw-zero-value {
+  opacity: 0.6;
+}
+
+body.dark-mode .nw-table tr.nw-zero-value .nw-value-cell {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+
+/* Add this to your dark mode section in networth.js.html */
+body.dark-mode .nw-table td {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+body.dark-mode .nw-table th {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+/* ======== PRINT STYLES ======== */
+@media print {
+  .nw-chart-container,
+  .nw-section {
+    border: 1px solid #ccc;
+    break-inside: avoid;
+  }
+  
+  .nw-add-btn,
+  .nw-remove-toggle,
+  .nw-action-btn,
+  .nw-modal-backdrop,
+  .nw-modal,
+  .nw-timespan-controls,
+  .nw-mode-btn,
+  .nw-chart-controls {
+    display: none;
+  }
+  
+  .nw-editable {
+    cursor: text;
+  }
+  
+  .nw-categories-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  
+  .nw-chart-wrapper {
+    height: 250px;
+  }
+}
+
+/* ======== ACCESSIBILITY IMPROVEMENTS ======== */
+@media (prefers-reduced-motion: reduce) {
+  .nw-btn,
+  .nw-action-btn,
+  .nw-editable,
+  .nw-modal,
+  .nw-timespan-btn,
+  .nw-mode-btn {
+    transition: none;
+    animation: none;
+  }
+}
+
+
+/* Desktop view - reset any flexbox ordering */
+@media (min-width: 769px) {
+  #netWorthContent {
+    display: block !important; /* Override the flex display for desktop */
+    padding-bottom: 50vh; /* Add extra space at bottom to allow scrolling sections to center */
+  }
+
+  .nw-chart-container, .nw-message, .nw-categories-grid {
+    order: initial !important; /* Reset the order properties */
+    margin-top: 10px;
+  }
+}
+
+/* Mobile view - your working solution */
+@media (max-width: 768px) {
+  #netWorthContent {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  
+  .nw-total-header {
+    order: -9999 !important;
+    margin: 12px 12px 8px 12px !important;
+    max-width: none;
+    width: calc(100% - 24px);
+  }
+  
+  .nw-chart-container {
+    order: -9998 !important;
+    margin: 12px 12px 20px 12px !important;
+    padding: 12px 12px 16px !important;
+    gap: 12px !important;
+  }
+  
+  .nw-chart-wrapper {
+    order: 0 !important;
+  }
+
+  .nw-chart-header {
+    order: 1 !important;
+    padding: 12px 12px 0 12px !important;
+    border-bottom: none !important;
+    border-top: 1px solid #eee !important;
+    background-color: #f8f9fa !important;
+  }
+
+  .nw-message {
+    order: -10000 !important;
+  }
+  
+  .nw-categories-grid {
+    order: 9999 !important;
+  }
+}
+
+/* ======== MODAL STYLES ======== */
+.nw-asset-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10000;
+}
+
+.nw-modal-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+.nw-modal-content {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  width: 90%;
+  max-width: 800px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.nw-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e1e5e9;
+}
+
+.nw-modal-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.nw-modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.nw-modal-close:hover {
+  background-color: #f8f9fa;
+}
+
+.nw-modal-body {
+  padding: 24px;
+}
+
+.nw-modal-columns {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 24px;
+  align-items: start;
+}
+
+/* Desktop: Make input column narrower, chart wider */
+@media (min-width: 768px) {
+  .nw-modal-columns {
+    grid-template-columns: auto 0.6fr 1.4fr;
+  }
+}
+
+.nw-modal-labels {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 80px;
+}
+
+.nw-label-item {
+  font-weight: 500;
+  color: #2c3e50;
+  font-size: 0.9rem;
+  padding: 10px 0;
+  text-align: left;
+}
+
+.nw-modal-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 200px;
+}
+
+.nw-input-item {
+  display: flex;
+  align-items: center;
+}
+
+.nw-modal-inputs .nw-form-input,
+.nw-modal-inputs .nw-form-textarea {
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+@media (min-width: 768px) {
+
+  .nw-enhanced-modal .nw-simple-form {
+    padding: 0 100px;
+  }
+}
+
+.nw-modal-chart {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 16px;
+  min-height: 250px;
+  min-width: 400px;
+}
+
+#assetHistoryChart {
+  width: 400px;
+}
+
+@media (max-width: 767px) {
+  #assetHistoryChart {
+    width: 300px;
+  }
+}
+
+.nw-chart-placeholder {
+  margin-bottom: 16px;
+}
+
+.nw-notes-section {
+  width: 100%;
+}
+
+.nw-notes-label {
+  font-weight: 500;
+  color: #2c3e50;
+  font-size: 0.9rem;
+  margin-bottom: 6px;
+  text-align: left;
+}
+
+.nw-required {
+  color: #e74c3c;
+  font-weight: bold;
+}
+
+.nw-autocomplete-container {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: white;
+  border: 1px solid #ddd;
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.nw-input-item {
+  position: relative;
+}
+
+.nw-simple-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.nw-simple-row {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  gap: 16px;
+  align-items: center;
+}
+
+.nw-simple-row .nw-amount-input {
+  width: 100%;
+  min-width: 0; /* Prevents flex item from overflowing */
+}
+
+.nw-simple-row label {
+  font-weight: 500;
+  color: #2c3e50;
+  font-size: 0.9rem;
+  text-align: left;
+}
+
+.nw-amount-input {
+  position: relative;
+  display: flex !important;
+  align-items: center !important;
+  min-width: 0; /* Prevents flex container from overflowing its grid area */
+}
+
+
+
+.nw-amount-input input[type="number"],
+.nw-amount-input .nw-form-input {
+  padding-left: 15px !important;
+}
+
+/* Hide spinner arrows on number inputs */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield; /* Firefox */
+}
+
+
+.nw-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nw-form-group label {
+  font-weight: 500;
+  color: #2c3e50;
+  font-size: 0.9rem;
+}
+
+.nw-form-input,
+.nw-form-select,
+.nw-form-textarea {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  transition: border-color 0.2s;
+}
+
+.nw-form-input:focus,
+.nw-form-select:focus,
+.nw-form-textarea:focus {
+  outline: none;
+  border-color: #3498db;
+  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+.nw-form-textarea {
+  resize: vertical;
+  min-height: 80px;
+  width: 200px;
+  box-sizing: border-box;
+}
+
+.nw-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 20px 24px;
+  border-top: 1px solid #e1e5e9;
+  background-color: #f8f9fa;
+}
+
+.nw-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.nw-btn-primary {
+  background-color: #27ae60;
+  color: white;
+}
+
+.nw-btn-primary:hover {
+  background-color: #229954;
+}
+
+.nw-btn-secondary {
+  background-color: #95a5a6;
+  color: white;
+}
+
+.nw-btn-secondary:hover {
+  background-color: #7f8c8d;
+}
+
+.nw-btn-danger {
+  background-color: #e74c3c;
+  color: white;
+}
+
+.nw-btn-danger:hover {
+  background-color: #c0392b;
+}
+
+@media (max-width: 768px) {
+  .nw-modal-columns {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 20px !important;
+  }
+  
+  .nw-modal-labels {
+    display: none !important;
+  }
+  
+  .nw-modal-inputs {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 16px !important;
+    min-width: auto !important;
+  }
+  
+  .nw-modal-inputs .nw-input-item {
+    display: grid !important;
+    grid-template-columns: 80px 1fr !important;
+    gap: 16px !important;
+    align-items: center !important;
+  }
+  
+  .nw-modal-inputs .nw-input-item::before {
+    content: attr(data-label);
+    font-weight: 500;
+    color: #2c3e50;
+    font-size: 0.9rem;
+  }
+  
+  .nw-modal-chart {
+    min-width: auto !important;
+    width: 100% !important;
+    order: 2 !important;
+  }
+  
+  .nw-modal-content {
+    width: 95%;
+    margin: 20px auto;
+  }
+}
+
+
+
+</style>

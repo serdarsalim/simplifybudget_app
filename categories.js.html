@@ -1,0 +1,1936 @@
+<script>
+/**
+ * CategoriesManager - smart caching Architecture
+ * Features:
+ * - Preserves spreadsheet order
+ * - Only fetches from spreadsheet on first load or manual refresh
+ * - Toggles update immediately inshallah yani
+ * - ENHANCED: Editable display order with column-based layout
+ */
+
+var CategoriesManager = (function() {
+  // Private variables
+  let _initialized = false;
+  let _categories = [];
+  let _isLoading = false;
+  let _isReordering = false; // NEW: Prevent interactions during reorder
+  
+  // NEW: Request queue system
+  let _requestQueue = [];
+  let _isProcessingQueue = false;
+  
+  // DOM element cache for performance
+  const _elements = {};
+  
+  /**
+   * Get an element by ID with caching
+   * @param {string} id - Element ID
+   * @return {HTMLElement} Element
+   */
+  function getElement(id) {
+    if (!_elements[id]) {
+      _elements[id] = document.getElementById(id);
+    }
+    return _elements[id];
+  }
+  
+  /**
+   * NEW: Queue management for category toggle requests
+   */
+  function queueCategoryToggle(categoryId, active, successCallback, errorCallback) {
+    // Remove any existing requests for this category (deduplication)
+    _requestQueue = _requestQueue.filter(req => req.categoryId !== categoryId);
+    
+    // Add new request to queue
+    _requestQueue.push({
+      categoryId: categoryId,
+      active: active,
+      successCallback: successCallback,
+      errorCallback: errorCallback,
+      timestamp: Date.now()
+    });
+    
+    // Start processing if not already running
+    if (!_isProcessingQueue) {
+      processQueue();
+    }
+  }
+  
+  /**
+   * NEW: Process the request queue sequentially
+   */
+  function processQueue() {
+    if (_isProcessingQueue || _requestQueue.length === 0) {
+      return;
+    }
+    
+    _isProcessingQueue = true;
+    
+    const request = _requestQueue.shift();
+    const category = _categories.find(cat => cat.id === request.categoryId);
+    
+    if (!category) {
+      // Category not found, skip and continue
+      if (request.errorCallback) {
+        request.errorCallback('Category not found');
+      }
+      _isProcessingQueue = false;
+      processQueue(); // Process next request
+      return;
+    }
+    
+    // Make the actual API call
+    API.updateCategoryStatus(
+      category.fullName,
+      request.active,
+      function(result) {
+        // Success
+        if (result && result.success) {
+          // Update cache and broadcast changes
+          const newTimestamp = new Date().toISOString();
+          window.CacheManager.setCategoriesWithTimestamp(_categories, newTimestamp);
+          
+          // Broadcast changes
+          localStorage.setItem('simbudget-categories-changed', JSON.stringify({
+            timestamp: Date.now(),
+            categories: _categories,
+            changedCategory: category.name,
+            newActiveStatus: request.active
+          }));
+          
+          updateQuickExpenseDropdown();
+          
+          if (window.notifyMonthlyGridOfCategoryChange) {
+            notifyMonthlyGridOfCategoryChange();
+          }
+          
+          if (window.notifyDashboardOfCategoryChange) {
+            notifyDashboardOfCategoryChange();
+          }
+          
+          document.dispatchEvent(new CustomEvent('categories-changed', {
+            detail: { 
+              changedCategory: category.name,
+              newActiveStatus: request.active,
+              allCategories: _categories
+            }
+          }));
+        }
+        
+        if (request.successCallback) {
+          request.successCallback(result);
+        }
+        
+        // Process next request
+        _isProcessingQueue = false;
+        processQueue();
+      },
+      function(error) {
+        // Error - revert the category state
+        category.active = !request.active;
+        
+        // Update UI to show reverted state
+        const card = document.querySelector(`.category-card[data-category-id="${request.categoryId}"]`);
+        if (card) {
+          const checkbox = card.querySelector('.category-toggle');
+          if (checkbox) {
+            checkbox.checked = category.active;
+          }
+          
+          if (category.active) {
+            card.classList.add('active');
+          } else {
+            card.classList.remove('active');
+          }
+          
+          // Flash error
+          card.classList.add('save-error');
+          setTimeout(() => card.classList.remove('save-error'), 1000);
+        }
+        
+        if (request.errorCallback) {
+          request.errorCallback(error);
+        }
+        
+        // Process next request
+        _isProcessingQueue = false;
+        processQueue();
+      }
+    );
+  }
+  
+  /**
+   * Initialize the Categories Manager
+   * Checks cache first, at least it should, then spreadsheet if needed
+   */
+  function init() {
+
+    if (_initialized && _categories.length > 0) {
+      renderCategories();
+      return;
+    }
+
+    // Find container
+    const container = getElement('categories-container');
+    if (!container) {
+      console.error('CategoriesManager: Container not found');
+      return;
+    }
+
+    _elements['categories-container'] = container;
+
+    // Load translations for category names
+    loadTranslationsForCategories();
+
+    //  Check timestamp changes first
+    loadCategoriesWithTimestamp();
+
+  }
+  
+  /**
+   * Load translations for category names
+   */
+  function loadTranslationsForCategories() {
+    // Get current language from settings or default to 'en'
+    let currentLang = 'en';
+    try {
+      const settings = window.CacheManager ? CacheManager.getSettings() : null;
+      if (settings && settings.language) {
+        currentLang = settings.language;
+      }
+    } catch (e) {
+      console.log('Categories: Could not get language from settings, using English');
+    }
+
+    // Load translations
+    if (window.API && API.getTranslations) {
+      API.getTranslations(currentLang,
+        function(result) {
+          if (result && result.translations) {
+            // Store translations globally
+            window.SimBudget = window.SimBudget || {};
+            SimBudget.translations = result.translations.translations;
+            SimBudget.currentLanguage = currentLang;
+
+            // Re-render categories with translations
+            if (_initialized && _categories.length > 0) {
+              renderCategories();
+            }
+          }
+        },
+        function(error) {
+          console.log('Categories: Failed to load translations:', error);
+        }
+      );
+    }
+  }
+  
+/**
+ * Load categories using timestamp-based caching
+ */
+function loadCategoriesWithTimestamp() {
+
+  // Check CacheManager first
+  const cachedData = window.CacheManager.getCategoriesWithTimestamp();
+
+  if (cachedData && cachedData.categories && (cachedData.timestamp || cachedData.cached_at)) {
+
+    // Ensure timestamp exists (fallback to cached_at if needed)
+    if (!cachedData.timestamp && cachedData.cached_at) {
+      cachedData.timestamp = new Date(cachedData.cached_at).toISOString();
+    }
+
+    // We have cached data, now check if it's fresh
+    checkTimestampAndLoad(cachedData);
+  } else {
+
+    // No cached data, fetch fresh from server
+    fetchFreshCategories();
+  }
+}
+
+/**
+ * Check if cached data is fresh by comparing timestamps
+ */
+function checkTimestampAndLoad(cachedData) {
+  // Get the centralized server timestamp for categories
+  const serverTimestamp = window.CacheManager.getTimestamp('categories');
+
+  if (!serverTimestamp) {
+    useCachedCategories(cachedData);
+    return;
+  }
+
+  const serverTime = new Date(serverTimestamp).getTime();
+  const cachedTime = new Date(cachedData.timestamp).getTime();
+
+  if (serverTime > cachedTime) {
+    fetchFreshCategories();
+  } else {
+    useCachedCategories(cachedData);
+  }
+}
+
+/**
+ * Fetch fresh categories from server and cache them
+ */
+function fetchFreshCategories() {
+  API.getCategoriesWithTimestamp(
+    function(result) {
+      if (result && result.success && result.categories) {
+
+        _categories = result.categories;
+        window.CacheManager.setCategoriesWithTimestamp(_categories, result.timestamp);
+        renderCategories();
+        _initialized = true;
+
+        // ✅ ADD: Hide spinner after successful load
+
+      } else {
+        console.error('CategoriesManager: Invalid server response:', result);
+        showError(result ? result.error : 'Invalid response from server');
+      }
+    },
+    function(error) {
+      console.error('CategoriesManager: Server error:', error);
+      showError('Error loading from server: ' + error);
+    }
+  );
+}
+
+/**
+ * Use cached categories without server call
+ */
+function useCachedCategories(cachedData) {
+  _categories = cachedData.categories;
+  renderCategories();
+  _initialized = true;
+}
+
+ 
+  
+  /**
+   * Process categories from spreadsheet data
+   * Preserves original order and creates proper structure
+   * @param {Array} categories - Raw category data from spreadsheet
+   * @param {Array} activeCategories - List of active category names
+   * @return {Array} Processed categories with active state
+   */
+  function processCategories(categories, activeCategories) {
+    
+    if (!Array.isArray(categories)) {
+      console.error('CategoriesManager: Categories is not an array:', categories);
+      return [];
+    }
+    
+    // Ensure activeCategories is an array
+    const activeList = Array.isArray(activeCategories) ? activeCategories : [];
+    
+    // Process each category and preserve order
+    const processed = categories
+      .filter(cat => typeof cat === 'string' && cat.trim() !== '')
+      .map((categoryString, index) => {
+        const parsed = parseCategoryNameAndEmoji(categoryString);
+        
+        return {
+          id: parsed.name,           // Clean name as ID
+          name: parsed.name,         // Clean name without emoji
+          emoji: parsed.emoji,       // Extracted emoji
+          fullName: categoryString,  // Original string with emoji
+          active: activeList.includes(categoryString), // Check if active
+          order: index,              // Preserve spreadsheet order
+          displayOrder: index + 1    // NEW: Display order (1-based)
+        };
+      });
+    
+    return processed;
+  }
+  
+
+  
+
+ 
+
+/**
+ * NEW: Toggle a category's active status using queue system
+ * Updates UI immediately, queues backend request
+ * @param {number|string} categoryId - Stable category ID
+ * @param {boolean} active - New active status
+ * @param {Function} successCallback - Called on success
+ * @param {Function} errorCallback - Called on error
+ */
+function toggleCategory(categoryId, active, successCallback, errorCallback) {
+  
+  const category = _categories.find(cat => cat.id === categoryId);
+  
+  if (!category) {
+    console.error('CategoriesManager: Invalid category ID:', categoryId);
+    if (errorCallback) errorCallback('Invalid category ID');
+    return;
+  }
+  
+  // Update local state immediately for responsive UI
+  category.active = active;
+  
+  // Update UI immediately
+  const card = document.querySelector(`.category-card[data-category-id="${categoryId}"]`);
+  if (card) {
+    if (active) {
+      card.classList.add('active');
+    } else {
+      card.classList.remove('active');
+    }
+  }
+  
+  if (!window.API || typeof API.updateCategoryStatus !== 'function') {
+    console.error('CategoriesManager: API.updateCategoryStatus not available');
+    // Revert local state
+    category.active = !active;
+    if (card) {
+      if (!active) {
+        card.classList.add('active');
+      } else {
+        card.classList.remove('active');
+      }
+    }
+    if (errorCallback) errorCallback('API not available');
+    return;
+  }
+  
+  // Queue the request instead of blocking
+  queueCategoryToggle(category.id, active, successCallback, errorCallback);
+}
+
+
+
+  
+/**
+ * Refresh categories from spreadsheet
+ * Forces fresh fetch bypassing cache and timestamp checks
+ */
+function refreshCategories() {
+  
+  if (_isLoading) {
+    return;
+  }
+  
+  // Clear existing data
+  _categories = [];
+  _initialized = false;
+  
+  // Clear CacheManager cache to force fresh fetch
+  if (window.CacheManager && typeof CacheManager.invalidate === 'function') {
+    CacheManager.invalidate('categories_with_timestamp');
+  }
+  
+  // ✅ ADD: Show spinner ONLY for manual refresh
+  const container = getElement('categories-container');
+  if (container) {
+    container.innerHTML = '<div class="categories-loading"><div class="loading-spinner"></div><p>Refreshing categories...</p></div>';
+  }
+  
+  fetchFreshCategories();
+}
+  
+  /**
+   * ENHANCED: Render categories with column-based layout and editable display order
+   */
+  function renderCategories() {
+
+    const container = getElement('categories-container');
+    if (!container) {
+      console.error('CategoriesManager: Categories container not found');
+      return;
+    }
+
+    // Clear existing content
+    container.innerHTML = '';
+
+    // If no categories to render, show message
+    if (!_categories || _categories.length === 0) {
+      container.innerHTML = '<div class="categories-message">No categories found</div>';
+      return;
+    }
+
+    // Sort by display order for rendering (not spreadsheet order)
+    const sortedCategories = [..._categories].sort((a, b) =>
+      (a.displayOrder || a.order + 1 || 1) - (b.displayOrder || b.order + 1 || 1)
+    );
+
+    // Create grid container
+    const grid = document.createElement('div');
+    grid.className = 'categories-grid';
+
+    // Create 3 columns
+    const column1 = document.createElement('div');
+    const column2 = document.createElement('div');
+    const column3 = document.createElement('div');
+
+    column1.className = 'category-column';
+    column2.className = 'category-column';
+    column3.className = 'category-column';
+
+    // Distribute categories into columns based on display order
+    // Column 1: 1-10, Column 2: 11-20, Column 3: 21-30
+    sortedCategories.forEach((category) => {
+      const originalIndex = _categories.findIndex(cat => cat.id === category.id); // Use stable ID
+      const card = createEnhancedCategoryCard(category, originalIndex);
+
+      const displayOrder = category.displayOrder || category.order + 1 || 1;
+
+      if (displayOrder <= 10) {
+        column1.appendChild(card);
+      } else if (displayOrder <= 20) {
+        column2.appendChild(card);
+      } else {
+        column3.appendChild(card);
+      }
+    });
+
+    // Add columns to grid
+    grid.appendChild(column1);
+    grid.appendChild(column2);
+    grid.appendChild(column3);
+
+    // Add grid to container
+    container.appendChild(grid);
+
+    // Apply translations after rendering
+    if (window.SimBudget && SimBudget.applyTranslations) {
+      SimBudget.applyTranslations();
+    }
+  }
+  
+
+ /**
+ * Robust emoji validation function that works across all browsers
+ * @param {string} text - Text to validate
+ * @return {boolean} True if it's a valid emoji
+ */
+function isValidEmoji(text) {
+  if (!text || text.length === 0) return false;
+  
+  // Method 1: Comprehensive regex for most common emoji ranges
+  const emojiRegex = /^[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F700}-\u{1F77F}]|[\u{1F780}-\u{1F7FF}]|[\u{1F800}-\u{1F8FF}]|[\u{1F900}-\u{1F9FF}]|[\u{1FA00}-\u{1FA6F}]|[\u{1FA70}-\u{1FAFF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{2300}-\u{23FF}]|[\u{2B00}-\u{2BFF}]|[\u{25A0}-\u{25FF}]|[\u{2190}-\u{21FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{3030}]|[\u{303D}]|[\u{3297}]|[\u{3299}]|[\u{24C2}]|[\u{1F004}]|[\u{1F0CF}]|[\u{1F18E}]$/u;
+  
+  if (emojiRegex.test(text)) return true;
+  
+  // Method 2: Check for variation selector (like ▶️)
+  if (text.length === 2 && text.charCodeAt(1) === 0xFE0F) {
+    return true;
+  }
+  
+  // Method 3: Basic heuristic - single character that's not alphanumeric or common punctuation
+  if (text.length === 1) {
+    const char = text.charCodeAt(0);
+    // Exclude basic ASCII alphanumeric and common punctuation
+    if (char > 127 && // Non-ASCII
+        !/[a-zA-Z0-9\s.,!?;:'"()\-_]/.test(text)) {
+      return true;
+    }
+  }
+  
+  // Method 4: Check if it's a multi-character emoji sequence (like flag emojis)
+  if (text.length >= 2 && text.length <= 8) {
+    // Contains high surrogate pairs (emoji territory)
+    for (let i = 0; i < text.length; i++) {
+      const char = text.charCodeAt(i);
+      if (char >= 0xD800 && char <= 0xDFFF) { // Surrogate pairs
+        return true;
+      }
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * ENHANCED: Create category card with editable display order number
+ * @param {Object} category - Category data
+ * @param {number} index - Index in the array
+ * @return {HTMLElement} Card element
+ */
+function createEnhancedCategoryCard(category, index) {
+  const card = document.createElement('div');
+  card.className = 'category-card';
+  // ✅ FIX: Store category ID (stable numeric identifier) instead of array index
+  card.dataset.categoryId = category.id;
+  card.dataset.index = index; // Keep for backward compatibility if needed
+  
+  // Set active class if category is active
+  if (category.active) {
+    card.classList.add('active');
+  }
+  
+  // NEW: Display order badge (editable)
+  const orderBadge = document.createElement('div');
+  orderBadge.className = 'order-badge';
+  orderBadge.contentEditable = true;
+  orderBadge.textContent = category.displayOrder || category.order + 1 || 1;
+  orderBadge.title = 'Click to edit display order (1-30)';
+  orderBadge.addEventListener('blur', function() {
+    handleOrderChange(this, category, index);
+  });
+  orderBadge.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      this.blur();
+    }
+    // Only allow numbers
+    if (!/[0-9]/.test(e.key) && !['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+      e.preventDefault();
+    }
+  });
+  
+  // Create checkbox for active toggle
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.className = 'category-toggle';
+  checkbox.checked = category.active;
+  checkbox.id = `category-toggle-${category.id}`;
+  checkbox.setAttribute('aria-label', `Toggle ${category.name}`);
+
+  // Create switch wrapper for iOS-style toggle
+  const toggleWrapper = document.createElement('label');
+  toggleWrapper.className = 'category-switch';
+
+  const toggleTrack = document.createElement('span');
+  toggleTrack.className = 'category-switch-track';
+  
+  toggleWrapper.appendChild(checkbox);
+  toggleWrapper.appendChild(toggleTrack);
+  
+  // Add saving indicator
+  const savingIndicator = document.createElement('div');
+  savingIndicator.className = 'saving-indicator';
+  savingIndicator.innerHTML = '<div class="spinner"></div>';
+  savingIndicator.style.display = 'none';
+  
+  // Add change listener for active/inactive toggle
+  checkbox.addEventListener('change', function() {
+    if (_isReordering) return; // Prevent changes during reorder
+    
+    // Toggle the category immediately (queue handles the rest)
+    toggleCategory(category.id, this.checked);
+  });
+  
+  // AWESOMICO: Create clickable emoji
+  const emojiSpan = document.createElement('span');
+  emojiSpan.className = 'category-emoji clickable-emoji';
+  emojiSpan.textContent = category.emoji || '📝';
+  emojiSpan.title = 'Click to change emoji';
+  
+  // Emoji click handler
+  emojiSpan.addEventListener('click', function(e) {
+    if (_isReordering) return; // Prevent editing during reorder
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    // ✅ FIX: Pass category ID instead of index for failsafe lookup
+    startEmojiEdit(category.id, emojiSpan);
+  });
+  
+  // AWESOMICO: Create clickable category name
+  const nameSpan = document.createElement('span');
+  nameSpan.className = 'category-name-cat clickable-name';
+  
+  // Only translate default categories, not user-customized ones
+  const emojiRegex = /[\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}\u{2460}-\u{24FF}\u{2500}-\u{257F}\u{2580}-\u{259F}\u{25A0}-\u{25FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2B50}\u{2B55}\u{231A}\u{231B}\u{2328}\u{23CF}\u{23E9}-\u{23F3}\u{23F8}-\u{23FA}\u{24C2}\u{25AA}\u{25AB}\u{25B6}\u{25C0}\u{25FB}-\u{25FE}\u{2934}\u{2935}\u{3030}\u{303D}\u{3297}\u{3299}]|\u{FE0F}/gu;
+  const categoryText = category.name.replace(emojiRegex, '').trim();
+  
+  // List of default categories that should be translated
+  const defaultCategories = [
+    'Housing', 'Transport', 'Groceries', 'Dining out', 'Dining Out', 'Personal care', 'Shopping', 
+    'Utilities', 'Fun', 'Business', 'Other', 'Donation', 'Childcare', 'Travel', 
+    'Zakat', 'Debt Payment', 'Fitness', 'Family Support', 'Taxes', 'Maintenance', 
+    'Leisure', 'PlayGround', 'Learning', 'Sports', 'Pet care', 'Gifts', 
+    'Special Occasions', 'Clothing', 'Hobbies', 'Insurance', 'Medical', 'Savings'
+  ];
+  
+  // Only translate if it's a default category, otherwise show as-is (case-insensitive check)
+  const shouldTranslate = defaultCategories.some(cat => cat.toLowerCase() === categoryText.toLowerCase());
+  
+  
+  const displayText = shouldTranslate && Utils.translateCategory ? 
+    Utils.translateCategory(categoryText) : categoryText;
+  
+  nameSpan.textContent = displayText;
+  nameSpan.title = 'Click to rename category';
+  
+  // Name click handler
+  nameSpan.addEventListener('click', function(e) {
+    if (_isReordering) return; // Prevent editing during reorder
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    // ✅ FIX: Pass category ID instead of index for failsafe lookup
+    startNameEdit(category.id, nameSpan);
+  });
+  
+  // Create label container (NOT a label element to avoid checkbox issues)
+  const labelContainer = document.createElement('div');
+  labelContainer.className = 'category-label-container';
+  
+  // Append emoji and name to container with proper spacing
+  labelContainer.appendChild(emojiSpan);
+  labelContainer.appendChild(document.createTextNode('     ')); // Increased space between emoji and name
+  labelContainer.appendChild(nameSpan);
+  
+  // Append elements to card
+  card.appendChild(orderBadge);
+  card.appendChild(labelContainer);
+  card.appendChild(savingIndicator);
+  card.appendChild(toggleWrapper);
+  
+  return card;
+}
+
+/**
+ * NEW: Handle display order number change
+ */
+function handleOrderChange(orderElement, category, originalIndex) {
+  const newOrder = parseInt(orderElement.textContent.trim());
+  const currentOrder = category.displayOrder || category.order + 1 || 1;
+  
+  // Validate input
+  if (isNaN(newOrder) || newOrder < 1 || newOrder > 30) {
+    // Invalid input - revert to original
+    orderElement.textContent = currentOrder;
+    orderElement.classList.add('error');
+    setTimeout(() => orderElement.classList.remove('error'), 1500);
+    return;
+  }
+  
+  if (newOrder === currentOrder) {
+    // No change
+    return;
+  }
+  
+  // Check for conflicts
+  const conflictCategory = _categories.find(cat => 
+    (cat.displayOrder || cat.order + 1) === newOrder && cat.id !== category.id
+  );
+  
+  if (conflictCategory) {
+    // Swap the two positions
+    swapDisplayOrder(currentOrder, newOrder);
+  } else {
+    // Just update this one
+    updateSingleDisplayOrder(category.id, newOrder);
+  }
+}
+
+/**
+ * NEW: Swap display order between two categories
+ */
+function swapDisplayOrder(fromOrder, toOrder) {
+  if (_isReordering) return;
+  
+  _isReordering = true;
+  
+  // Find categories by display order
+  const fromCategory = _categories.find(cat => 
+    (cat.displayOrder || cat.order + 1) === fromOrder
+  );
+  const toCategory = _categories.find(cat => 
+    (cat.displayOrder || cat.order + 1) === toOrder
+  );
+  
+  if (!fromCategory || !toCategory) {
+    console.error('Categories not found for swap:', fromOrder, toOrder);
+    _isReordering = false;
+    return;
+  }
+  
+  // Update local data immediately for responsive UI
+  fromCategory.displayOrder = toOrder;
+  toCategory.displayOrder = fromOrder;
+  
+  // Re-render immediately
+  renderCategories();
+  
+  // Prepare data for server
+  const swapData = [
+    { id: fromCategory.id, displayOrder: toOrder },
+    { id: toCategory.id, displayOrder: fromOrder }
+  ];
+  
+  // Save to server
+   if (window.API && typeof API.updateCategoryDisplayOrder === 'function') {
+    API.updateCategoryDisplayOrder(
+      swapData,
+      function(result) {
+        if (result && result.success) {  // Added success check
+          
+          // Update cache with new display orders
+          if (window.CacheManager) {
+            CacheManager.setCategoriesWithTimestamp(_categories, new Date().toISOString());
+          }
+          
+          // Broadcast change event
+          document.dispatchEvent(new CustomEvent('categories-reordered', {
+            detail: { categories: _categories }
+          }));
+        }
+        
+        _isReordering = false;  // Always reset flag, even if not successful
+      },
+      function(error) {
+        console.error('Error swapping display order:', error);
+        
+        // Revert on error
+        fromCategory.displayOrder = fromOrder;
+        toCategory.displayOrder = toOrder;
+        renderCategories();
+        
+        _isReordering = false;
+      }
+    );
+  } else {
+    console.warn('API.updateCategoryDisplayOrder not available');
+    _isReordering = false;
+  }
+}
+
+/**
+ * NEW: Update single category display order
+ */
+function updateSingleDisplayOrder(categoryId, newOrder) {
+  if (_isReordering) return;
+  
+  _isReordering = true;
+  
+  const category = _categories.find(cat => cat.id === categoryId);
+  if (!category) {
+    console.error('Category not found:', categoryId);
+    _isReordering = false;
+    return;
+  }
+  
+  const oldOrder = category.displayOrder || category.order + 1;
+  
+  // Update local data immediately
+  category.displayOrder = newOrder;
+  
+  // Re-render immediately
+  renderCategories();
+  
+  // Save to server
+  if (window.API && typeof API.updateCategoryDisplayOrder === 'function') {
+   API.updateCategoryDisplayOrder(
+  [{ id: categoryId, displayOrder: newOrder }],
+  function(result) {
+    if (result && result.success) {
+      
+      // Update cache with fresh timestamp only on success
+      if (window.CacheManager) {
+        CacheManager.setCategoriesWithTimestamp(_categories, new Date().toISOString());
+      }
+      
+      // Broadcast change event
+      document.dispatchEvent(new CustomEvent('categories-reordered', {
+        detail: { categories: _categories }
+      }));
+    }
+      },
+      function(error) {
+        console.error('Error updating display order:', error);
+        
+        // Revert on error
+        category.displayOrder = oldOrder;
+        renderCategories();
+        
+        _isReordering = false;
+      }
+    );
+  } else {
+    console.warn('API.updateCategoryDisplayOrder not available');
+    _isReordering = false;
+  }
+}
+
+/**
+ * Start emoji editing using contenteditable (cross-platform reliable)
+ * @param {number} index - Category index
+ * @param {HTMLElement} emojiElement - The emoji span element
+ */
+function startEmojiEdit(index, emojiElement) {
+  // Use the Utils emoji picker
+  if (window.Utils && Utils.showEmojiPicker) {
+    Utils.showEmojiPicker((selectedEmoji) => {
+      // Update the emoji element immediately
+      emojiElement.textContent = selectedEmoji;
+      // Save to server
+      saveEmojiUpdate(index, selectedEmoji);
+    });
+  } else {
+    console.error('Emoji picker not available');
+  }
+}
+
+function startNameEdit(categoryId, nameElement) {
+  const originalName = nameElement.textContent;
+  let saved = false; // Add this flag
+
+  // Create input field
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'category-name-input';
+  input.value = originalName;
+
+  // Replace span with input
+  nameElement.style.display = 'none';
+  nameElement.parentNode.insertBefore(input, nameElement);
+
+  // Focus and select
+  input.focus();
+  input.select();
+
+  // Save function
+  function saveName() {
+    if (saved) return; // Prevent double-save
+    saved = true;
+
+    const newName = input.value.trim();
+
+    if (!newName) {
+      // Revert if empty
+      revertNameEdit();
+      return;
+    }
+
+    if (newName === originalName) {
+      // No change, just revert
+      revertNameEdit();
+      return;
+    }
+
+    // Prevent duplicate category names (case-insensitive)
+    const normalizedNewName = newName.toLowerCase();
+    const duplicateCategory = _categories.some(cat => 
+      cat.id !== categoryId && cat.name && cat.name.trim().toLowerCase() === normalizedNewName
+    );
+
+    if (duplicateCategory) {
+      saved = false; // Allow another attempt
+      if (window.Utils && typeof Utils.showToast === 'function') {
+        Utils.showToast('A category with this name already exists', 'error');
+      }
+      input.classList.add('error');
+      setTimeout(() => input.classList.remove('error'), 1500);
+      return;
+    }
+
+    // Update UI immediately
+    nameElement.textContent = newName;
+
+    // Save to server - ✅ FIX: Use category ID for lookup, not array index
+    saveNameUpdate(categoryId, newName);
+
+    // Clean up
+    input.remove();
+    nameElement.style.display = '';
+  }
+  
+  // Revert function
+  function revertNameEdit() {
+    saved = true; // Prevent blur from saving
+    input.remove();
+    nameElement.style.display = '';
+  }
+  
+  // Event listeners
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      saveName();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      revertNameEdit();
+    }
+  });
+  
+  input.addEventListener('blur', function() {
+    if (!saved) { // Only save if not already saved
+      // Small delay to allow other clicks to register
+      setTimeout(saveName, 100);
+    }
+  });
+}
+
+/**
+ * Save emoji update to server (simplified - no visual indicators)
+ * @param {string} categoryId - Category ID
+ * @param {string} newEmoji - New emoji
+ */
+function saveEmojiUpdate(categoryId, newEmoji) {
+  // ✅ FIX: Find category by ID, not by array index
+  const category = _categories.find(cat => cat.id === categoryId);
+  if (!category) {
+    console.error('saveEmojiUpdate: Category not found with ID', categoryId);
+    return;
+  }
+
+  const categoryIndex = _categories.indexOf(category);
+  console.log('[CATEGORY EMOJI] Updating emoji for category ID:', categoryId, 'to', newEmoji, 'at index', categoryIndex);
+  
+  const oldFullName = category.fullName;
+  const newFullName = `${category.name} ${newEmoji}`;
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+  
+  // Update local data immediately
+  category.emoji = newEmoji;
+  category.fullName = newFullName;
+  
+  // SURGICAL FIX: Update cached expenses immediately
+  if (window.CacheManager && oldFullName !== newFullName) {
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+    
+    // Update current month's expenses
+    const expenses = CacheManager.getExpenses(currentMonth, currentYear);
+    if (expenses && expenses.length > 0) {
+      let updated = false;
+      expenses.forEach(expense => {
+        // Check for exact match with old full name
+        if (expense.category === oldFullName) {
+          expense.category = newFullName;
+          updated = true;
+        }
+        // ALSO check for match with just the category name (no emoji)
+        else if (expense.category === category.name) {
+          expense.category = newFullName;
+          updated = true;
+        }
+      });
+      
+      if (updated) {
+        // Save updated expenses back to cache
+        CacheManager.setExpenses(expenses, currentMonth, currentYear, false);
+      }
+    }
+  }
+  
+  // Save to server
+  if (window.API && typeof API.updateCategoryName === 'function') {
+    API.updateCategoryName(
+      oldFullName,
+      category.name,
+      newEmoji,
+      function(result) {
+        // Only update cache if server save was successful
+        if (result && result.success) {
+          // Update cache with fresh timestamp
+          if (window.CacheManager) {
+            CacheManager.setCategoriesWithTimestamp(_categories, new Date().toISOString());
+          }
+          
+          // Broadcast change
+          document.dispatchEvent(new CustomEvent('categories-changed', {
+            detail: { 
+              changedCategory: category.name,
+              newEmoji: newEmoji,
+              allCategories: _categories
+            }
+          }));
+        }
+      },
+      function(error) {
+        console.error('CategoriesManager: Error saving emoji:', error);
+        // Revert on error
+        const originalEmoji = oldFullName.split(' ').pop();
+        category.emoji = originalEmoji;
+        category.fullName = oldFullName;
+        
+        // ALSO revert cached expenses on error
+        if (window.CacheManager && oldFullName !== newFullName) {
+          const expenses = CacheManager.getExpenses(currentMonth, currentYear);
+          if (expenses) {
+            expenses.forEach(expense => {
+              if (expense.category === newFullName) {
+                // Check if it was originally with emoji or without
+                if (expense.category === `${category.name} ${newEmoji}`) {
+                  // It had the new emoji, revert to old full name or just name
+                  expense.category = oldFullName.includes(' ') ? oldFullName : category.name;
+                }
+              }
+            });
+            CacheManager.setExpenses(expenses, currentMonth, currentYear, false);
+          }
+        }
+        
+        // Update UI to show reverted emoji
+        const emojiElement = document.querySelector(`.category-card[data-category-id="${categoryId}"] .clickable-emoji`);
+        if (emojiElement) {
+          emojiElement.textContent = originalEmoji;
+        }
+      }
+    );
+  }
+}
+// In categories.js, modify saveNameUpdate to update cached expenses immediately:
+
+function saveNameUpdate(categoryId, newName) {
+  // ✅ FIX: Find category by ID, not by array index
+  const category = _categories.find(cat => cat.id === categoryId);
+  if (!category) {
+    console.error('saveNameUpdate: Category not found with ID', categoryId);
+    return;
+  }
+
+  const categoryIndex = _categories.indexOf(category);
+  console.log('[CATEGORY RENAME] Renaming category ID:', categoryId, 'from', category.name, 'to', newName, 'at index', categoryIndex);
+
+  const oldFullName = category.fullName;
+  const newFullName = `${newName} ${category.emoji}`;
+
+  // Update local data immediately
+  const oldName = category.name;
+  category.name = newName;
+  // ✅ CRITICAL FIX: NEVER change the ID! It's a stable numeric identifier from the spreadsheet
+  // category.id stays the same - it's the row number in the spreadsheet
+  category.fullName = newFullName;
+  
+  // SURGICAL FIX: Update cached expenses immediately
+  if (window.CacheManager && oldFullName !== newFullName) {
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+    
+    // Update current month's expenses
+    const expenses = CacheManager.getExpenses(currentMonth, currentYear);
+    if (expenses && expenses.length > 0) {
+      let updated = false;
+      expenses.forEach(expense => {
+        if (expense.category === oldFullName) {
+          expense.category = newFullName;
+          updated = true;
+        }
+      });
+      
+      if (updated) {
+        // Save updated expenses back to cache
+        CacheManager.setExpenses(expenses, currentMonth, currentYear, false);
+      }
+    }
+  }
+  
+  // Save to server
+  if (window.API && typeof API.updateCategoryName === 'function') {
+    API.updateCategoryName(
+      oldFullName,
+      newName,
+      category.emoji,
+      function(result) {
+        // Only update cache if server save was successful
+        if (result && result.success) {
+          // Update cache with fresh timestamp
+          if (window.CacheManager) {
+            CacheManager.setCategoriesWithTimestamp(_categories, new Date().toISOString());
+          }
+          
+          // Broadcast change
+          document.dispatchEvent(new CustomEvent('categories-changed', {
+            detail: { 
+              changedCategory: newName,
+              oldName: oldName,
+              allCategories: _categories
+            }
+          }));
+        }
+      },
+      function(error) {
+        console.error('CategoriesManager: Error saving name:', error);
+        // Revert on error
+        category.name = oldName;
+        category.fullName = oldFullName;
+        
+        // ALSO revert cached expenses on error
+        if (window.CacheManager && oldFullName !== newFullName) {
+          const expenses = CacheManager.getExpenses(currentMonth, currentYear);
+          if (expenses) {
+            expenses.forEach(expense => {
+              if (expense.category === newFullName) {
+                expense.category = oldFullName;
+              }
+            });
+            CacheManager.setExpenses(expenses, currentMonth, currentYear, false);
+          }
+        }
+        
+        // Update UI to show reverted name - ✅ FIX: Use category ID instead of index
+        const nameElement = document.querySelector(`[data-category-id="${categoryId}"] .clickable-name`);
+        if (nameElement) {
+          nameElement.textContent = oldName;
+        }
+
+        if (window.Utils && typeof Utils.showToast === 'function') {
+          Utils.showToast(error && error.toString ? error.toString() : 'Error saving category name', 'error');
+        }
+      }
+    );
+  }
+}
+  
+  /**
+   * Update the quick expense dropdown to show only active categories
+   */
+  function updateQuickExpenseDropdown() {
+    
+    // Find the expense category dropdown
+    const expenseCategoryDropdown = document.getElementById('expenseCategory');
+    if (!expenseCategoryDropdown) {
+      return;
+    }
+    
+    // Get only active categories sorted by display order
+    const activeCategories = _categories
+      .filter(cat => cat.active)
+      .sort((a, b) => (a.displayOrder || a.order + 1 || 1) - (b.displayOrder || b.order + 1 || 1)) // Sort by display order
+      .map(cat => cat.fullName); // Use full name with emoji
+    
+    // Save current selection if any
+    const currentSelection = expenseCategoryDropdown.value;
+    
+    // Clear existing options
+    expenseCategoryDropdown.innerHTML = '';
+    
+    // Add active categories as options
+    activeCategories.forEach(category => {
+      const option = document.createElement('option');
+      option.value = category;
+      option.textContent = category;
+      expenseCategoryDropdown.appendChild(option);
+    });
+    
+    // Restore selection if it exists and is still active
+    if (currentSelection && activeCategories.includes(currentSelection)) {
+      expenseCategoryDropdown.value = currentSelection;
+    } else if (activeCategories.length > 0) {
+      // Otherwise select first option
+      expenseCategoryDropdown.value = activeCategories[0];
+    }
+    
+  }
+  
+  /**
+   * NEW: Get categories sorted by display order
+   */
+  function getDisplayOrderedCategories() {
+    if (!_categories || _categories.length === 0) return [];
+    
+    return [..._categories].sort((a, b) => 
+      (a.displayOrder || a.order + 1 || 1) - (b.displayOrder || b.order + 1 || 1)
+    );
+  }
+  
+  /**
+   * NEW: Get active categories sorted by display order
+   */
+  function getActiveDisplayOrderedCategories() {
+    return getDisplayOrderedCategories().filter(cat => cat.active);
+  }
+
+  
+  /**
+   * Show error message
+   * @param {string} message - Error message to display
+   */
+  function showError(message) {
+    const container = getElement('categories-container');
+    if (container) {
+      // Check if this is a first-time user (no spreadsheet connected)
+      if (message && message.includes('No spreadsheet ID found')) {
+        // Show friendly welcome message instead of error
+        container.innerHTML = `
+          <div 
+            style="
+              text-align: center;
+              padding: 80px 20px 40px;
+              max-width: 800px;
+              margin: 0 auto;
+            "
+          >
+            <div style="margin-bottom: 20px;">
+              <i class="material-icons" style="font-size: 48px; color: #4CAF50;">category</i>
+            </div>
+            <h3 style="margin-bottom: 20px;">👋 Welcome to Category Management!</h3>
+            
+            <p style="margin-bottom: 20px;">
+              Organize your expenses and income with custom categories.
+            </p>
+            
+            <p style="margin-bottom: 30px; font-size: 16px; color: #666;">
+              Connect your spreadsheet to get started with categories.
+            </p>
+            
+            <div style="margin: 30px 0;">
+              <button 
+                onclick="if(window.SimBudget && SimBudget.Views) { SimBudget.Views.switchTo('settings'); }" 
+                style="
+                  background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+                  color: white;
+                  border: none;
+                  padding: 15px 30px;
+                  font-size: 18px;
+                  border-radius: 8px;
+                  cursor: pointer;
+                  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+                  transition: transform 0.2s, box-shadow 0.2s;
+                  margin-bottom: 20px;
+                "
+                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 12px rgba(0,0,0,0.3)';"
+                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.2)';"
+              >
+                🚀 Open Settings to Get Started
+              </button>
+            </div>
+          </div>
+        `;
+      } else {
+        // Show regular error state for other errors
+        container.innerHTML = `<div class="categories-error"><i class="material-icons">error</i><p>${message}</p></div>`;
+      }
+    }
+  }
+  
+  // Public API
+  return {
+    init: init,
+    refreshCategories: refreshCategories,
+    updateQuickExpenseDropdown: updateQuickExpenseDropdown,
+    getDisplayOrderedCategories: getDisplayOrderedCategories, // NEW
+    getActiveDisplayOrderedCategories: getActiveDisplayOrderedCategories, // NEW
+    
+    // Expose for debugging
+    getCategories: function() { return _categories; },
+    isInitialized: function() { return _initialized; }
+  };
+})();
+
+// Expose globally
+window.CategoriesManager = CategoriesManager;
+
+// Global function for updating all category dropdowns
+window.updateAllCategoryDropdowns = function() {
+  
+  if (window.CategoriesManager && typeof CategoriesManager.updateQuickExpenseDropdown === 'function') {
+    CategoriesManager.updateQuickExpenseDropdown();
+  }
+  
+  // Update QuickExpenseEntry if available
+  if (window.QuickExpenseEntry && typeof QuickExpenseEntry.ensureCategoriesLoaded === 'function') {
+    const activeCategories = CategoriesManager.getActiveDisplayOrderedCategories(); // Use display ordered
+    QuickExpenseEntry.ensureCategoriesLoaded(activeCategories);
+  }
+};
+
+</script>
+
+<style>
+/* ======================================================
+   CATEGORIES MANAGEMENT STYLES - ENHANCED VERSION
+   ======================================================
+   Column-based layout with editable display order numbers
+*/
+
+/* Container for categories */
+.categories-container {
+  width: 100%;
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+/* Categories grid layout - 3 COLUMNS */
+.categories-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  width: 100%;
+}
+
+/* NEW: Category columns for top-down layout */
+.category-column {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Individual category card - FIXED LAYOUT */
+.category-card {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  position: relative;
+  margin-right: 20px;
+}
+
+/* NEW: Display order badge */
+.order-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 24px;
+  background-color: #6c757d;
+  color: white;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-right: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 32px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.order-badge:hover {
+  background-color: #5a6268;
+  transform: scale(1.05);
+}
+
+.order-badge:focus {
+  outline: 2px solid #007bff;
+  outline-offset: 1px;
+  background-color: #007bff;
+}
+
+/* Error state for invalid input */
+.order-badge.error {
+  background-color: #dc3545;
+  animation: shake 0.5s ease-in-out;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-2px); }
+  75% { transform: translateX(2px); }
+}
+
+/* Active category style */
+.category-card.active {
+  background-color: #ebffff;
+}
+
+.category-card.active .order-badge {
+  background-color: #42cdde87;
+  color: #212529;
+}
+
+.category-card.active .order-badge:hover {
+  background-color: #31bacb87;
+}
+
+.category-card.active .order-badge:focus {
+  background-color: #28a2b887;
+}
+
+/* Error state - flash red briefly */
+.category-card.save-error {
+  background-color: #f8d7da;
+  border-color: #dc3545;
+}
+
+/* RESTORED: Category label container */
+.category-label-container {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  cursor: inherit;
+  min-width: 0;
+}
+
+/* Category emoji - increased spacing */
+.category-emoji {
+  margin-right: 24px;
+  font-size: 16px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* Category name */
+.category-name-cat {
+  font-size: 14px;
+  font-weight: 500;
+  flex: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* Saving indicator */
+.saving-indicator {
+  width: 16px;
+  height: 16px;
+  margin-right: 8px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.saving-indicator .spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(169, 99, 34, 0.3);
+  border-top-color: #a96322;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Category toggle switch */
+.category-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 44px;
+  height: 24px;
+  margin-left: 16px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.category-switch-track {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: #d1d5db;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.category-switch-track::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s ease;
+}
+
+.category-toggle {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.category-toggle:focus-visible + .category-switch-track {
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.35);
+}
+
+.category-toggle:checked + .category-switch-track {
+  background: #007aff;
+}
+
+.category-toggle:checked + .category-switch-track::after {
+  transform: translateX(20px);
+}
+
+/* Loading indicator */
+.categories-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  width: 100%;
+}
+
+.categories-loading p {
+  margin-top: 8px;
+  font-size: 14px;
+  color: #666;
+}
+
+/* Error display */
+.categories-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background-color: #ffebee;
+  border-radius: 6px;
+  color: #c62828;
+  margin: 8px 0;
+}
+
+.categories-error i {
+  margin-right: 6px;
+  font-size: 20px;
+}
+
+/* Hide category counts element completely */
+.category-counts {
+  display: none !important;
+}
+
+/* Container for category-counts (parent element) should also not take up space */
+.categories-header {
+  display: none !important;
+}
+
+/* No categories message */
+.categories-message {
+  text-align: center;
+  padding: 20px;
+  color: #666;
+  font-size: 14px;
+}
+
+/* Dark mode styles */
+body.dark-mode .category-card {
+  background-color: #333333;
+  color: #f1f1f1;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+body.dark-mode .category-card.save-error {
+  background-color: #4a1f1f;
+  border-color: #e57373;
+}
+
+body.dark-mode .category-name-cat {
+  color: #ffffff;
+}
+
+body.dark-mode .categories-loading p {
+  color: #aaaaaa;
+}
+
+body.dark-mode .categories-message {
+  color: #aaaaaa;
+}
+
+body.dark-mode .saving-indicator .spinner {
+  border-color: rgba(255, 209, 102, 0.3);
+  border-top-color: #ffd166;
+}
+
+body.dark-mode .order-badge {
+  background-color: #5a6268;
+}
+
+body.dark-mode .order-badge:hover {
+  background-color: #495057;
+}
+
+body.dark-mode .category-card.active {
+  background-color: #1f2a35;
+  border-left: 3px solid #42cdde;
+}
+
+body.dark-mode .category-card.active .order-badge {
+  background-color: rgba(66, 205, 222, 0.5);
+  color: #e9f7fb;
+}
+
+/* Responsive design - FIXED */
+@media (max-width: 768px) {
+  .categories-grid {
+    grid-template-columns: 1fr; /* Single column on mobile */
+    gap: 10px;
+  }
+  
+  .category-card {
+    padding: 12px 14px;
+  }
+  
+  .order-badge {
+    width: 36px;
+    height: 28px;
+    font-size: 12px;
+    margin-right: 10px;
+  }
+  
+  .category-emoji {
+    font-size: 18px;
+    margin-right: 24px;
+  }
+  
+  .category-name-cat {
+    font-size: 15px;
+  }
+  
+  .category-toggle {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+/* Extra small screens */
+@media (max-width: 480px) {
+  .categories-grid {
+    grid-template-columns: 1fr; /* Keep single column */
+    gap: 8px;
+  }
+  
+  .category-card {
+    padding: 10px 12px;
+  }
+  
+  .order-badge {
+    width: 32px;
+    height: 26px;
+    font-size: 11px;
+    margin-right: 8px;
+  }
+  
+  .category-name-cat {
+    font-size: 14px;
+  }
+}
+
+
+/* AWESOMICO: Clickable category elements */
+.clickable-emoji, .clickable-name {
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+  border-radius: 3px;
+  padding: 2px 4px;
+  margin: -2px -4px; /* Offset padding for consistent spacing */
+}
+
+.clickable-emoji:hover, .clickable-name:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.clickable-emoji:active, .clickable-name:active {
+  transform: scale(0.95);
+}
+
+/* Dark mode hover states */
+body.dark-mode .clickable-emoji:hover, 
+body.dark-mode .clickable-name:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Category name input for inline editing */
+.category-name-input {
+  background: white;
+  border: 2px solid #2c3e50;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  outline: none;
+  min-width: 120px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.category-name-input:focus {
+  border-color: #3498db;
+  box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+}
+
+/* Dark mode input styles */
+body.dark-mode .category-name-input {
+  background: #2c2c2c;
+  border-color: #DDA15E;
+  color: white;
+}
+
+body.dark-mode .category-name-input:focus {
+  border-color: #ffd866;
+  box-shadow: 0 2px 8px rgba(255, 216, 102, 0.3);
+}
+
+/* AWESOMICO: Emoji editor using contenteditable */
+.emoji-editor {
+  position: absolute !important;
+  width: 40px !important;
+  height: 30px !important;
+  font-size: 20px !important;
+  border: 2px solid #3498db !important;
+  border-radius: 4px !important;
+  text-align: center !important;
+  background: white !important;
+  z-index: 9999 !important;
+  outline: none !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important;
+  cursor: text !important;
+  transition: border-color 0.3s ease !important;
+}
+
+.emoji-editor:focus {
+  border-color: #2980b9 !important;
+  box-shadow: 0 2px 8px rgba(52, 152, 219, 0.4) !important;
+}
+
+.emoji-editor:empty:before {
+  content: attr(data-placeholder);
+  color: #bdc3c7;
+  font-style: italic;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* Error state for invalid input */
+.emoji-editor[style*="border-color: rgb(231, 76, 60)"] {
+  animation: shake 0.5s ease-in-out;
+}
+
+/* Fix emoji picker library search input text color - override CSS variables */
+emoji-picker {
+  --input-font-color: black !important;
+}
+
+/* Also try direct selector override */
+emoji-picker input.search {
+  color: black !important;
+}
+
+/* Dark mode emoji editor */
+body.dark-mode .emoji-editor {
+  background: #2c2c2c !important;
+  border-color: #DDA15E !important;
+  color: white !important;
+}
+
+body.dark-mode .emoji-editor:focus {
+  border-color: #ffd866 !important;
+  box-shadow: 0 2px 8px rgba(255, 216, 102, 0.4) !important;
+}
+
+/* Keyboard shortcut hint */
+.emoji-keyboard-hint {
+  position: absolute !important;
+  font-size: 11px !important;
+  background: rgba(0,0,0,0.8) !important;
+  color: white !important;
+  padding: 4px 8px !important;
+  border-radius: 4px !important;
+  z-index: 9998 !important;
+  white-space: nowrap !important;
+  pointer-events: none !important;
+  animation: fadeInOut 3s ease-in-out !important;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translateY(5px); }
+  20%, 80% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-5px); }
+}
+
+/* Dark mode hint */
+body.dark-mode .emoji-keyboard-hint {
+  background: rgba(255,255,255,0.9) !important;
+  color: #2c2c2c !important;
+}
+
+body.dark-mode .emoji-editor:empty:before {
+  color: #7f8c8d;
+}
+
+/* Enhanced label container for better layout with proper spacing */
+.category-label-container {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  cursor: inherit;
+  margin-right: 12px;
+  min-width: 0;
+}
+
+/* Ensure emojis don't break layout */
+.clickable-emoji {
+  display: inline-block;
+  min-width: 20px;
+  text-align: center;
+  margin-right: 24px;
+}
+
+/* Visual feedback for editing states */
+.category-card.editing {
+  box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+  border-left: 3px solid #3498db;
+}
+
+/* Smooth transitions for all interactive elements */
+.category-card * {
+  transition: all 0.2s ease;
+}
+
+/* Better visual hierarchy */
+.clickable-name {
+  font-weight: 500;
+}
+
+.category-card.active .clickable-name {
+  font-weight: 600;
+}
+
+/* Mobile-friendly touch targets */
+@media (max-width: 768px) {
+  .clickable-emoji, .clickable-name {
+    padding: 6px 8px;
+    margin: -6px -8px;
+    min-height: 32px; /* Ensure good touch target size */
+    display: inline-flex;
+    align-items: center;
+  }
+  
+  .clickable-emoji {
+    margin-right: 24px;
+  }
+  
+  .category-name-input {
+    font-size: 16px; /* Prevent zoom on iOS */
+    padding: 8px 12px;
+    min-width: 140px;
+  }
+}
+
+/* Desktop-specific padding for categories container */
+@media (min-width: 768px) {
+  .categories-container {
+    width: 100%;
+    padding: 50px 200px;
+    box-sizing: border-box;
+  }
+}
+
+/* Reordering state - disable interactions */
+.categories-container.reordering .category-switch {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.categories-container.reordering .clickable-name,
+.categories-container.reordering .clickable-emoji {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+/* Save states for order changes */
+.category-card.save-pending .order-badge {
+  background-color: #28a745;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+</style>
