@@ -1,7 +1,6 @@
 # Simplify Budget
 
 **Personal Finance Management Application**
----
 
 ## Overview
 
