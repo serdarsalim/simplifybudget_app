@@ -1,9 +1,6 @@
 # Simplify Budget
 
 **Personal Finance Management Application**
-
-![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
-
 ---
 
 ## Overview
