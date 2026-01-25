@@ -1,63 +1,193 @@
-Simplify Budget - Personal Finance Management Application
+# Simplify Budget
 
-<img alt="License: Proprietary" src="https://img.shields.io/badge/License-Proprietary-blue.svg">
-Overview
-Simplify Budget is a powerful personal finance management web application that helps you track expenses, manage budgets, and gain insights into your financial health. Built with modern web technologies and integrated with Google Sheets for data storage.
+**Personal Finance Management Application**
 
-<img alt="Simplify Budget Dashboard" src="https://simplifybudget.com/">
-Features
-Interactive Dashboard: View your financial overview at a glance
-Budget Management: Set and track spending limits by category
-Expense Tracking: Record and categorize all expenses
-Subscription Management: Track recurring payments and subscriptions
-Net Worth Calculation: Monitor your overall financial position
-Multi-language Support: Available in English, Spanish, French, German, Turkish, Malay, and more
-Custom Currency Settings: Choose from over 20 currencies worldwide
-Dark Mode: Reduce eye strain with a dark theme option
-Google Sheets Integration: Store your data securely in your own Google account
-Auto-save: Settings are saved automatically for a seamless experience
-Getting Started
-Prerequisites
-Google account
-Modern web browser (Chrome, Firefox, Safari, or Edge recommended)
-Google Sheets access
-Installation
-Visit simplifybudget.com to access the application
-Authorize the application with your Google account
-Create or connect a Google Sheet for data storage
-Begin setting up your budget categories and financial goals
-Usage
-Setting Up Your Budget
-Navigate to the Settings panel
-Enter your Google Sheet URL for data storage
-Click "Test" to verify the connection
-Set your preferred currency, date format, and display options
-Navigate to the Categories view to set up your budget categories
-Tracking Expenses
-Click "Add Expense" from the dashboard
-Enter the expense amount, date, and category
-Add a description for future reference
-Your dashboard will automatically update to reflect the new expense
-Monitoring Subscriptions
-Navigate to the Recurring section
-Add your subscription services with payment amounts and due dates
-The dashboard will display your total monthly subscription costs
-Customization
-Simplify Budget offers multiple customization options:
+![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 
-Language: Choose from multiple supported languages
-Currency: Select your local currency format
-Date Format: Pick your preferred date display style
-Display Options: Toggle decimal places, dark mode, and more
-Data Security
-Simplify Budget stores all your financial data in your own Google Sheet, ensuring you maintain complete control over your information. The application only requests the permissions necessary to read and write to your selected spreadsheet.
+---
 
-Support
-For support, feature requests, or bug reports, please visit support.simplifybudget.com or email support@simplifybudget.com.
+## Overview
 
-License
-Copyright © 2025 Serdar Domurcuk. All Rights Reserved.
+**Simplify Budget** is a personal finance management application built on **Google Apps Script** and **Google Sheets**.
+It helps users track expenses, manage budgets, and understand their financial position — while keeping **100% ownership of their data** inside their own Google account.
 
-This is proprietary software. Unauthorized copying, modification, distribution, or use of this software, via any medium, is strictly prohibited without express written permission from Serdar Domurcuk.
+The app runs as a Google Apps Script project and uses Google Sheets as its database.
 
-Simplify Budget - Take control of your financial future
+---
+
+## Features
+
+* 📊 **Interactive Dashboard** – Financial overview at a glance
+* 💸 **Budget Management** – Set and monitor spending limits
+* 🧾 **Expense Tracking** – Categorize and log expenses easily
+* 🔁 **Subscription Management** – Track recurring payments
+* 📈 **Net Worth Calculation** – Assets vs liabilities
+* 🌍 **Multi-language Support** – EN, DE, TR, FR, ES, MS, and more
+* 💱 **Multi-currency Support** – 20+ currencies
+* 🌙 **Dark Mode**
+* ☁️ **Google Sheets Integration** – Your data stays in your Drive
+* 💾 **Auto-save Settings**
+
+---
+
+## Tech Stack
+
+* Google Apps Script
+* Google Sheets
+* HTML / CSS / JavaScript
+* `clasp` (Command Line Apps Script)
+* Visual Studio Code
+
+---
+
+## Getting Started (Local Development)
+
+### Prerequisites
+
+* Google account
+* Google Sheets access
+* Node.js (v18+ recommended)
+* Visual Studio Code
+
+---
+
+## Installation & Setup (Recommended Way)
+
+### 1. Install `clasp`
+
+```bash
+npm install -g @google/clasp
+```
+
+Login to your Google account:
+
+```bash
+clasp login
+```
+
+---
+
+### 2. Clone the Repository
+
+```bash
+git clone https://github.com/yourusername/simplifybudget.git
+cd simplifybudget
+```
+
+---
+
+### 3. Create a New Apps Script Project in Drive
+
+Create a new Apps Script project **linked to Google Drive**:
+
+```bash
+clasp create --title "Simplify Budget" --type standalone
+```
+
+This will:
+
+* create a new Apps Script project in your Google Drive
+* generate a `.clasp.json` file locally
+
+---
+
+### 4. Push the Code to Google Apps Script
+
+```bash
+clasp push
+```
+
+Once pushed:
+
+* the code is now **hosted in your Google Drive**
+* editable via **Apps Script Editor** or **VS Code**
+
+You can open it directly in the browser:
+
+```bash
+clasp open
+```
+
+---
+
+## Connecting to Google Sheets
+
+1. Create a new Google Sheet (or use an existing one)
+2. Copy the Sheet ID from the URL
+3. Paste it into the app’s **Settings** panel
+4. Click **Test Connection**
+5. Start adding categories and expenses
+
+---
+
+## Development Workflow (VS Code)
+
+Recommended loop:
+
+```bash
+# edit files in VS Code
+clasp push
+
+# pull changes made in Apps Script editor (if any)
+clasp pull
+```
+
+---
+
+## Deployment
+
+To deploy the app as a Web App:
+
+```bash
+clasp deploy
+```
+
+Then:
+
+* Set **Execute as**: *Me*
+* Set **Who has access**: *Only myself* or *Anyone with link*
+
+---
+
+## Data & Privacy
+
+* All financial data lives in **your own Google Sheet**
+* No external databases
+* No third-party tracking
+* Permissions are limited to spreadsheet access only
+
+---
+
+## Support
+
+For issues, ideas, or contributions:
+
+* Open a GitHub Issue
+* Submit a Pull Request
+
+Community contributions are welcome.
+
+---
+
+## License
+
+MIT License
+
+Copyright (c) 2025 Serdar Domurcuk
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
+
+---
+
+**Simplify Budget**
+also available on https://simplifybudget.com
