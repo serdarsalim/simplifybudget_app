@@ -15,6 +15,8 @@ var RecurringManager = (function() {
   let _language = 'en';
   let _showExpired = false; // Default to hiding expired subscriptions
   let _currentSort = { column: 'nextPayment', direction: 'asc' }; // Default sort by next payment
+  let _budgetLoadAttempted = false;
+  let _incomeLoadAttempted = false;
   
   // DOM element cache
   const _elements = {};
@@ -965,15 +967,16 @@ var RecurringManager = (function() {
     if (!container) return;
 
     const metrics = calculateCurrentMonthMetrics();
+    maybeLoadBudgetDataForMetrics(metrics);
 
         container.innerHTML = `
       <!-- Chart Container -->
       <div class="rec-chart-container">
         <div class="rec-chart-header">
           <div class="rec-chart-summary" id="chartSummary">
-            <span class="summary-item">📅 ${getCurrentDate()}</span>
-            <span class="summary-item">🟢 ${metrics.currentMonthCount} Payments</span>
-            <span class="summary-item">💰 ${formatCurrency(metrics.currentMonthTotal)} (${metrics.incomePercentage}% of income)</span>
+            <span class="summary-item">${metrics.currentMonthCount} Payments in ${getCurrentDate()}</span>
+            <span class="summary-item">|</span>
+            <span class="summary-item">${formatCurrency(metrics.currentMonthTotal)} (${metrics.incomePercentage}% of income)</span>
           </div>
           <button class="rec-chart-toggle" id="chartToggleBtn" title="Toggle chart visibility">
             <span class="chart-toggle-icon">▼</span>
@@ -2837,11 +2840,14 @@ const colorPalette = [
     
     if (summaryElement) {
       summaryElement.innerHTML = `
-        <span class="summary-item">📅 ${getCurrentDate()}</span>
-        <span class="summary-item">🟢 ${metrics.currentMonthCount} Payments</span>
-        <span class="summary-item">💰 ${formatCurrency(metrics.currentMonthTotal)} (${metrics.incomePercentage}% of income)</span>
+        <span class="summary-item">${metrics.currentMonthCount} Payments in ${getCurrentDate()}</span>
+        <span class="summary-item">|</span>
+        <span class="summary-item">${formatCurrency(metrics.currentMonthTotal)} (${metrics.incomePercentage}% of income)</span>
       `;
     }
+
+    maybeLoadBudgetDataForMetrics(metrics);
+    maybeLoadIncomeDataForMetrics(metrics);
   }
 
   /**
@@ -2905,6 +2911,24 @@ const colorPalette = [
     if (monthlyIncome === 0 && window.SimBudget && window.SimBudget._currentBudgetData && window.SimBudget._currentBudgetData.income) {
       monthlyIncome = window.SimBudget._currentBudgetData.income;
     }
+
+    // Method 4: Try CacheManager budget data
+    if (monthlyIncome === 0 && window.CacheManager && typeof CacheManager.getBudgetData === 'function') {
+      const budgetData = CacheManager.getBudgetData();
+      if (budgetData && budgetData.summary && budgetData.summary.income) {
+        monthlyIncome = budgetData.summary.income;
+      }
+    }
+
+    // Method 5: Try CacheManager income data
+    if (monthlyIncome === 0 && window.CacheManager) {
+      const cachedIncome = CacheManager.getIncomeWithTimestamp
+        ? CacheManager.getIncomeWithTimestamp()?.income
+        : CacheManager.getIncome?.();
+      if (cachedIncome && Array.isArray(cachedIncome)) {
+        monthlyIncome = sumMonthlyIncome(cachedIncome, currentMonth, currentYear);
+      }
+    }
     
     // Calculate percentage
     incomePercentage = monthlyIncome > 0 ? Math.round((currentMonthTotal / monthlyIncome) * 100) : 0;
@@ -2915,6 +2939,49 @@ const colorPalette = [
       currentMonthTotal: currentMonthTotal,
       incomePercentage: incomePercentage
     };
+  }
+
+  function sumMonthlyIncome(entries, month, year) {
+    let total = 0;
+    entries.forEach(entry => {
+      const amount = parseFloat(entry.amount);
+      if (!amount || amount <= 0) return;
+
+      const rawDate = entry.date || entry.Date || entry.dateString;
+      const parsed = rawDate ? new Date(rawDate) : null;
+      if (!parsed || isNaN(parsed.getTime())) return;
+
+      if (parsed.getMonth() === month && parsed.getFullYear() === year) {
+        total += Math.abs(amount);
+      }
+    });
+    return total;
+  }
+
+  function maybeLoadBudgetDataForMetrics(metrics) {
+    if (_budgetLoadAttempted || !metrics) return;
+    if (metrics.currentMonthTotal <= 0 || metrics.incomePercentage > 0) return;
+    if (!window.CacheManager || typeof CacheManager.loadBudgetDataWithTimestamp !== 'function') return;
+
+    _budgetLoadAttempted = true;
+    CacheManager.loadBudgetDataWithTimestamp()
+      .then(() => {
+        updateChartMetrics();
+      })
+      .catch(() => {});
+  }
+
+  function maybeLoadIncomeDataForMetrics(metrics) {
+    if (_incomeLoadAttempted || !metrics) return;
+    if (metrics.currentMonthTotal <= 0 || metrics.incomePercentage > 0) return;
+    if (!window.CacheManager || typeof CacheManager.loadIncomeWithTimestamp !== 'function') return;
+
+    _incomeLoadAttempted = true;
+    CacheManager.loadIncomeWithTimestamp()
+      .then(() => {
+        updateChartMetrics();
+      })
+      .catch(() => {});
   }
   
   /**
@@ -3319,12 +3386,12 @@ window.RecurringManager = RecurringManager;
   padding: 4px 8px;
   border-radius: 4px;
   transition: background-color 0.2s ease;
-  color: #2c3e50;
+  color: #ffffff;
   font-size: 14px;
 }
 
 .rec-chart-toggle:hover {
-  background-color: rgba(44, 62, 80, 0.1);
+  background-color: rgba(255, 255, 255, 0.18);
 }
 
 .chart-toggle-icon {
@@ -4038,19 +4105,23 @@ body.dark-mode .rec-confirm-btn.rec-delete-btn:hover {
 /* Full text display for type and frequency */
 .rec-type-cell,
 .rec-frequency-cell {
-  font-size: 13px !important;
+  font-size: 12px !important;
 }
 
 .rec-type-full,
 .frequency-full {
   font-weight: 500;
-  font-size: 15px !important;
+  font-size: 14px !important;
   display: inline-block;
 }
 
 /* Make sure frequency shows up properly */
 .rec-frequency-cell .frequency-full {
   display: inline-block !important;
+}
+
+.rec-account-cell {
+  font-size: 12px !important;
 }
 
 /* Mobile optimizations */
