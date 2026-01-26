@@ -975,7 +975,7 @@ var RecurringManager = (function() {
         <div class="rec-chart-header">
           <div class="rec-chart-summary" id="chartSummary">
             <span class="summary-item">${metrics.currentMonthCount} Payments in ${getCurrentDate()}</span>
-            <span class="summary-item">|</span>
+            <span class="summary-item summary-separator">|</span>
             <span class="summary-item">${formatCurrency(metrics.currentMonthTotal)} (${metrics.incomePercentage}% of income)</span>
           </div>
           <button class="rec-chart-toggle" id="chartToggleBtn" title="Toggle chart visibility">
@@ -2841,7 +2841,7 @@ const colorPalette = [
     if (summaryElement) {
       summaryElement.innerHTML = `
         <span class="summary-item">${metrics.currentMonthCount} Payments in ${getCurrentDate()}</span>
-        <span class="summary-item">|</span>
+        <span class="summary-item summary-separator">|</span>
         <span class="summary-item">${formatCurrency(metrics.currentMonthTotal)} (${metrics.incomePercentage}% of income)</span>
       `;
     }
@@ -3348,6 +3348,10 @@ window.RecurringManager = RecurringManager;
   font-family: 'Lato', sans-serif;
 }
 
+.rec-chart-summary .summary-separator {
+  opacity: 0.75;
+}
+
 .summary-item {
   display: flex;
   align-items: center;
@@ -3421,6 +3425,10 @@ window.RecurringManager = RecurringManager;
     font-size: 14px;
     gap: 12px;
     flex-direction: column;
+  }
+
+  .rec-chart-summary .summary-separator {
+    display: none;
   }
   
   .summary-item {
