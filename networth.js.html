@@ -344,9 +344,15 @@ function init(containerId, cachedData) {
   // Process whatever data we receive
   if (cachedData && Array.isArray(cachedData) && cachedData.length > 0) {
     _netWorthData = {
-      entries: cachedData
+      entries: cachedData,
+      summary: {
+        totalNetWorth: 0,
+        totalAssets: 0,
+        totalDebts: 0,
+        change: 0
+      }
     };
-    
+
     // Process the data
     processNetWorthData(cachedData);
   } else {
@@ -723,7 +729,7 @@ function init(containerId, cachedData) {
     
     if (typeof totalNetWorth === 'number' && !isNaN(totalNetWorth)) {
       valueElement.textContent = formatCurrency(totalNetWorth);
-      const summaryElement = document.querySelector('.nw-total-header');
+      const summaryElement = document.querySelector('.nw-chart-header');
       if (!summaryElement) {
         summaryContainer.classList.remove('hidden');
       }
@@ -1467,50 +1473,110 @@ function init(containerId, cachedData) {
     return { projectedLabels, projectedValues };
   }
   
-  function renderNetWorthChart() {
+  // Track chart collapsed state
+  let _chartCollapsed = true; // Start collapsed by default
+
+  function renderNetWorthChart(summary) {
   const currentYear = new Date().getFullYear();
-  
+
   // Get available years for performance mode
   const availableYears = getAvailableYears();
 
+  // Format change display
+  const change = summary.change || 0;
+  const changeArrow = change >= 0 ? '▲' : '▼';
+  const changeClass = change >= 0 ? 'nw-change-positive' : 'nw-change-negative';
+  const changeDisplay = `${formatCurrency(Math.abs(change))} ${changeArrow}`;
+
   return `
-    <div class="nw-chart-container">
-      <div class="nw-chart-wrapper">
-        <canvas id="netWorthChart" width="800" height="400"></canvas>
-      </div>
+    <div class="nw-chart-container ${_chartCollapsed ? 'chart-collapsed' : ''}">
       <div class="nw-chart-header">
-        <div class="nw-chart-controls">
-          <div class="nw-mode-buttons">
-            <button class="nw-mode-btn ${_chartMode === 'performance' ? 'active' : ''}" id="performanceBtn" title="Performance">
-              <i class="material-icons">bar_chart</i>
-            </button>
-            <button class="nw-mode-btn ${_chartMode === 'timeline' ? 'active' : ''}" id="timelineBtn" title="Timeline">
-              <i class="material-icons">show_chart</i>
-            </button>
-            <button class="nw-mode-btn ${_chartMode === 'allocation' ? 'active' : ''}" id="allocationBtn" title="Allocation">
-              <i class="material-icons">pie_chart</i>
-            </button>
-          </div>
+        <div class="nw-chart-summary">
+          <span class="nw-summary-item nw-summary-total">
+            <span data-translate="net_worth">Net Worth</span>: ${formatCurrency(summary.totalNetWorth)}
+          </span>
+          <span class="nw-summary-separator">|</span>
+          <span class="nw-summary-item">
+            <span data-translate="assets">Assets</span>: ${formatCurrency(summary.totalAssets)}
+          </span>
+          <span class="nw-summary-separator">|</span>
+          <span class="nw-summary-item">
+            <span data-translate="debts">Debts</span>: ${formatCurrency(summary.totalDebts)}
+          </span>
+          <span class="nw-summary-separator">|</span>
+          <span class="nw-summary-item ${changeClass}">${changeDisplay}</span>
+        </div>
+        <button class="nw-chart-toggle" id="nwChartToggleBtn" title="Toggle chart visibility">
+          <span class="nw-chart-toggle-icon">${_chartCollapsed ? '▶' : '▼'}</span>
+        </button>
+      </div>
+      <div class="nw-chart-content" id="nwChartContent" style="display: ${_chartCollapsed ? 'none' : 'block'};">
+        <div class="nw-chart-wrapper">
+          <canvas id="netWorthChart" width="800" height="400"></canvas>
+        </div>
+        <div class="nw-chart-controls-bar">
+          <div class="nw-chart-controls">
+            <div class="nw-mode-buttons">
+              <button class="nw-mode-btn ${_chartMode === 'performance' ? 'active' : ''}" id="performanceBtn" title="Performance">
+                <i class="material-icons">bar_chart</i>
+              </button>
+              <button class="nw-mode-btn ${_chartMode === 'timeline' ? 'active' : ''}" id="timelineBtn" title="Timeline">
+                <i class="material-icons">show_chart</i>
+              </button>
+              <button class="nw-mode-btn ${_chartMode === 'allocation' ? 'active' : ''}" id="allocationBtn" title="Allocation">
+                <i class="material-icons">pie_chart</i>
+              </button>
+            </div>
 
-          <div class="nw-timespan-controls ${_chartMode === 'performance' ? '' : 'hidden'}" id="performanceYearControls">
-            ${availableYears.map(year =>
-              `<button class="nw-timespan-btn ${_selectedYear === year ? 'active' : ''}" data-year="${year}">${year}</button>`
-            ).join('')}
-          </div>
+            <div class="nw-timespan-controls ${_chartMode === 'performance' ? '' : 'hidden'}" id="performanceYearControls">
+              ${availableYears.map(year =>
+                `<button class="nw-timespan-btn ${_selectedYear === year ? 'active' : ''}" data-year="${year}">${year}</button>`
+              ).join('')}
+            </div>
 
-          <div class="nw-timespan-controls ${_chartMode === 'timeline' ? '' : 'hidden'}" id="timelineTimespanControls">
-            <button class="nw-timespan-btn ${_chartTimespan === 'thisyear' ? 'active' : ''}" data-timespan="thisyear">${currentYear}</button>
-            <button class="nw-timespan-btn ${_chartTimespan === '12m' ? 'active' : ''}" data-timespan="12m">12m</button>
-            <button class="nw-timespan-btn ${_chartTimespan === '2yr' ? 'active' : ''}" data-timespan="2yr">2yr</button>
-            <button class="nw-timespan-btn ${_chartTimespan === '3yr' ? 'active' : ''}" data-timespan="3yr">3yr</button>
-            <button class="nw-timespan-btn ${_chartTimespan === '5yr' ? 'active' : ''}" data-timespan="5yr">5yr</button>
-            <button class="nw-timespan-btn nw-all-btn ${_chartTimespan === 'all' ? 'active' : ''}" data-timespan="all" data-translate="all_button">All</button>
+            <div class="nw-timespan-controls ${_chartMode === 'timeline' ? '' : 'hidden'}" id="timelineTimespanControls">
+              <button class="nw-timespan-btn ${_chartTimespan === 'thisyear' ? 'active' : ''}" data-timespan="thisyear">${currentYear}</button>
+              <button class="nw-timespan-btn ${_chartTimespan === '12m' ? 'active' : ''}" data-timespan="12m">12m</button>
+              <button class="nw-timespan-btn ${_chartTimespan === '2yr' ? 'active' : ''}" data-timespan="2yr">2yr</button>
+              <button class="nw-timespan-btn ${_chartTimespan === '3yr' ? 'active' : ''}" data-timespan="3yr">3yr</button>
+              <button class="nw-timespan-btn ${_chartTimespan === '5yr' ? 'active' : ''}" data-timespan="5yr">5yr</button>
+              <button class="nw-timespan-btn nw-all-btn ${_chartTimespan === 'all' ? 'active' : ''}" data-timespan="all" data-translate="all_button">All</button>
+            </div>
           </div>
         </div>
       </div>
     </div>
   `;
 }
+
+  /**
+   * Toggle chart visibility
+   */
+  function toggleNwChart() {
+    const chartContent = document.getElementById('nwChartContent');
+    const toggleBtn = document.getElementById('nwChartToggleBtn');
+    const toggleIcon = toggleBtn?.querySelector('.nw-chart-toggle-icon');
+    const chartContainer = document.querySelector('.nw-chart-container');
+
+    if (!chartContent || !toggleBtn || !toggleIcon) return;
+
+    _chartCollapsed = !_chartCollapsed;
+
+    if (_chartCollapsed) {
+      chartContent.style.display = 'none';
+      toggleIcon.textContent = '▶';
+      chartContainer.classList.add('chart-collapsed');
+    } else {
+      chartContent.style.display = 'block';
+      toggleIcon.textContent = '▼';
+      chartContainer.classList.remove('chart-collapsed');
+
+      // Initialize chart if it doesn't exist or needs refresh
+      setTimeout(() => {
+        initializeChart();
+      }, 50);
+    }
+  }
   
   // FIX BUG 3: Enhanced Chart.js plugin for proper value positioning
   // Replace your existing valuesPlugin with this boundary-aware version:
@@ -2469,22 +2535,20 @@ function init(containerId, cachedData) {
     if (!container) return;
 
     const currentMonthEntries = getCurrentMonthEntries();
-    const totalNetWorth = calculateTotalNetWorth();
 
-    // Format the month and year for display
-    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-                       'July', 'August', 'September', 'October', 'November', 'December'];
-    const displayMonth = monthNames[_currentMonth];
-    const displayYear = _currentYear;
+    // Use summary data from _netWorthData (with safety check)
+    const summaryData = _netWorthData.summary || {};
+    const summary = {
+      totalNetWorth: summaryData.totalNetWorth || 0,
+      totalAssets: summaryData.totalAssets || 0,
+      totalDebts: summaryData.totalDebts || 0,
+      change: summaryData.change || 0
+    };
 
     container.innerHTML = `
       <div class="nw-message" id="netWorthMessage" style="display: none;"></div>
 
-      <div class="nw-total-header">
-        <h2><span data-translate="net_worth">Net Worth</span>: ${formatCurrency(totalNetWorth)}</h2>
-      </div>
-
-      ${renderNetWorthChart()}
+      ${renderNetWorthChart(summary)}
 
       <div class="nw-categories-grid">
         ${Object.keys(ASSET_CATEGORIES).map(categoryKey =>
@@ -2501,19 +2565,21 @@ function init(containerId, cachedData) {
     }
 
     setupSummaryObserver();
-    
-    // Initialize chart after DOM is ready
+
+    // Initialize chart after DOM is ready (only if expanded)
     setTimeout(() => {
-      initializeChart();
+      if (!_chartCollapsed) {
+        initializeChart();
+      }
       bindEventHandlers();
       updateChartModeUI();
     }, 100);
-    
+
     updateMonthYearDisplay();
   }
   
   function setupSummaryObserver() {
-    const summaryElement = document.querySelector('.nw-total-header');
+    const summaryElement = document.querySelector('.nw-chart-header');
     const bannerSummary = document.getElementById('netWorthBannerSummary');
 
     if (!bannerSummary) {
@@ -2694,6 +2760,14 @@ function init(containerId, cachedData) {
   }
   
   function bindEventHandlers() {
+  // Chart toggle button
+  const chartToggleBtn = document.getElementById('nwChartToggleBtn');
+  if (chartToggleBtn) {
+    chartToggleBtn.addEventListener('click', function() {
+      toggleNwChart();
+    });
+  }
+
   // Performance button
   const performanceBtn = document.getElementById('performanceBtn');
   if (performanceBtn) {
@@ -4104,10 +4178,6 @@ body.dark-mode #netWorthView .networth-banner-summary {
   color: rgba(255, 255, 255, 0.88);
 }
 
-#netWorthView .nw-total-header {
-  position: static;
-}
-
 @media (max-width: 768px) {
   #netWorthView {
     --networth-header-height: 88px;
@@ -4121,22 +4191,15 @@ body.dark-mode #netWorthView .networth-banner-summary {
   #netWorthView .month-selector {
     gap: 4px;
   }
-  
+
   #netWorthView .month-year-display {
     min-width: 90px;
     font-size: 12px;
     padding: 2px 6px;
   }
-  
-  .nw-total-header {
-    order: -9999 !important;
-    margin: 16px 16px 12px;
-    max-width: none;
-    width: calc(100% - 32px);
-  }
-  
+
   .nw-chart-container {
-    order: -9998 !important;
+    order: -9999 !important;
     margin: 16px 16px 24px 16px;
   }
 }
@@ -4227,19 +4290,20 @@ body.dark-mode #netWorthView .networth-banner-summary {
   color: #1976d2;
 }
 
-/* ======== CHART CONTAINER ======== */
+/* ======== CHART CONTAINER - COLLAPSIBLE WITH SUMMARY HEADER ======== */
 .nw-chart-container {
   background-color: #ffffff;
   border-radius: 0px;
-  border: none;
-  box-shadow: 0 14px 32px rgba(51, 74, 96, 0.12);
-  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  overflow: visible;
   max-width: 1200px;
-  margin: 30px auto 20px auto;
-  padding: 20px 24px;
-  display: flex;
+  margin: 16px auto 20px auto;
+  padding: 0;
+  display: flex !important;
   flex-direction: column;
-  gap: 20px;
+  transition: box-shadow 0.3s ease;
+  width: auto;
 }
 
 @media (min-width: 1024px) {
@@ -4249,11 +4313,96 @@ body.dark-mode #netWorthView .networth-banner-summary {
   }
 }
 
+/* ======== CHART HEADER WITH GRADIENT ======== */
 .nw-chart-header {
+  display: flex !important;
+  justify-content: center;
+  align-items: center;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  border-bottom: none;
+  position: relative;
+  min-height: 56px;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* ======== CHART SUMMARY INFO ======== */
+.nw-chart-summary {
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 16px 20px 0;
+  flex-wrap: wrap;
+  gap: 20px;
+  color: white;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.4;
+  font-family: 'Lato', sans-serif;
+}
+
+.nw-summary-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.nw-summary-total {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.nw-summary-separator {
+  opacity: 0.6;
+}
+
+.nw-chart-summary .nw-change-positive {
+  color: #90EE90;
+}
+
+.nw-chart-summary .nw-change-negative {
+  color: #FFB6C1;
+}
+
+/* ======== CHART TOGGLE BUTTON ======== */
+.nw-chart-toggle {
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: background-color 0.2s ease;
+}
+
+.nw-chart-toggle:hover {
+  background-color: rgba(255, 255, 255, 0.25);
+}
+
+.nw-chart-toggle-icon {
+  display: inline-block;
+  transition: transform 0.3s ease;
+}
+
+/* ======== CHART CONTENT (COLLAPSIBLE) ======== */
+.nw-chart-content {
+  display: block;
+  background-color: #ffffff;
+}
+
+/* ======== CHART CONTROLS BAR ======== */
+.nw-chart-controls-bar {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px 20px;
   background-color: #f8f9fa;
   border-top: 1px solid #eee;
 }
@@ -4364,7 +4513,6 @@ body.dark-mode #netWorthView .networth-banner-summary {
 
 .nw-chart-wrapper {
   padding: 20px;
-  padding-top: 0;
   height: 400px;
   position: relative;
   min-height: 400px;
@@ -4378,6 +4526,7 @@ body.dark-mode #netWorthView .networth-banner-summary {
   max-height: 400px;
 }
 
+/* Mobile responsive for chart and summary header */
 @media (max-width: 768px) {
   .nw-chart-wrapper {
     padding: 15px;
@@ -4388,34 +4537,59 @@ body.dark-mode #netWorthView .networth-banner-summary {
   }
 
   .nw-chart-container {
-    min-height: 400px;
-    overflow:hidden !important;
+    min-height: auto;
+    overflow: hidden !important;
   }
-  
+
+  .nw-chart-container.chart-collapsed {
+    min-height: auto;
+  }
+
+  .nw-chart-header {
+    display: flex !important;
+    padding: 14px 50px 14px 16px;
+    min-height: 50px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  }
+
+  .nw-chart-summary {
+    font-size: 13px;
+    gap: 8px;
+    flex-direction: column;
+    color: white !important;
+  }
+
+  .nw-chart-summary .nw-summary-separator {
+    display: none;
+  }
+
+  .nw-summary-total {
+    font-size: 15px;
+  }
+
+  .nw-chart-toggle {
+    right: 10px;
+    padding: 6px 10px;
+    color: white !important;
+  }
+
+  .nw-chart-controls-bar {
+    padding: 12px 16px;
+  }
 }
 
-
+/* Desktop - limit width */
+@media (min-width: 1024px) {
+  .nw-chart-container {
+    max-width: 70%;
+  }
+}
 
 
 /* ======== CATEGORIES GRID - UPDATED FOR NARROWER LAYOUT ======== */
-/* Total Net Worth Header */
+/* Legacy nw-total-header kept for backwards compatibility */
 .nw-total-header {
-  max-width: 1200px;
-  margin: 20px auto 0 auto;
-  padding: 18px 30px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 0px;
-  text-align: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.nw-total-header h2 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: #ffffff;
-  font-family: 'Lato', sans-serif;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  display: none; /* Now integrated into chart header */
 }
 
 .nw-categories-grid {
@@ -5220,23 +5394,23 @@ body.dark-mode #netWorthView .networth-banner-summary {
     font-size: 11px;
   }
 
-  /* Chart responsive */
-  .nw-chart-header {
-    padding: 12px 0 0;
+  /* Chart controls responsive - these apply to the controls bar, not the summary header */
+  .nw-chart-controls-bar {
+    padding: 12px;
   }
-  
+
   .nw-timespan-controls {
     justify-content: center;
     flex-wrap: wrap;
   }
-  
+
   .nw-timespan-btn {
     flex: 1;
     min-width: 50px;
   }
-  
+
   .nw-chart-wrapper {
-    padding: 0;
+    padding: 12px !important;
     height: 280px;
     min-height: 280px;
   }
@@ -5369,7 +5543,6 @@ body.dark-mode .nw-chart-container {
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
 }
 
-body.dark-mode .nw-chart-header,
 body.dark-mode .nw-section-header,
 body.dark-mode .nw-modal-header,
 body.dark-mode .nw-modal-footer {
@@ -5382,13 +5555,40 @@ body.dark-mode .nw-modal-header h3 {
   color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
 }
 
-body.dark-mode .nw-total-header {
-  background: linear-gradient(135deg, #4c1d95 0%, #5b21b6 100%);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+/* Dark mode chart header with purple gradient */
+body.dark-mode .nw-chart-header {
+  background: linear-gradient(135deg, #4c1d95 0%, #5b21b6 100%) !important;
+  border-bottom: 1px solid rgba(139, 92, 246, 0.3);
+  box-shadow: 0 4px 12px rgba(76, 29, 149, 0.3);
 }
 
-body.dark-mode .nw-total-header h2 {
-  color: #ffffff;
+body.dark-mode .nw-chart-summary {
+  color: white;
+}
+
+body.dark-mode .nw-chart-summary .nw-change-positive {
+  color: #90EE90;
+}
+
+body.dark-mode .nw-chart-summary .nw-change-negative {
+  color: #FFB6C1;
+}
+
+body.dark-mode .nw-chart-toggle {
+  color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
+}
+
+body.dark-mode .nw-chart-toggle:hover {
+  background-color: rgba(221, 161, 94, 0.15);
+}
+
+body.dark-mode .nw-chart-controls-bar {
+  background-color: var(--dark-surface, #2c2c2e);
+  border-top-color: rgba(255, 255, 255, 0.08);
+}
+
+body.dark-mode .nw-chart-content {
+  background-color: var(--dark-surface, #1e1e1e);
 }
 
 /* ======== DARK MODE BADGE STYLING ======== */
@@ -5722,43 +5922,48 @@ body.dark-mode .nw-table th {
   }
 }
 
-/* Mobile view - your working solution */
+/* Mobile view - collapsible chart with summary header */
 @media (max-width: 768px) {
   #netWorthContent {
     display: flex !important;
     flex-direction: column !important;
   }
-  
-  .nw-total-header {
-    order: -9999 !important;
-    margin: 12px 12px 8px 12px !important;
-    max-width: none;
-    width: calc(100% - 24px);
-  }
-  
+
   .nw-chart-container {
-    order: -9998 !important;
-    margin: 12px 12px 20px 12px !important;
-    padding: 12px 12px 16px !important;
-    gap: 12px !important;
-  }
-  
-  .nw-chart-wrapper {
-    order: 0 !important;
+    order: -9999 !important;
+    margin: 12px !important;
+    padding: 0 !important;
+    gap: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    width: calc(100% - 24px) !important;
   }
 
   .nw-chart-header {
-    order: 1 !important;
-    padding: 12px 12px 0 12px !important;
-    border-bottom: none !important;
-    border-top: 1px solid #eee !important;
-    background-color: #f8f9fa !important;
+    /* Ensure header is always visible on mobile */
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    width: 100% !important;
+    min-height: 60px !important;
+  }
+
+  .nw-chart-content {
+    /* Content flows naturally below header */
+  }
+
+  .nw-chart-wrapper {
+    padding: 15px !important;
+  }
+
+  .nw-chart-controls-bar {
+    padding: 12px !important;
   }
 
   .nw-message {
     order: -10000 !important;
   }
-  
+
   .nw-categories-grid {
     order: 9999 !important;
   }
@@ -6126,12 +6331,6 @@ input[type="number"] {
     width: 95%;
     margin: 20px auto;
   }
-}
-
-/* Dark mode chart header fix */
-body.dark-mode .nw-chart-header {
-  background-color: transparent !important;
-  border-color: rgba(255, 255, 255, 0.1) !important;
 }
 
 </style>

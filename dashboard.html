@@ -1025,13 +1025,13 @@ body.dark-mode .subscription-list-card {
   }
 }
 
-/* Mobile layout fixes */
+/* Mobile layout fixes - scoped to dashboard only */
 @media (max-width: 768px) {
-  .view-content, 
+  #budgetView .view-content,
   .dashboard-container,
   .dashboard-content {
     display: grid !important;
-    grid-template-areas: 
+    grid-template-areas:
       "income"
       "budget"
       "subscription-text"
@@ -1040,8 +1040,8 @@ body.dark-mode .subscription-list-card {
       "chart" !important;
     grid-gap: 20px !important;
   }
-  
-.view-content {
+
+  #budgetView .view-content {
     padding: 10px 10px 200px 10px !important;
     flex: 1;
     overflow-y: auto;
@@ -1049,57 +1049,55 @@ body.dark-mode .subscription-list-card {
     min-height: 100vh;
   }
 
-
-  .income-spent-box,
-  .budget-summary-card,
-  [class*="income"],
-  [class*="budget-summary"] {
+  #budgetView .income-spent-box,
+  #budgetView .budget-summary-card,
+  #budgetView [class*="income"],
+  #budgetView [class*="budget-summary"] {
     grid-area: income !important;
   }
-  
-  .dashboard-card.budget-data-card,
-  [class*="budget-data"] {
+
+  #budgetView .dashboard-card.budget-data-card,
+  #budgetView [class*="budget-data"] {
     grid-area: budget !important;
   }
-  
-  .subscription-header,
-  .subscription-text,
-  [class*="subscription-t"] {
+
+  #budgetView .subscription-header,
+  #budgetView .subscription-text,
+  #budgetView [class*="subscription-t"] {
     grid-area: subscription-text !important;
   }
-  
-  .subscription-summary,
-  [class*="subscription-summary"] {
+
+  #budgetView .subscription-summary,
+  #budgetView [class*="subscription-summary"] {
     grid-area: subscription-summary !important;
   }
-  
-  .subscription-list-container,
-  .dashboard-card.subscription-card,
-  [class*="subscription-l"],
-  [class*="subscription-table"] {
+
+  #budgetView .subscription-list-container,
+  #budgetView .dashboard-card.subscription-card,
+  #budgetView [class*="subscription-l"],
+  #budgetView [class*="subscription-table"] {
     grid-area: subscription-list !important;
   }
-  
-  .donut-chart-header, 
-  .donut-chart-card,
-  .chart-container,
-  .pie-chart-container,
-  .donut-chart-container,
-  [class*="chart"] {
+
+  #budgetView .donut-chart-header,
+  #budgetView .donut-chart-card,
+  #budgetView .chart-container,
+  #budgetView .pie-chart-container,
+  #budgetView .donut-chart-container {
     grid-area: chart !important;
   }
-  
-  .donut-chart-card, 
-  .subscription-list-card {
+
+  #budgetView .donut-chart-card,
+  #budgetView .subscription-list-card {
     display: flex !important;
     flex-direction: column !important;
   }
-  
-  .budget-table {
+
+  #budgetView .budget-table {
     border-collapse: collapse !important;
   }
 
-  .dashboard-card {
+  #budgetView .dashboard-card {
     padding: 0 2px;
   }
 
