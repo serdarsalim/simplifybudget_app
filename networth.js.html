@@ -4597,21 +4597,20 @@ body.dark-mode #netWorthView .networth-banner-summary {
   grid-template-columns: 1fr;
   gap: 16px;
   margin-top: 8px;
-  max-width: 1200px;
+  max-width: 1047px;
   margin-left: auto;
   margin-right: auto;
 }
 
-/* Desktop: 2-column layout with narrower columns */
-@media (min-width: 1200px) {
+/* Desktop: 2-column layout */
+@media (min-width: 1024px) {
   .nw-categories-grid {
-    grid-template-columns: repeat(2, minmax(400px, 700px));
-    justify-content: center;
+    grid-template-columns: 1fr 1fr;
     gap: 24px;
   }
 }
 
-@media (min-width: 768px) and (max-width: 1199px) {
+@media (max-width: 1023px) and (min-width: 768px) {
   .nw-categories-grid {
     grid-template-columns: 1fr 1fr;
     gap: 20px;
