@@ -270,7 +270,8 @@ body, .dashboard-container {
 
 
 /* Dark mode specific cards styling - MOVED FROM STYLES.HTML */
-body.dark-mode .dashboard-container {
+body.dark-mode .dashboard-container,
+body.dark-mode .view-content {
   background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%) !important;
 }
 
@@ -490,6 +491,28 @@ body.dark-mode .chart-container .chart-label {
 .budget-alert.info {
   background-color: rgba(227, 242, 253, 0.9);
   color: #0d47a1;
+}
+
+/* Dark mode budget alert */
+body.dark-mode .budget-alert {
+  background-color: rgba(45, 55, 72, 0.9);
+  color: #e2e8f0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+body.dark-mode .budget-alert.warning {
+  background-color: rgba(146, 64, 14, 0.5);
+  color: #fbbf24;
+}
+
+body.dark-mode .budget-alert.success {
+  background-color: rgba(6, 78, 59, 0.5);
+  color: #6ee7b7;
+}
+
+body.dark-mode .budget-alert.info {
+  background-color: rgba(30, 58, 138, 0.5);
+  color: #93c5fd;
 }
 
 .budget-table-container {
@@ -1018,11 +1041,12 @@ body.dark-mode .subscription-list-card {
     grid-gap: 20px !important;
   }
   
-.view-content
-   {
+.view-content {
     padding: 10px 10px 200px 10px !important;
     flex: 1;
-   overflow-y: auto;
+    overflow-y: auto;
+    background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
+    min-height: 100vh;
   }
 
 
