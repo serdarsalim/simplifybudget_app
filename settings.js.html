@@ -1147,14 +1147,98 @@ function createNewBudgetSheet() {
     function(error) {
       // Remove modal
       removeModal();
-      
-      SettingsPage.showStatus('❌ Error creating budget sheet: ' + error, true);
+
+      // Check if this is a permission error (scope URL is always present regardless of language)
+      const errorStr = error.toString();
+      if (errorStr.includes('googleapis.com/auth/')) {
+        // Show permission explanation modal
+        showPermissionExplanation();
+      } else {
+        SettingsPage.showStatus('❌ Error creating budget sheet: ' + error, true);
+      }
+
       if (newBtn) {
         newBtn.disabled = false;
         newBtn.textContent = 'New Spreadsheet';
       }
     }
   );
+}
+
+/**
+ * Show permission explanation modal when user denied spreadsheet access
+ */
+function showPermissionExplanation() {
+  const modalOverlay = document.createElement('div');
+  modalOverlay.id = 'permissionModal';
+  modalOverlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+  `;
+
+  const modalContent = document.createElement('div');
+  modalContent.style.cssText = `
+    background: white;
+    border-radius: 10px;
+    padding: 30px;
+    max-width: 500px;
+    text-align: left;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  `;
+
+  modalContent.innerHTML = `
+    <div style="text-align: center; font-size: 48px; margin-bottom: 20px;">🔐</div>
+    <h2 style="color: #333; margin-bottom: 15px; font-size: 22px; text-align: center;">Spreadsheet Permission Required</h2>
+    <p style="color: #666; font-size: 15px; line-height: 1.6; margin-bottom: 15px;">
+      To create your budget, the app needs permission to create a spreadsheet on your Google Drive.
+    </p>
+    <div style="background: #e8f5e9; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+      <p style="color: #2e7d32; font-size: 14px; margin: 0 0 10px 0; font-weight: bold;">🛡️ Your privacy is protected:</p>
+      <ul style="color: #444; font-size: 14px; margin: 0; padding-left: 20px; line-height: 1.8;">
+        <li>The app will <strong>only</strong> access the budget spreadsheet it creates</li>
+        <li>Only you can see and edit your budget</li>
+        <li>We cannot access your other files or personal data</li>
+      </ul>
+    </div>
+    <div style="background: #fff3e0; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+      <p style="color: #e65100; font-size: 14px; margin: 0 0 10px 0; font-weight: bold;">To fix this:</p>
+      <ol style="color: #444; font-size: 14px; margin: 0; padding-left: 20px; line-height: 1.8;">
+        <li>Go to: <a href="https://myaccount.google.com/connections?filters=1,2" target="_blank" style="color: #1a73e8; font-weight: bold;">myaccount.google.com/connections</a></li>
+        <li>Click on "Simplify Budget"</li>
+        <li>Click "Delete all connections"</li>
+        <li>Come back here and refresh the page</li>
+        <li>Authorize again with all permissions checked</li>
+      </ol>
+    </div>
+    <div style="text-align: center;">
+      <button id="closePermissionModal" style="padding: 12px 24px; background: #4285f4; color: white; border: none; border-radius: 6px; font-size: 15px; cursor: pointer;">
+        OK, Got it
+      </button>
+    </div>
+  `;
+
+  modalOverlay.appendChild(modalContent);
+  document.body.appendChild(modalOverlay);
+
+  // Close button handler
+  document.getElementById('closePermissionModal').addEventListener('click', function() {
+    modalOverlay.remove();
+  });
+
+  // Click outside to close
+  modalOverlay.addEventListener('click', function(e) {
+    if (e.target === modalOverlay) {
+      modalOverlay.remove();
+    }
+  });
 }
 
 /**
