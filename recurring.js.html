@@ -1003,7 +1003,7 @@ var RecurringManager = (function() {
                   <span class="rec-filter-count" id="activeCount"></span>
                 </button>
                 <button class="rec-filter-btn" id="expiredFilterBtn">
-                  <span data-translate="expired">Ended</span>
+                  <span>All</span>
                   <span class="rec-filter-count" id="expiredCount"></span>
                 </button>
               </div>
@@ -3760,22 +3760,25 @@ body.dark-mode .rec-confirm-btn.rec-delete-btn:hover {
 
 /* Add button styling */
 .rec-add-subscription-btn {
-  background-color: #2c3e50;
+  background-color: #1e88e5;
   color: white;
   border: none;
-  border-radius: 0px;
-  padding: 8px 12px;
+  border-radius: 999px;
+  padding: 8px 14px;
   display: flex;
   align-items: center;
   gap: 4px;
   font-size: 13px;
   cursor: pointer;
-  transition: background-color 0.2s;
-  margin-left: 8px;
+  transition: background-color 0.2s, transform 0.2s, box-shadow 0.2s;
+  margin-left: 0;
+  box-shadow: 0 6px 14px rgba(30, 136, 229, 0.24);
 }
 
 .rec-add-subscription-btn:hover {
-  background-color: #1984c5;
+  background-color: #1565c0;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(21, 101, 192, 0.28);
 }
 
 .rec-add-subscription-btn i {
@@ -3807,19 +3810,21 @@ body.dark-mode .rec-confirm-btn.rec-delete-btn:hover {
 }
 
 .rec-filter-btn {
-  background-color: #f5f5f5;
-  border: 1px solid #ddd;
-  border-radius: 0px;
-  padding: 8px 12px;
-  font-size: 13px;
+  background-color: #eef2f6;
+  border: 1px solid #d7dee6;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
 }
 
 .rec-filter-btn.active {
-  background-color: #2c3e50;
+  background-color: #2f3a4a;
   color: white;
-  border-color: #2c3e50;
+  border-color: #2f3a4a;
+  box-shadow: 0 8px 18px rgba(47, 58, 74, 0.22);
 }
 
 .rec-filter-buttons {
@@ -3831,8 +3836,8 @@ body.dark-mode .rec-confirm-btn.rec-delete-btn:hover {
 .rec-filter-count {
   font-weight: 600;
   background-color: rgba(255, 255, 255, 0.2);
-  padding: 2px 6px;
-  border-radius: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
   font-size: 11px;
   min-width: 16px;
   text-align: center;
@@ -4309,18 +4314,19 @@ body.dark-mode .rec-category-emoji {
 }
 
 body.dark-mode .rec-filter-btn.active {
-  background-color: #DDA15E;
-  border-color: #DDA15E;
-  color: #1e1e1e;
+  background-color: #3b4758;
+  border-color: #3b4758;
+  color: #e8edf2;
 }
 
 body.dark-mode .rec-add-subscription-btn {
-  background-color: #DDA15E;
-  color: #1e1e1e;
+  background-color: #3aa0ff;
+  color: #081a2b;
+  box-shadow: 0 8px 18px rgba(58, 160, 255, 0.28);
 }
 
 body.dark-mode .rec-add-subscription-btn:hover {
-  background-color: #c9955a;
+  background-color: #1f7fd1;
 }
 
 body.dark-mode .rec-show-expired-btn {

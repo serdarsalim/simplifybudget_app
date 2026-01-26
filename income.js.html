@@ -4092,22 +4092,25 @@ body.dark-mode .inc-confirm-btn.inc-cancel-btn:hover {
 
 /* Add button styling */
 .inc-add-income-btn {
-  background-color: #2c3e50;
+  background-color: #1e88e5;
   color: white;
   border: none;
-  border-radius: 0px;
-  padding: 8px 12px;
+  border-radius: 999px;
+  padding: 8px 14px;
   display: flex;
   align-items: center;
   gap: 4px;
   font-size: 13px;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: background-color 0.2s, transform 0.2s, box-shadow 0.2s;
   margin-left: 8px;
+  box-shadow: 0 6px 14px rgba(30, 136, 229, 0.24);
 }
 
 .inc-add-income-btn:hover {
-  background-color: #1984c5;
+  background-color: #1565c0;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(21, 101, 192, 0.28);
 }
 
 .inc-add-income-btn i {
@@ -4493,12 +4496,13 @@ body.dark-mode .inc-filter-btn.active {
 }
 
 body.dark-mode .inc-add-income-btn {
-  background-color: #DDA15E;
-  color: #1e1e1e;
+  background-color: #3aa0ff;
+  color: #081a2b;
+  box-shadow: 0 8px 18px rgba(58, 160, 255, 0.28);
 }
 
 body.dark-mode .inc-add-income-btn:hover {
-  background-color: #c9955a;
+  background-color: #1f7fd1;
 }
 
 body.dark-mode .inc-notes-cell {
