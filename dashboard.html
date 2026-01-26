@@ -169,6 +169,9 @@ body, .dashboard-container {
   padding: 20px !important; /* Default padding */
   width: 100% !important;
   max-width: 100% !important;
+  background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
+  min-height: 100%;
+  align-items: start !important;
 }
 
 /* DESKTOP IMPROVEMENT: Increased padding for 2-column layout */
@@ -199,9 +202,10 @@ body, .dashboard-container {
 .budget-data-card {
   grid-column: 1 / 2 !important;
   grid-row: 1 !important;
-  height: auto !important;
-  overflow: auto !important;
+  height: fit-content !important;
+  overflow: visible !important;
   min-width: 0;
+  align-self: start !important;
 }
 
 /* Right Column - Subscriptions */
@@ -212,28 +216,32 @@ body, .dashboard-container {
   flex-direction: column !important;
   gap: 20px !important;
   min-width: 0;
+  align-self: start !important;
+  height: fit-content !important;
 }
 
 
 
 /* ======================
-   CARD STYLES - MOVED FROM STYLES.HTML
+   CARD STYLES - MODERN GLASSMORPHISM
    ====================== */
 .dashboard-card {
-  background-color: #ffffff;
-  border-radius: 0px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 16px;
   padding: 0 20px 15px 20px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
-  transition: box-shadow 0.3s ease;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
   margin-bottom: 0;
   width: 100%;
-  height: 100%;
   overflow: hidden;
 }
 
 .dashboard-card:hover {
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
 }
 
 /* White Background Cards */
@@ -244,27 +252,37 @@ body, .dashboard-container {
 
 /* Modern subscription card */
 .subscription-list-card {
-  background-color: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
-  transition: box-shadow 0.3s ease;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+  height: fit-content !important;
+  align-self: start !important;
 }
 
 .subscription-list-card:not(.clickable-subscription-card):hover {
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
 }
 
 
 
 
 /* Dark mode specific cards styling - MOVED FROM STYLES.HTML */
+body.dark-mode .dashboard-container {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%) !important;
+}
+
 body.dark-mode .dashboard-card.budget-data-card:not(.budget-summary-integrated),
 body.dark-mode .dashboard-card.subscription-card,
 body.dark-mode .chart-container,
 body.dark-mode .donut-chart-card,
 body.dark-mode .subscription-list-card {
-  background-color: #182f46 !important;
-  border-color: #243f5a !important;
+  background: rgba(24, 47, 70, 0.85) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
 }
 
 body.dark-mode .dashboard-card.budget-data-card *:not(.progress-bar):not(.progress-bar-container):not(.budget-summary-integrated):not(.budget-summary-integrated *),
@@ -342,7 +360,7 @@ body.dark-mode .chart-container .chart-label {
   flex-grow: 0 !important;
   flex-shrink: 0 !important;
   height: fit-content !important;
-  width: fit-content !important;
+  width: 100% !important;
   box-sizing: border-box !important;
 }
 
@@ -366,9 +384,10 @@ body.dark-mode .chart-container .chart-label {
 .budget-summary-integrated {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
-  padding: 10px 50px;
+  padding: 14px 50px;
   margin: 0 -20px 0 -20px;
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+  border-radius: 16px 16px 0 0;
 }
 
 .budget-summary-row {
@@ -446,30 +465,30 @@ body.dark-mode .chart-container .chart-label {
    BUDGET DATA SECTION
    ====================== */
 .budget-alert {
-  background-color: #fff3e0;
+  background-color: rgba(255, 243, 224, 0.9);
   color: #2c3e50;
-  padding: 10px 16px;
+  padding: 12px 20px;
   margin: 0;
   margin-bottom: 0;
   font-weight: 500;
   text-align: center;
-  border-radius: 0px;
-  border-bottom: 1px solid #eeeeee;
-  font-size: 18px;
+  border-radius: 0;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  font-size: 15px;
 }
 
 .budget-alert.warning {
-  background-color: #ffecb3;
+  background-color: rgba(255, 236, 179, 0.9);
   color: #e65100;
 }
 
 .budget-alert.success {
-  background-color: #e8f5e9;
+  background-color: rgba(232, 245, 233, 0.9);
   color: #2e7d32;
 }
 
 .budget-alert.info {
-  background-color: #e3f2fd;
+  background-color: rgba(227, 242, 253, 0.9);
   color: #0d47a1;
 }
 
@@ -741,13 +760,13 @@ body.dark-mode .progress-bar-placeholder {
 .subscription-summary-integrated {
   background: linear-gradient(135deg, #9d6bff 0%, #8f84ac 100%);
   color: #ffffff;
-  padding: 10px 30px;
+  padding: 14px 30px;
   margin: 0 -20px 16px -20px;
   text-align: left;
   font-size: 15px;
   border-bottom: none;
-  border-radius: 0;
-  box-shadow: 0 8px 18px rgba(88, 71, 178, 0.18);
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 4px 12px rgba(88, 71, 178, 0.15);
 }
 
 .subscription-summary-integrated .subscription-info {
@@ -848,11 +867,10 @@ body.dark-mode .subscription-table th {
 }
 
 body.dark-mode .subscription-list-card {
-  background-color: #1a1a1a !important;
-  border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
-  border-left: 1px solid rgba(255, 255, 255, 0.06) !important;
-  border-right: 2px solid rgba(255, 255, 255, 0.2) !important;
-  border-bottom: 2px solid rgba(255, 255, 255, 0.2) !important;
+  background: rgba(24, 47, 70, 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
 }
 
 /* ======================
@@ -1265,31 +1283,31 @@ tr.next-payment.due-today td {
 .clickable-subscription-card::after {
   content: '→';
   position: absolute;
-  top: 20px;
-  right: 20px;
-  font-size: 20px;
-  color: rgba(107, 114, 128, 0.3);
+  top: 18px;
+  right: 18px;
+  font-size: 18px;
+  color: rgba(107, 114, 128, 0.25);
   transition: all 0.3s ease;
   font-weight: bold;
 }
 
 .clickable-subscription-card:hover::after {
-  color: #667eea;
+  color: #9d6bff;
   transform: translateX(4px);
 }
 
 /* Dark mode support */
 body.dark-mode .clickable-subscription-card:hover {
-  border-right: 5px solid #7B68EE !important;
-  border-bottom: 5px solid #7B68EE !important;
+  box-shadow: 0 8px 32px rgba(123, 104, 238, 0.3) !important;
+  border: 1px solid rgba(123, 104, 238, 0.4) !important;
 }
 
 body.dark-mode .clickable-subscription-card::after {
-  color: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.25);
 }
 
 body.dark-mode .clickable-subscription-card:hover::after {
-  color: #7B68EE;
+  color: #9d6bff;
 }
 </style>
 
