@@ -105,6 +105,7 @@ body.dark-mode .sidebar-item.active {
 .app-container {
   display: flex;
   height: 100vh;
+  height: 100dvh; /* Dynamic viewport height - accounts for browser UI like Google banner */
   overflow: hidden;
 }
 
@@ -114,7 +115,8 @@ body.dark-mode .sidebar-item.active {
   overflow-y: auto;
   padding: 0;
   transition: margin-left var(--transition-normal) ease-in-out;
-  background-color: var(--background);
+  background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
+  background-attachment: fixed;
   position: relative;
 }
 
