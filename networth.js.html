@@ -1473,8 +1473,8 @@ function init(containerId, cachedData) {
     return { projectedLabels, projectedValues };
   }
   
-  // Track chart collapsed state
-  let _chartCollapsed = true; // Start collapsed by default
+  // Track chart collapsed state - load from localStorage or default to collapsed
+  let _chartCollapsed = localStorage.getItem('nwChartCollapsed') !== 'false';
 
   function renderNetWorthChart(summary) {
   const currentYear = new Date().getFullYear();
@@ -1507,7 +1507,7 @@ function init(containerId, cachedData) {
           <span class="nw-summary-item ${changeClass}">${changeDisplay}</span>
         </div>
         <button class="nw-chart-toggle" id="nwChartToggleBtn" title="Toggle chart visibility">
-          <span class="nw-chart-toggle-icon">${_chartCollapsed ? '▶' : '▼'}</span>
+          <span class="nw-chart-toggle-icon">${_chartCollapsed ? '▲' : '▼'}</span>
         </button>
       </div>
       <div class="nw-chart-content" id="nwChartContent" style="display: ${_chartCollapsed ? 'none' : 'block'};">
@@ -1554,22 +1554,22 @@ function init(containerId, cachedData) {
    */
   function toggleNwChart() {
     const chartContent = document.getElementById('nwChartContent');
-    const toggleBtn = document.getElementById('nwChartToggleBtn');
-    const toggleIcon = toggleBtn?.querySelector('.nw-chart-toggle-icon');
     const chartContainer = document.querySelector('.nw-chart-container');
+    const toggleIcon = document.querySelector('.nw-chart-toggle-icon');
 
-    if (!chartContent || !toggleBtn || !toggleIcon) return;
+    if (!chartContent || !chartContainer) return;
 
     _chartCollapsed = !_chartCollapsed;
+    localStorage.setItem('nwChartCollapsed', _chartCollapsed);
 
     if (_chartCollapsed) {
       chartContent.style.display = 'none';
-      toggleIcon.textContent = '▶';
       chartContainer.classList.add('chart-collapsed');
+      if (toggleIcon) toggleIcon.textContent = '▲';
     } else {
       chartContent.style.display = 'block';
-      toggleIcon.textContent = '▼';
       chartContainer.classList.remove('chart-collapsed');
+      if (toggleIcon) toggleIcon.textContent = '▼';
 
       // Initialize chart if it doesn't exist or needs refresh
       setTimeout(() => {
@@ -4372,23 +4372,16 @@ body.dark-mode #netWorthView .networth-banner-summary {
   top: 50%;
   right: 16px;
   transform: translateY(-50%);
-  background: rgba(255, 255, 255, 0.15);
+  background: none;
   border: none;
   color: white;
   cursor: pointer;
   padding: 8px 12px;
-  border-radius: 6px;
   font-size: 14px;
-  transition: background-color 0.2s ease;
-}
-
-.nw-chart-toggle:hover {
-  background-color: rgba(255, 255, 255, 0.25);
 }
 
 .nw-chart-toggle-icon {
   display: inline-block;
-  transition: transform 0.3s ease;
 }
 
 /* ======== CHART CONTENT (COLLAPSIBLE) ======== */
@@ -5575,10 +5568,6 @@ body.dark-mode .nw-chart-summary .nw-change-negative {
 
 body.dark-mode .nw-chart-toggle {
   color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
-}
-
-body.dark-mode .nw-chart-toggle:hover {
-  background-color: rgba(221, 161, 94, 0.15);
 }
 
 body.dark-mode .nw-chart-controls-bar {

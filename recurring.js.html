@@ -969,9 +969,14 @@ var RecurringManager = (function() {
     const metrics = calculateCurrentMonthMetrics();
     maybeLoadBudgetDataForMetrics(metrics);
 
+    const isCollapsed = localStorage.getItem('recChartCollapsed') !== 'false';
+    const toggleIcon = isCollapsed ? '▲' : '▼';
+    const contentDisplay = isCollapsed ? 'none' : 'block';
+    const collapsedClass = isCollapsed ? 'chart-collapsed' : '';
+
         container.innerHTML = `
       <!-- Chart Container -->
-      <div class="rec-chart-container">
+      <div class="rec-chart-container ${collapsedClass}">
         <div class="rec-chart-header">
           <div class="rec-chart-summary" id="chartSummary">
             <span class="summary-item">${metrics.currentMonthCount} Payments in ${getCurrentDate()}</span>
@@ -979,10 +984,10 @@ var RecurringManager = (function() {
             <span class="summary-item">${formatCurrency(metrics.currentMonthTotal)} (${metrics.incomePercentage}% of income)</span>
           </div>
           <button class="rec-chart-toggle" id="chartToggleBtn" title="Toggle chart visibility">
-            <span class="chart-toggle-icon">▼</span>
+            <span class="chart-toggle-icon">${toggleIcon}</span>
           </button>
         </div>
-        <div class="rec-chart-content" id="recChartContent" style="display: none;">
+        <div class="rec-chart-content" id="recChartContent" style="display: ${contentDisplay};">
           <canvas id="recurringChart" width="400" height="200"></canvas>
         </div>
       </div>
@@ -3056,16 +3061,17 @@ const colorPalette = [
     const toggleBtn = document.getElementById('chartToggleBtn');
     const toggleIcon = toggleBtn?.querySelector('.chart-toggle-icon');
     const chartContainer = document.querySelector('.rec-chart-container');
-    
+
     if (!chartContent || !toggleBtn || !toggleIcon) return;
-    
+
     const isCollapsed = chartContent.style.display === 'none';
-    
+
     if (isCollapsed) {
       chartContent.style.display = 'block';
       toggleIcon.textContent = '▼';
       chartContainer.classList.remove('chart-collapsed');
-      
+      localStorage.setItem('recChartCollapsed', 'false');
+
       // Initialize chart if it doesn't exist
       setTimeout(() => {
         if (!window.recurringChart) {
@@ -3074,8 +3080,9 @@ const colorPalette = [
       }, 100);
     } else {
       chartContent.style.display = 'none';
-      toggleIcon.textContent = '▶';
+      toggleIcon.textContent = '▲';
       chartContainer.classList.add('chart-collapsed');
+      localStorage.setItem('recChartCollapsed', 'true');
     }
   }
 
@@ -3388,23 +3395,12 @@ window.RecurringManager = RecurringManager;
   border: none;
   cursor: pointer;
   padding: 4px 8px;
-  border-radius: 4px;
-  transition: background-color 0.2s ease;
   color: #ffffff;
   font-size: 14px;
 }
 
-.rec-chart-toggle:hover {
-  background-color: rgba(255, 255, 255, 0.18);
-}
-
 .chart-toggle-icon {
   display: inline-block;
-  transition: transform 0.3s ease;
-}
-
-.chart-collapsed .chart-toggle-icon {
-  transform: rotate(-90deg);
 }
 
 /* Mobile responsive for chart */
@@ -3470,10 +3466,6 @@ body.dark-mode .rec-chart-summary {
 
 body.dark-mode .rec-chart-toggle {
   color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
-}
-
-body.dark-mode .rec-chart-toggle:hover {
-  background-color: rgba(221, 161, 94, 0.1);
 }
 
 
