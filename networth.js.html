@@ -2663,8 +2663,10 @@ function init(containerId, cachedData) {
       `;
     }
     
+    const sectionClass = category.isDebt ? 'nw-section nw-section-debt' : 'nw-section';
+
     return `
-      <div class="nw-section">
+      <div class="${sectionClass}">
         <div class="nw-section-header">
           <div class="nw-section-title-container">
             <h3 class="nw-section-title">${Utils.translateCategory(category.name)}</h3>
@@ -2672,7 +2674,7 @@ function init(containerId, cachedData) {
           </div>
           <div class="nw-header-controls">
             <button class="nw-add-btn" data-category="${categoryKey}">
-              <i class="material-icons">add_circle_outline</i> <span data-translate="add">Add</span>
+              <i class="material-icons">add</i> <span data-translate="add">Add</span>
             </button>
           </div>
         </div>
@@ -2744,9 +2746,6 @@ function init(containerId, cachedData) {
     const sort = getCategorySort(categoryKey);
 
     const getSortIndicator = (col) => {
-      if (sort.column === col) {
-        return `<span class="nw-sort-indicator">${sort.direction === 'asc' ? ' ▲' : ' ▼'}</span>`;
-      }
       return '';
     };
 
@@ -2792,7 +2791,7 @@ function init(containerId, cachedData) {
     } else if (!previousEntry) {
       changeDisplay = '<span class="nw-new-entry">New</span>';
     } else {
-      changeDisplay = '<span class="nw-no-change">-</span>';
+      changeDisplay = '';
     }
     
     // Add class for zero-value entries
@@ -4685,13 +4684,16 @@ body.dark-mode #netWorthView .networth-banner-summary {
   min-height: 300px;
 }
 
+.nw-section-debt .nw-section-title {
+  color: #e74c3c;
+}
+
 .nw-section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
   background-color: #f8f9fa;
-  border-bottom: 1px solid #eee;
 }
 
 /* ======== ENHANCED SECTION TITLE CONTAINER ======== */
@@ -4854,12 +4856,11 @@ body.dark-mode #netWorthView .networth-banner-summary {
 
 .nw-table th {
   font-weight: 600;
-  color: var(--text-secondary, #666);
-  font-size: 11px;
+  color: #64748b;
+  font-size: 12px;
   background-color: #fafafa;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
   font-family: 'Lato', sans-serif;
+  text-transform: capitalize;
 }
 
 .nw-table th.nw-sortable {
