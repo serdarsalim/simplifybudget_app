@@ -133,6 +133,12 @@
    All dashboard-specific styles in one place
 */
 
+/* Full-page background on the view itself */
+#budgetView {
+  background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
+  background-attachment: fixed;
+}
+
 /* Add global font styling */
 body, .dashboard-container {
   font-family: sans-serif;
@@ -169,7 +175,6 @@ body, .dashboard-container {
   padding: 20px !important; /* Default padding */
   width: 100% !important;
   max-width: 100% !important;
-  background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
   min-height: 100%;
   align-items: start !important;
 }
@@ -239,10 +244,6 @@ body, .dashboard-container {
   overflow: hidden;
 }
 
-.dashboard-card:hover {
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
-  transform: translateY(-2px);
-}
 
 /* White Background Cards */
 .budget-data-card,
@@ -270,9 +271,9 @@ body, .dashboard-container {
 
 
 /* Dark mode specific cards styling - MOVED FROM STYLES.HTML */
-body.dark-mode .dashboard-container,
-body.dark-mode .view-content {
+body.dark-mode #budgetView {
   background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%) !important;
+  background-attachment: fixed !important;
 }
 
 body.dark-mode .dashboard-card.budget-data-card:not(.budget-summary-integrated),

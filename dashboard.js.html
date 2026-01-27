@@ -418,9 +418,9 @@ if (subscriptionBody) {
           }
           
           const daysDiff = Math.ceil((nextDate - today) / (1000 * 60 * 60 * 24));
-          
-          // Only consider future payments (daysDiff > 0) for "next payment"
-          if (daysDiff > 0 && daysDiff < earliestDaysDiff) {
+
+          // Consider today and future payments (daysDiff >= 0) for "next payment"
+          if (daysDiff >= 0 && daysDiff < earliestDaysDiff) {
             earliestDaysDiff = daysDiff;
             nextPaymentDate = nextDate;
           }
