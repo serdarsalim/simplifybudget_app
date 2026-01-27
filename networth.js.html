@@ -1492,19 +1492,16 @@ function init(containerId, cachedData) {
     <div class="nw-chart-container ${_chartCollapsed ? 'chart-collapsed' : ''}">
       <div class="nw-chart-header">
         <div class="nw-chart-summary">
-          <span class="nw-summary-item nw-summary-total">
-            <span data-translate="net_worth">Net Worth</span>: ${formatCurrency(summary.totalNetWorth)}
-          </span>
-          <span class="nw-summary-separator">|</span>
-          <span class="nw-summary-item">
-            <span data-translate="assets">Assets</span>: ${formatCurrency(summary.totalAssets)}
+          <span class="nw-summary-line">
+            <span class="nw-summary-item nw-summary-total">
+              <span data-translate="net_worth">Net Worth</span>: ${formatCurrency(summary.totalNetWorth)}
+            </span>
+            <span class="nw-summary-item ${changeClass}">${changeDisplay}</span>
           </span>
           <span class="nw-summary-separator">|</span>
           <span class="nw-summary-item">
             <span data-translate="debts">Debts</span>: ${formatCurrency(summary.totalDebts)}
           </span>
-          <span class="nw-summary-separator">|</span>
-          <span class="nw-summary-item ${changeClass}">${changeDisplay}</span>
         </div>
         <button class="nw-chart-toggle" id="nwChartToggleBtn" title="Toggle chart visibility">
           <span class="nw-chart-toggle-icon">${_chartCollapsed ? '▲' : '▼'}</span>
@@ -4121,11 +4118,7 @@ window.NetWorthManager = NetWorthManager;
 }
 
 #netWorthView .view-header {
-  position: sticky;
-  top: 0;
-  z-index: 150;
   background: var(--background, #f5f5f7);
-  box-shadow: 0 8px 20px rgba(44, 62, 80, 0.08);
 }
 
 #netWorthView .view-header .month-banner {
@@ -4133,20 +4126,7 @@ window.NetWorthManager = NetWorthManager;
 }
 
 #netWorthView .networth-banner-summary {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.75);
-  color: #2c3e50;
-  font-family: 'Lato', sans-serif;
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  order: 1;
-  margin: 0;
-  white-space: nowrap;
+  display: none;
 }
 
 #netWorthView .networth-banner-summary.hidden {
@@ -4357,6 +4337,12 @@ body.dark-mode #netWorthView .networth-banner-summary {
   opacity: 0.6;
 }
 
+.nw-summary-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .nw-chart-summary .nw-change-positive {
   color: #90EE90;
 }
@@ -4553,6 +4539,10 @@ body.dark-mode #netWorthView .networth-banner-summary {
 
   .nw-chart-summary .nw-summary-separator {
     display: none;
+  }
+
+  .nw-summary-line {
+    gap: 6px;
   }
 
   .nw-summary-total {
