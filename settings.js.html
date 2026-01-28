@@ -817,22 +817,21 @@ function applySettingsToForm(settings) {
     if (!statusEl) return;
 
     // Clear existing classes
-    statusEl.className = 'trial-status-inline';
-    
+    statusEl.className = 'license-badge';
+
     if (result.status === 'paid') {
-      statusEl.classList.add('paid');
       statusEl.innerHTML = 'Licensed';
     } else if (result.status === 'trial') {
       statusEl.classList.add('trial');
-      statusEl.innerHTML = `Trial: ${result.daysLeft} days left - <a href='https://ko-fi.com/s/4b62acb528' target='_blank' style='color:#007cba;'>Purchase License</a>`;
+      statusEl.innerHTML = `Trial: ${result.daysLeft} days`;
     } else if (result.status === 'expired') {
       statusEl.classList.add('expired');
-      statusEl.innerHTML = 'Expired - <a href=\'https://ko-fi.com/s/4b62acb528\' target=\'_blank\' style=\'color:#721c24;\'>Purchase License</a>';
+      statusEl.innerHTML = 'Expired';
     } else if (result.status === 'new') {
       statusEl.classList.add('trial');
-      statusEl.innerHTML = 'Trial: 30 days left - <a href=\'https://ko-fi.com/s/4b62acb528\' target=\'_blank\' style=\'color:#007cba;\'>Purchase License</a>';
+      statusEl.innerHTML = 'Trial: 30 days';
     } else {
-      statusEl.innerHTML = 'Unknown';
+      statusEl.innerHTML = 'Free';
     }
   }
 
@@ -854,30 +853,28 @@ function applySettingsToForm(settings) {
 
   
   /**
-   * Show a status message
+   * Show a status message as a toast
    * @param {string} message - Message to display
    * @param {boolean} isError - Whether this is an error message
    */
   function showStatus(message, isError) {
     const statusEl = document.getElementById('settingsStatus');
     if (!statusEl) return;
-    
+
     // Clear existing classes and content
-    statusEl.className = 'status-message';
+    statusEl.className = 'status-toast';
     statusEl.textContent = message;
-    
+
     // Add appropriate class
     statusEl.classList.add(isError ? 'error' : 'success');
-    
+
     // Show the message
     statusEl.classList.remove('hidden');
-    
-    // Auto-hide success messages after 5 seconds
-    if (!isError) {
-      setTimeout(function() {
-        statusEl.classList.add('hidden');
-      }, 5000);
-    }
+
+    // Auto-hide after 4 seconds
+    setTimeout(function() {
+      statusEl.classList.add('hidden');
+    }, isError ? 6000 : 4000);
   }
   
   // Public API
@@ -996,6 +993,48 @@ document.addEventListener('DOMContentLoaded', function() {
   // Initialize settings page
   SettingsPage.init();
 });
+
+/**
+ * Show help dialog for spreadsheet buttons
+ */
+function showSpreadsheetHelp(type) {
+  const helpContent = {
+    new: {
+      title: 'New Template',
+      description: 'Creates a fresh budget spreadsheet from our template and saves it to your Google Drive. This is the quickest way to get started. The spreadsheet will be automatically connected to the app.'
+    },
+    pick: {
+      title: 'Pick Existing',
+      description: 'Opens a file picker to select an existing Simplify Budget spreadsheet from your Google Drive. Use this if you already have a budget spreadsheet or want to switch between multiple budgets.'
+    },
+    disconnect: {
+      title: 'Disconnect',
+      description: 'Removes the connection between the app and your current spreadsheet. Your data will remain safe in Google Drive - this only disconnects the app. You can reconnect anytime.'
+    }
+  };
+
+  const content = helpContent[type];
+  if (!content) return;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'help-dialog-overlay';
+  overlay.innerHTML = `
+    <div class="help-dialog">
+      <h3>${content.title}</h3>
+      <p>${content.description}</p>
+      <button onclick="this.closest('.help-dialog-overlay').remove()">Got it</button>
+    </div>
+  `;
+
+  // Close on overlay click
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) {
+      overlay.remove();
+    }
+  });
+
+  document.body.appendChild(overlay);
+}
 
 
 /**
