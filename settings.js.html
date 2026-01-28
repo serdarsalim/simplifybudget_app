@@ -1336,15 +1336,58 @@ function showPermissionExplanation() {
 }
 
 /**
- * Disconnect budget sheet
+ * Disconnect budget sheet - shows confirmation dialog first
  */
 function disconnectBudgetSheet() {
-  if (!confirm('Are you sure you want to disconnect your budget sheet? This will remove the connection but won\'t delete your data.')) {
-    return;
-  }
-  
+  showDisconnectConfirmDialog();
+}
+
+/**
+ * Show disconnect confirmation dialog
+ */
+function showDisconnectConfirmDialog() {
+  const overlay = document.createElement('div');
+  overlay.className = 'help-dialog-overlay';
+  overlay.innerHTML = `
+    <div class="help-dialog help-dialog-large">
+      <h3>Disconnect Spreadsheet?</h3>
+      <div class="help-content">
+        <p>Are you sure you want to disconnect your budget spreadsheet from the app?</p>
+
+        <div class="help-section">
+          <h4>What happens when you disconnect</h4>
+          <p>• The app will no longer be linked to this spreadsheet</p>
+          <p>• Your data remains safe in Google Drive — nothing is deleted</p>
+          <p>• You can reconnect this sheet or choose a different one anytime</p>
+        </div>
+      </div>
+      <div class="dialog-buttons">
+        <button class="dialog-btn dialog-btn-cancel" onclick="this.closest('.help-dialog-overlay').remove()">Cancel</button>
+        <button class="dialog-btn dialog-btn-danger" onclick="confirmDisconnect()">Disconnect</button>
+      </div>
+    </div>
+  `;
+
+  // Close on overlay click
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) {
+      overlay.remove();
+    }
+  });
+
+  document.body.appendChild(overlay);
+}
+
+/**
+ * Actually perform the disconnect after confirmation
+ */
+function confirmDisconnect() {
+  // Close the dialog
+  const overlay = document.querySelector('.help-dialog-overlay');
+  if (overlay) overlay.remove();
+
   SettingsPage.showStatus('Disconnecting sheet...', false);
-  
+
   API.disconnectBudgetSheet(
     function(result) {
       if (result.success) {
@@ -1352,9 +1395,9 @@ function disconnectBudgetSheet() {
         if (window.CacheManager && CacheManager.invalidateAll) {
           CacheManager.invalidateAll();
         }
-        
-        SettingsPage.showStatus('Budget sheet disconnected successfully. You can now connect a different sheet.', false);
-        
+
+        SettingsPage.showStatus('Budget sheet disconnected successfully.', false);
+
         // Reload the page to reset everything
         setTimeout(() => {
           location.reload();

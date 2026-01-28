@@ -717,6 +717,50 @@ body.dark-mode .toggle-slider {
   background: #0066d6;
 }
 
+/* Dialog with multiple buttons */
+.dialog-buttons {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.dialog-btn {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.dialog-btn-cancel {
+  background: var(--s-bg);
+  color: var(--s-text);
+}
+
+.dialog-btn-cancel:hover {
+  background: var(--s-border);
+}
+
+.dialog-btn-danger {
+  background: var(--s-red);
+  color: white;
+}
+
+.dialog-btn-danger:hover {
+  background: #e62e24;
+}
+
+body.dark-mode .dialog-btn-cancel {
+  background: rgba(255,255,255,0.1);
+}
+
+body.dark-mode .dialog-btn-cancel:hover {
+  background: rgba(255,255,255,0.15);
+}
+
 /* ============= RESPONSIVE ============= */
 @media (max-width: 600px) {
   .account-bar {
