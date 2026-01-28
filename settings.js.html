@@ -1071,35 +1071,23 @@ function requestDrivePermissions() {
   // Show loading state
   SettingsPage.showStatus('Requesting permissions...', false);
 
-  // Call API to get the OAuth URL and redirect
-  if (typeof API !== 'undefined' && API.getOAuthUrl) {
-    API.getOAuthUrl(
+  // Call API to get the OAuth URL and open in new tab only
+  if (typeof API !== 'undefined' && API.getAuthorizationUrl) {
+    API.getAuthorizationUrl(
       function(result) {
         if (result && result.url) {
-          window.open(result.url, '_blank');
+          window.open(result.url, '_blank', 'noopener');
           SettingsPage.showStatus('Please complete the authorization in the new window', false);
         } else {
-          // Fallback: trigger picker which will prompt for permissions
-          SettingsPage.showStatus('Opening picker to request permissions...', false);
-          if (typeof SettingsPage.openGooglePicker === 'function') {
-            SettingsPage.openGooglePicker();
-          }
+          SettingsPage.showStatus('Authorization URL unavailable. Please refresh and try again.', true);
         }
       },
       function(error) {
-        // Fallback: try opening picker directly
-        SettingsPage.showStatus('Opening picker to request permissions...', false);
-        if (typeof SettingsPage.openGooglePicker === 'function') {
-          SettingsPage.openGooglePicker();
-        }
+        SettingsPage.showStatus('Unable to open consent screen: ' + error, true);
       }
     );
   } else {
-    // Fallback: try opening picker directly which should trigger permission request
-    SettingsPage.showStatus('Opening picker to request permissions...', false);
-    if (typeof SettingsPage !== 'undefined' && SettingsPage.openGooglePicker) {
-      SettingsPage.openGooglePicker();
-    }
+    SettingsPage.showStatus('Authorization unavailable. Please refresh and try again.', true);
   }
 }
 
