@@ -59,6 +59,19 @@
     </div>
     <div class="card-content">
       <div class="settings-grid">
+        <!-- Dark Mode -->
+        <div class="setting-item">
+          <div class="setting-info">
+            <span class="setting-label" data-translate="dark_mode">Dark Mode</span>
+          </div>
+          <div class="setting-control">
+            <label class="toggle">
+              <input type="checkbox" id="darkMode">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
         <!-- Language -->
         <div class="setting-item">
           <div class="setting-info">
@@ -94,6 +107,7 @@
         <div class="setting-item">
           <div class="setting-info">
             <span class="setting-label" data-translate="display_currency">Display Currency</span>
+            <span class="pill-help" onclick="event.stopPropagation(); showSpreadsheetHelp('displayCurrency')">?</span>
           </div>
           <div class="setting-control">
             <select id="displayCurrencySelector" class="modern-select">
@@ -162,19 +176,6 @@
               <option value="timeline">Timeline</option>
               <option value="allocation">Allocation</option>
             </select>
-          </div>
-        </div>
-
-        <!-- Dark Mode -->
-        <div class="setting-item">
-          <div class="setting-info">
-            <span class="setting-label" data-translate="dark_mode">Dark Mode</span>
-          </div>
-          <div class="setting-control">
-            <label class="toggle">
-              <input type="checkbox" id="darkMode">
-              <span class="toggle-slider"></span>
-            </label>
           </div>
         </div>
 
@@ -525,6 +526,27 @@ body.dark-mode .connection-status.connected {
 
 .setting-label {
   font-size: 15px;
+  color: var(--s-text);
+}
+
+.setting-info .pill-help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.08);
+  font-size: 10px;
+  font-weight: bold;
+  margin-left: 6px;
+  cursor: pointer;
+  border: none;
+  color: var(--s-text-secondary);
+}
+
+.setting-info .pill-help:hover {
+  background: rgba(0,0,0,0.15);
   color: var(--s-text);
 }
 
