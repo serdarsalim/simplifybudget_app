@@ -1411,15 +1411,17 @@ function showErrorMessage(message) {
           "
         >
           <h3 style="margin-bottom: 20px;">👋 Welcome to Simplify Budget!</h3>
-          
-          <p style="margin-bottom: 20px;">
-            Ready to track your spending? We'll create a budget spreadsheet in your Google Drive. All your transactions will be saved in this spreadsheet.
+
+          <p style="margin-bottom: 8px;">
+            The app needs a Google Sheet to store your data.
           </p>
-          
-          
+          <p style="margin-bottom: 20px;">
+            Click below to create one.
+          </p>
+
           <div style="margin: 30px 0;">
-            <button 
-              onclick="createNewBudgetSheet()" 
+            <button
+              onclick="createNewBudgetSheet()"
               style="
                 background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
                 color: white;
@@ -1435,11 +1437,21 @@ function showErrorMessage(message) {
               onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 12px rgba(0,0,0,0.3)';"
               onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.2)';"
             >
-              🚀 Create My Budget Spreadsheet
+              🚀 Create My Spreadsheet
             </button>
           </div>
+
+          <p style="margin-bottom: 8px; color: #666;">
+            Once created, you'll do all your budgeting in the app.
           </p>
-          
+          <p style="margin-bottom: 20px; color: #666;">
+            The spreadsheet just stores your data in the background.
+          </p>
+
+          <p style="margin-bottom: 20px; color: #888; font-size: 14px;">
+            🔒 Your data stays private in your Google Drive. Only you can see the data in the linked spreadsheet.
+          </p>
+
           <p style="margin-bottom: 0;">
             📺 <a href="https://youtu.be/ziE2S8SgEo8?t=26" target="_blank" rel="noopener">
               Watch the YouTube tutorial: How to use the app
