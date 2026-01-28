@@ -361,6 +361,81 @@ setUserSettings: function(settings, successCallback, errorCallback) {
       errorCallback(e.message || String(e));
     }
   },
+
+  /**
+   * Force spreadsheet authorization (triggers consent dialog when needed)
+   * @param {Function} successCallback - Called on success
+   * @param {Function} errorCallback - Called on error
+   */
+  requireSpreadsheetAuthorization: function(successCallback, errorCallback) {
+    try {
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result && result.success) {
+            successCallback(result);
+          } else {
+            var error = result && result.error ? result.error : "Unknown error";
+            errorCallback(error);
+          }
+        })
+        .withFailureHandler(function(error) {
+          errorCallback(error);
+        })
+        .requireSpreadsheetAuthorization();
+    } catch (e) {
+      errorCallback(e.message || String(e));
+    }
+  },
+
+  /**
+   * Force Drive authorization (needed for Picker file listing)
+   * @param {Function} successCallback - Called on success
+   * @param {Function} errorCallback - Called on error
+   */
+  requireDriveAuthorization: function(successCallback, errorCallback) {
+    try {
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result && result.success) {
+            successCallback(result);
+          } else {
+            var error = result && result.error ? result.error : "Unknown error";
+            errorCallback(error);
+          }
+        })
+        .withFailureHandler(function(error) {
+          errorCallback(error);
+        })
+        .requireDriveAuthorization();
+    } catch (e) {
+      errorCallback(e.message || String(e));
+    }
+  },
+  
+  /**
+   * Get authorization URL for required scopes (if needed)
+   * @param {Function} successCallback - Called on success with url
+   * @param {Function} errorCallback - Called on error
+   */
+  getAuthorizationUrl: function(successCallback, errorCallback) {
+    try {
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result && result.success) {
+            successCallback(result);
+          } else {
+            var error = result && result.error ? result.error : "Unknown error";
+            errorCallback(error);
+          }
+        })
+        .withFailureHandler(function(error) {
+          errorCallback(error);
+        })
+        .getAuthorizationUrl();
+    } catch (e) {
+      errorCallback(e.message || String(e));
+    }
+  },
   
   /**
    * Disconnect budget sheet

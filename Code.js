@@ -844,6 +844,49 @@ function createBudgetSheetFromTemplate() {
 }
 
 /**
+ * Force spreadsheet authorization flow (for web app consent dialog)
+ * @return {Object} Result with success status
+ */
+function requireSpreadsheetAuthorization() {
+  const TEMPLATE_SHEET_ID = '1fA8lHlDC8bZKVHSWSGEGkXHNmVylqF0Ef2imI_2jkZ8';
+  SpreadsheetApp.openById(TEMPLATE_SHEET_ID);
+  return { success: true };
+}
+
+/**
+ * Force Drive authorization flow (needed for Picker file listing)
+ * @return {Object} Result with success status
+ */
+function requireDriveAuthorization() {
+  const userProps = PropertiesService.getUserProperties();
+  const flag = userProps.getProperty('DRIVE_FILE_AUTH_OK');
+  if (!flag) {
+    // Create + trash a tiny temp file to trigger drive.file consent
+    const blob = Utilities.newBlob('auth-check', 'text/plain', 'SimplifyBudgetAuthCheck.txt');
+    const file = DriveApp.createFile(blob);
+    file.setTrashed(true);
+    userProps.setProperty('DRIVE_FILE_AUTH_OK', '1');
+  }
+  return { success: true };
+}
+
+/**
+ * Get authorization URL for required scopes, if needed.
+ * @return {Object} Result with optional authorization URL
+ */
+function getAuthorizationUrl() {
+  try {
+    const authInfo = ScriptApp.getAuthorizationInfo(ScriptApp.AuthMode.FULL);
+    if (authInfo.getAuthorizationStatus() === ScriptApp.AuthorizationStatus.REQUIRED) {
+      return { success: true, url: authInfo.getAuthorizationUrl() };
+    }
+    return { success: true, url: null };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
  * Disconnect budget sheet (remove from user properties)
  * @return {Object} Result with success status
  */

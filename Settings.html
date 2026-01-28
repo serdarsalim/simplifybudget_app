@@ -28,7 +28,7 @@
       
       <!-- Pick Sheet Button (25%) -->
       <div class="sheet-config-col url-col">
-        <button id="pickSheetFile" class="btn-sheet-action btn-picker">
+        <button id="pickSheetFile" class="btn-sheet-action btn-picker" onclick="SettingsPage.openGooglePicker()">
           <i class="material-icons" style="font-size: 16px; margin-right: 4px;">folder_open</i>
           <span data-translate="select_existing">Select Existing</span>
         </button>
@@ -306,7 +306,6 @@
   max-width: 800px;
   margin: 0 auto;
   padding: var(--spacing-md);
-  background-color: var(--settings-background);
 }
 
 /* ============= SECTION STYLING ============= */
