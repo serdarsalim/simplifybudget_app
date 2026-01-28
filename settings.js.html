@@ -1193,67 +1193,87 @@ function createNewBudgetSheet() {
     }
   }
   
-  // Call the API to create a copy of the template
-  API.createBudgetSheetFromTemplate(
-    function(result) {
-      if (result.success) {
-        // Update cached sheet URL for instant Reports access
-        window._cachedSheetUrl = result.url;
-        
-        // Invalidate cache to refresh data
-        if (window.CacheManager && CacheManager.invalidateAll) {
-          CacheManager.invalidateAll();
+  function proceedCreate() {
+    API.createBudgetSheetFromTemplate(
+      function(result) {
+        if (result.success) {
+          // Update cached sheet URL for instant Reports access
+          window._cachedSheetUrl = result.url;
+          
+          // Invalidate cache to refresh data
+          if (window.CacheManager && CacheManager.invalidateAll) {
+            CacheManager.invalidateAll();
+          }
+          
+          // Remove modal
+          removeModal();
+          
+          // Show success message with the new sheet name
+          SettingsPage.showStatus(`✅ Budget spreadsheet created successfully: ${result.name}`, false);
+          
+          // Update the sheet status with clickable link
+          const statusEl = document.getElementById('sheetStatus');
+          if (statusEl) {
+            statusEl.innerHTML = `<span style="color: #006600">Sheet connected: <a href="${result.url}" target="_blank" style="color: #006600; text-decoration: underline;">${result.name}</a></span>`;
+          }
+          
+          // Re-enable button and restore text
+          if (newBtn) {
+            newBtn.disabled = false;
+            newBtn.textContent = 'New Spreadsheet';
+          }
+          
+          // Switch to the expense view to show the new budget data
+          if (window.SimBudget && SimBudget.Views) {
+            SimBudget.Views.switchTo('expense');
+          }
+        } else {
+          // Remove modal
+          removeModal();
+          
+          SettingsPage.showStatus('❌ Failed to create budget sheet: ' + (result.error || 'Unknown error'), true);
+          if (newBtn) {
+            newBtn.disabled = false;
+            newBtn.textContent = 'New Spreadsheet';
+          }
         }
-        
+      },
+      function(error) {
         // Remove modal
         removeModal();
-        
-        // Show success message with the new sheet name
-        SettingsPage.showStatus(`✅ Budget spreadsheet created successfully: ${result.name}`, false);
-        
-        // Update the sheet status with clickable link
-        const statusEl = document.getElementById('sheetStatus');
-        if (statusEl) {
-          statusEl.innerHTML = `<span style="color: #006600">Sheet connected: <a href="${result.url}" target="_blank" style="color: #006600; text-decoration: underline;">${result.name}</a></span>`;
+
+        // Check if this is a permission error (scope URL is always present regardless of language)
+        const errorStr = error.toString();
+        if (errorStr.includes('googleapis.com/auth/')) {
+          // Show permission explanation modal
+          showPermissionExplanation();
+        } else {
+          SettingsPage.showStatus('❌ Error creating budget sheet: ' + error, true);
         }
-        
-        // Re-enable button and restore text
-        if (newBtn) {
-          newBtn.disabled = false;
-          newBtn.textContent = 'New Spreadsheet';
-        }
-        
-        // Switch to the expense view to show the new budget data
-        if (window.SimBudget && SimBudget.Views) {
-          SimBudget.Views.switchTo('expense');
-        }
-      } else {
-        // Remove modal
-        removeModal();
-        
-        SettingsPage.showStatus('❌ Failed to create budget sheet: ' + (result.error || 'Unknown error'), true);
+
         if (newBtn) {
           newBtn.disabled = false;
           newBtn.textContent = 'New Spreadsheet';
         }
       }
+    );
+  }
+
+  // Trigger native Apps Script consent dialog if spreadsheet scope is missing
+  API.requireSpreadsheetAuthorization(
+    function() {
+      proceedCreate();
     },
     function(error) {
       // Remove modal
       removeModal();
-
-      // Check if this is a permission error (scope URL is always present regardless of language)
-      const errorStr = error.toString();
-      if (errorStr.includes('googleapis.com/auth/')) {
-        // Show permission explanation modal
-        showPermissionExplanation();
-      } else {
-        SettingsPage.showStatus('❌ Error creating budget sheet: ' + error, true);
-      }
-
+      SettingsPage.showStatus('🔐 Permission required to create your sheet. Please authorize when prompted.', true);
       if (newBtn) {
         newBtn.disabled = false;
         newBtn.textContent = 'New Spreadsheet';
+      }
+      if (error) {
+        console.warn('Authorization check failed:', error);
       }
     }
   );
