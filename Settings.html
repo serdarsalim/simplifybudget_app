@@ -627,6 +627,8 @@ body.dark-mode .toggle-slider {
   align-items: center;
   z-index: 10000;
   backdrop-filter: blur(4px);
+  padding: 20px;
+  box-sizing: border-box;
 }
 
 .help-dialog {
@@ -634,27 +636,74 @@ body.dark-mode .toggle-slider {
   border-radius: 14px;
   padding: 24px;
   max-width: 340px;
-  width: 90%;
+  width: 100%;
   box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.help-dialog-large {
+  max-width: 480px;
 }
 
 .help-dialog h3 {
-  margin: 0 0 10px;
-  font-size: 17px;
+  margin: 0 0 16px;
+  font-size: 20px;
   font-weight: 600;
   color: var(--s-text);
 }
 
-.help-dialog p {
-  margin: 0 0 20px;
+.help-content p {
+  margin: 0 0 12px;
   font-size: 14px;
+  line-height: 1.6;
+  color: var(--s-text-secondary);
+}
+
+.help-content p:last-child {
+  margin-bottom: 0;
+}
+
+.help-section {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--s-border);
+}
+
+.help-section h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--s-text);
+}
+
+.help-section p {
+  margin: 0 0 8px;
+  font-size: 13px;
   line-height: 1.5;
   color: var(--s-text-secondary);
 }
 
-.help-dialog button {
+.help-note {
+  font-size: 12px !important;
+  color: var(--s-text-secondary);
+  opacity: 0.8;
+}
+
+.help-link {
+  color: var(--s-accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.help-link:hover {
+  text-decoration: underline;
+}
+
+.help-dialog > button {
   width: 100%;
   padding: 12px;
+  margin-top: 20px;
   border: none;
   border-radius: 10px;
   background: var(--s-accent);
@@ -664,7 +713,7 @@ body.dark-mode .toggle-slider {
   cursor: pointer;
 }
 
-.help-dialog button:hover {
+.help-dialog > button:hover {
   background: #0066d6;
 }
 

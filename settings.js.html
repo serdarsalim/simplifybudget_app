@@ -1001,15 +1001,39 @@ function showSpreadsheetHelp(type) {
   const helpContent = {
     new: {
       title: 'New Template',
-      description: 'Creates a fresh budget spreadsheet from our template and saves it to your Google Drive. This is the quickest way to get started. The spreadsheet will be automatically connected to the app.'
+      html: `
+        <p>Creates a fresh budget spreadsheet from our template and saves it to your Google Drive.</p>
+        <p>This is the quickest way to get started. The spreadsheet will be automatically connected to the app.</p>
+      `
     },
     pick: {
       title: 'Pick Existing',
-      description: 'Opens a file picker to select an existing Simplify Budget spreadsheet from your Google Drive. Use this if you already have a budget spreadsheet or want to switch between multiple budgets.'
+      html: `
+        <p>Opens a file picker to select an existing Simplify Budget spreadsheet from your Google Drive. Use this if you already have a budget spreadsheet or want to switch between multiple budgets.</p>
+
+        <div class="help-section">
+          <h4>Picker not opening?</h4>
+          <p>If the picker doesn't open, the app may be missing Google Drive permissions. <a href="#" onclick="requestDrivePermissions(); return false;" class="help-link">Click here to grant them</a>.</p>
+          <p class="help-note">This permission only allows the app to show your Google Drive files so you can pick the budget template you use with Simplify Budget.</p>
+        </div>
+
+        <div class="help-section">
+          <h4>Compatible spreadsheets</h4>
+          <p>Only Simplify Budget templates work with this app. You can create new ones through the app or make a copy of existing ones.</p>
+        </div>
+
+        <div class="help-section">
+          <h4>Sharing with others</h4>
+          <p>Want to budget with someone using the same sheet? Share access via Google Sheets itself — they'll be able to see that sheet in their Google Drive via the picker.</p>
+        </div>
+      `
     },
     disconnect: {
       title: 'Disconnect',
-      description: 'Removes the connection between the app and your current spreadsheet. Your data will remain safe in Google Drive - this only disconnects the app. You can reconnect anytime.'
+      html: `
+        <p>Removes the connection between the app and your current spreadsheet.</p>
+        <p>Your data will remain safe in Google Drive — this only disconnects the app. You can reconnect anytime.</p>
+      `
     }
   };
 
@@ -1019,9 +1043,9 @@ function showSpreadsheetHelp(type) {
   const overlay = document.createElement('div');
   overlay.className = 'help-dialog-overlay';
   overlay.innerHTML = `
-    <div class="help-dialog">
+    <div class="help-dialog help-dialog-large">
       <h3>${content.title}</h3>
-      <p>${content.description}</p>
+      <div class="help-content">${content.html}</div>
       <button onclick="this.closest('.help-dialog-overlay').remove()">Got it</button>
     </div>
   `;
@@ -1034,6 +1058,49 @@ function showSpreadsheetHelp(type) {
   });
 
   document.body.appendChild(overlay);
+}
+
+/**
+ * Request Google Drive permissions via OAuth consent screen
+ */
+function requestDrivePermissions() {
+  // Close the help dialog first
+  const existingOverlay = document.querySelector('.help-dialog-overlay');
+  if (existingOverlay) existingOverlay.remove();
+
+  // Show loading state
+  SettingsPage.showStatus('Requesting permissions...', false);
+
+  // Call API to get the OAuth URL and redirect
+  if (typeof API !== 'undefined' && API.getOAuthUrl) {
+    API.getOAuthUrl(
+      function(result) {
+        if (result && result.url) {
+          window.open(result.url, '_blank');
+          SettingsPage.showStatus('Please complete the authorization in the new window', false);
+        } else {
+          // Fallback: trigger picker which will prompt for permissions
+          SettingsPage.showStatus('Opening picker to request permissions...', false);
+          if (typeof SettingsPage.openGooglePicker === 'function') {
+            SettingsPage.openGooglePicker();
+          }
+        }
+      },
+      function(error) {
+        // Fallback: try opening picker directly
+        SettingsPage.showStatus('Opening picker to request permissions...', false);
+        if (typeof SettingsPage.openGooglePicker === 'function') {
+          SettingsPage.openGooglePicker();
+        }
+      }
+    );
+  } else {
+    // Fallback: try opening picker directly which should trigger permission request
+    SettingsPage.showStatus('Opening picker to request permissions...', false);
+    if (typeof SettingsPage !== 'undefined' && SettingsPage.openGooglePicker) {
+      SettingsPage.openGooglePicker();
+    }
+  }
 }
 
 
