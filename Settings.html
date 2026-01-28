@@ -446,6 +446,53 @@ body.dark-mode .license-badge.expired {
   color: #2e7d32;
 }
 
+.connection-status .sheet-link {
+  color: inherit;
+  text-decoration: underline;
+  font-weight: 500;
+}
+
+.connection-status .sheet-link:hover {
+  opacity: 0.8;
+}
+
+.status-help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: 8px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.1);
+  font-size: 11px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.status-help:hover {
+  background: rgba(0,0,0,0.2);
+}
+
+.connection-status.connected .status-help {
+  background: rgba(46, 125, 50, 0.2);
+  color: #2e7d32;
+}
+
+.connection-status.connected .status-help:hover {
+  background: rgba(46, 125, 50, 0.3);
+}
+
+body.dark-mode .status-help {
+  background: rgba(255,255,255,0.15);
+  color: inherit;
+}
+
+body.dark-mode .status-help:hover {
+  background: rgba(255,255,255,0.25);
+}
+
 body.dark-mode .connection-status {
   background: rgba(255,255,255,0.05);
 }

@@ -748,21 +748,24 @@ function applySettingsToForm(settings) {
     API.getUserCredentials(
       function(result) {
         if (result.success && result.sheetUrl) {
-          // Get sheet name from URL (extract ID and format it)
-          const sheetId = result.sheetUrl.match(/\/d\/([a-zA-Z0-9-_]+)\//)?.[1];
           const sheetName = result.sheetName || 'Budget Spreadsheet';
-          
-          // Show connected status with clickable link
+
+          // Update connection status with modern styling
           const statusEl = document.getElementById('sheetStatus');
           if (statusEl) {
-            statusEl.innerHTML = `<span style="color: #006600">Sheet connected: <a href="${result.sheetUrl}" target="_blank" style="color: #006600; text-decoration: underline;">${sheetName}</a></span>`;
+            statusEl.className = 'connection-status connected';
+            statusEl.innerHTML = `
+              <i class="material-icons status-icon">cloud_done</i>
+              <span>Connected: <a href="${result.sheetUrl}" target="_blank" class="sheet-link">${sheetName}</a></span>
+              <span class="status-help" onclick="showSpreadsheetHelp('connected')">?</span>
+            `;
           }
         } else {
-          updateSheetStatus('No sheet selected', false);
+          updateSheetStatus('No sheet connected', false);
         }
       },
       function(error) {
-        updateSheetStatus('No sheet selected', false);
+        updateSheetStatus('No sheet connected', false);
       }
     );
   }
@@ -1033,6 +1036,32 @@ function showSpreadsheetHelp(type) {
       html: `
         <p>Removes the connection between the app and your current spreadsheet.</p>
         <p>Your data will remain safe in Google Drive — this only disconnects the app. You can reconnect anytime.</p>
+      `
+    },
+    connected: {
+      title: 'Connected Spreadsheet',
+      html: `
+        <p>This is the Google Sheets spreadsheet where your budget data is stored. Click the name to open it directly in Google Sheets.</p>
+
+        <div class="help-section">
+          <h4>Your data is yours</h4>
+          <p>All your transactions, categories, and budget settings live in this spreadsheet on your Google Drive. You have full ownership and control.</p>
+        </div>
+
+        <div class="help-section">
+          <h4>How it works</h4>
+          <p>The spreadsheet is your data storage. All budgeting, adding transactions, and managing categories is done directly through the app — you don't need to touch the spreadsheet at all.</p>
+        </div>
+
+        <div class="help-section">
+          <h4>Bulk data import/export</h4>
+          <p>The only reason to access the spreadsheet directly is if you need to import or export data in bulk (e.g., pasting many transactions at once).</p>
+        </div>
+
+        <div class="help-section">
+          <h4>Switching spreadsheets</h4>
+          <p>Use "Disconnect" to unlink this sheet, then "Pick Existing" to connect a different one. Great for managing separate budgets.</p>
+        </div>
       `
     }
   };
