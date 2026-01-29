@@ -3705,8 +3705,7 @@ body.dark-mode .amount-max { background-color: #823200 !important; }
 
 .modal-card {
   position: relative;
-  width: 90%;
-  max-width: 680px;
+  width: auto;
   max-height: 85vh;
   background-color: #ffffff;
   border-radius: 16px;
@@ -3789,8 +3788,9 @@ body.dark-mode .amount-max { background-color: #823200 !important; }
 }
 
 .transaction-description {
-  flex: 1;
+  width: 500px;
   min-width: 0;
+  flex-shrink: 0;
 }
 
 .transaction-amount {
@@ -3921,7 +3921,7 @@ body:has(.transaction-modal.visible) #mobileSidebarToggle {
     padding: 10px 6px;
     font-size: 15px;
     border-radius: 6px;
-    text-align: right;
+    text-align: left;
   }
 
   .transaction-account {
