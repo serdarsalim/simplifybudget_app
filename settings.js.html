@@ -221,7 +221,28 @@ if (languageSelector) {
     sheetUrlInput.addEventListener('blur', debounceAutoSave);
   }
 
+  // Refresh default account dropdown when switching to Settings view
+  document.addEventListener('view-activated', function(e) {
+    if (e && e.detail && e.detail.view === 'settings') {
+      refreshDefaultAccountDropdown();
+    }
+  });
 
+}
+
+/**
+ * Refresh default account dropdown from cache on view switch
+ */
+function refreshDefaultAccountDropdown() {
+  const defaultAccountSelect = document.getElementById('defaultAccountSelector');
+  if (!defaultAccountSelect) return;
+
+  const settings = (window.SimBudget && SimBudget.Settings)
+    ? SimBudget.Settings.getAll()
+    : (window.CacheManager ? CacheManager.getSettings() : null);
+  const currentValue = settings && settings.defaultAccount ? settings.defaultAccount : '';
+
+  populateDefaultAccountDropdown(defaultAccountSelect, currentValue);
 }
   
 
@@ -272,15 +293,21 @@ function buildCurrencyOptions() {
 function populateDefaultAccountDropdown(selectEl, currentValue) {
   if (!selectEl) return;
 
-  // Clear existing options and add "None" first
-  selectEl.innerHTML = '';
-  const noneOption = document.createElement('option');
-  noneOption.value = '';
-  noneOption.textContent = 'None';
-  selectEl.appendChild(noneOption);
+  // Track the latest request to avoid duplicate async populations
+  const requestId = Date.now().toString(36) + Math.random().toString(36).slice(2);
+  selectEl.dataset.netWorthRequestId = requestId;
 
   // Helper function to populate options from entries
   function populateFromEntries(entries) {
+    if (selectEl.dataset.netWorthRequestId !== requestId) return;
+
+    // Clear existing options and add "None" first
+    selectEl.innerHTML = '';
+    const noneOption = document.createElement('option');
+    noneOption.value = '';
+    noneOption.textContent = 'None';
+    selectEl.appendChild(noneOption);
+
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
@@ -325,36 +352,72 @@ function populateDefaultAccountDropdown(selectEl, currentValue) {
     }
   }
 
-  // Try cache first
   const cachedNetWorth = window.CacheManager ? CacheManager.getNetWorthWithTimestamp() : null;
+
+  if (window.CacheManager && typeof CacheManager.loadNetWorthWithTimestamp === 'function') {
+    CacheManager.loadNetWorthWithTimestamp()
+      .then((entries) => {
+        populateFromEntries(entries || []);
+      })
+      .catch((error) => {
+        console.warn('Could not refresh Net Worth data for default account dropdown:', error);
+        if (cachedNetWorth && cachedNetWorth.entries && cachedNetWorth.entries.length > 0) {
+          populateFromEntries(cachedNetWorth.entries);
+          return;
+        }
+        // Fallback to API if cache is empty
+        API.getNetWorthData(
+          function(result) {
+            if (result && result.entries) {
+              if (window.CacheManager && CacheManager.setNetWorth) {
+                CacheManager.setNetWorth(result.entries);
+              }
+              populateFromEntries(result.entries);
+            }
+          },
+          function(apiError) {
+            console.warn('Could not fetch Net Worth data for default account dropdown:', apiError);
+            if (currentValue) {
+              const option = document.createElement('option');
+              option.value = currentValue;
+              option.textContent = currentValue + ' (saved)';
+              option.selected = true;
+              selectEl.appendChild(option);
+            }
+          }
+        );
+      });
+    return;
+  }
 
   if (cachedNetWorth && cachedNetWorth.entries && cachedNetWorth.entries.length > 0) {
     populateFromEntries(cachedNetWorth.entries);
-  } else {
-    // No cache - fetch from API
-    API.getNetWorthData(
-      function(result) {
-        if (result && result.entries) {
-          // Cache the data for future use
-          if (window.CacheManager && CacheManager.setNetWorth) {
-            CacheManager.setNetWorth(result.entries);
-          }
-          populateFromEntries(result.entries);
-        }
-      },
-      function(error) {
-        console.warn('Could not fetch Net Worth data for default account dropdown:', error);
-        // If saved value exists, still show it
-        if (currentValue) {
-          const option = document.createElement('option');
-          option.value = currentValue;
-          option.textContent = currentValue + ' (saved)';
-          option.selected = true;
-          selectEl.appendChild(option);
-        }
-      }
-    );
+    return;
   }
+
+  // No cache - fetch from API
+  API.getNetWorthData(
+    function(result) {
+      if (result && result.entries) {
+        // Cache the data for future use
+        if (window.CacheManager && CacheManager.setNetWorth) {
+          CacheManager.setNetWorth(result.entries);
+        }
+        populateFromEntries(result.entries);
+      }
+    },
+    function(error) {
+      console.warn('Could not fetch Net Worth data for default account dropdown:', error);
+      // If saved value exists, still show it
+      if (currentValue) {
+        const option = document.createElement('option');
+        option.value = currentValue;
+        option.textContent = currentValue + ' (saved)';
+        option.selected = true;
+        selectEl.appendChild(option);
+      }
+    }
+  );
 }
 
 /**
