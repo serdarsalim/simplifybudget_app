@@ -542,4 +542,41 @@ Utils.showEmojiPicker = function(onEmojiSelect) {
   document.body.appendChild(overlay);
 };
 
+/**
+ * Show help dialog for account dropdown when no accounts exist
+ */
+Utils.showAccountHelpModal = function() {
+  const existingOverlay = document.querySelector('.help-dialog-overlay');
+  if (existingOverlay) {
+    existingOverlay.remove();
+  }
+
+  const overlay = document.createElement('div');
+  overlay.className = 'help-dialog-overlay';
+  overlay.innerHTML = `
+    <div class="help-dialog help-dialog-large">
+      <h3>Accounts</h3>
+      <div class="help-content">
+        <p>Accounts come from your Liquid Assets in Net Worth for the current month.</p>
+        <p>Add a Liquid Asset to enable this field and select an account for each expense.</p>
+        <p class="help-note">Tip: You can set a default account in Settings.</p>
+      </div>
+      <button type="button">Got it</button>
+    </div>
+  `;
+
+  const close = () => overlay.remove();
+  const button = overlay.querySelector('button');
+  if (button) {
+    button.addEventListener('click', close);
+  }
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      close();
+    }
+  });
+
+  document.body.appendChild(overlay);
+};
+
 </script>

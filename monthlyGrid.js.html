@@ -2471,6 +2471,9 @@ function createTransactionItem(tx) {
   // Account dropdown - GET FROM CACHE FIRST, NO API CALLS
   const accountSelect = document.createElement('select');
   accountSelect.className = 'transaction-account';
+  const accountSelectWrapper = document.createElement('div');
+  accountSelectWrapper.className = 'account-select-wrapper';
+  accountSelectWrapper.appendChild(accountSelect);
   
   // Make readonly for recurring transactions
   if (isSpecialTransaction) {
@@ -2532,6 +2535,19 @@ function createTransactionItem(tx) {
       emptyOption.value = '';
       emptyOption.textContent = '';
       accountSelect.appendChild(emptyOption);
+      accountSelect.setAttribute('disabled', 'disabled');
+      const helpTrigger = document.createElement('button');
+      helpTrigger.type = 'button';
+      helpTrigger.className = 'account-select-help-trigger';
+      helpTrigger.setAttribute('aria-label', 'Account help');
+      helpTrigger.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (window.Utils && typeof Utils.showAccountHelpModal === 'function') {
+          Utils.showAccountHelpModal();
+        }
+      });
+      accountSelectWrapper.appendChild(helpTrigger);
     }
   } else {
     // NO CACHE - SHOW MESSAGE
@@ -2542,7 +2558,7 @@ function createTransactionItem(tx) {
     accountSelect.appendChild(noCacheOption);
   }
   
-  row.appendChild(accountSelect);
+  row.appendChild(accountSelectWrapper);
   
   // 4. Actions column (delete button or recurring icon)
   const actions = document.createElement('div');
