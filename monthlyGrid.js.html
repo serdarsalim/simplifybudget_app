@@ -2081,19 +2081,10 @@ function getNextMonth(month, year) {
   const thead = document.createElement('thead');
   const headerRow = document.createElement('tr');
   
-  // Date column header - ADD DATA-TRANSLATE
+  // Date column header - empty cell
   const dateHeader = document.createElement('th');
   dateHeader.className = 'date-header';
-  dateHeader.textContent = '📖';
-  dateHeader.style.cursor = 'pointer';
-  dateHeader.title = 'View monthly summary';
-  dateHeader.addEventListener('click', function(e) {
-    e.stopPropagation();
-    // Use the global showMonthDetailsPopup function
-    if (window.showMonthDetailsPopup) {
-      window.showMonthDetailsPopup(_currentMonth, _currentYear);
-    }
-  });
+  dateHeader.textContent = '';
   dateHeader.setAttribute('data-translate', 'nottranslatedate');
   headerRow.appendChild(dateHeader);
   
@@ -2144,8 +2135,15 @@ function getNextMonth(month, year) {
   // Daily total header - ADD DATA-TRANSLATE
   const totalHeader = document.createElement('th');
   totalHeader.className = 'total-header';
-  totalHeader.title = 'Daily Total';
-  totalHeader.setAttribute('data-translate-title', 'Daily Total');
+  totalHeader.title = 'View monthly summary';
+  totalHeader.setAttribute('data-translate-title', 'View monthly summary');
+  totalHeader.style.cursor = 'pointer';
+  totalHeader.addEventListener('click', function(e) {
+    e.stopPropagation();
+    if (window.showMonthDetailsPopup) {
+      window.showMonthDetailsPopup(_currentMonth, _currentYear);
+    }
+  });
   
   // Calculate monthly grand total
   const grandTotal = getMonthGrandTotal();
@@ -3353,7 +3351,7 @@ function refresh(forceServerRefresh) {
 }
 
 .monthly-grid th {
-  background-color: #d6f1f5 !important;
+  background-color: #ebfcff !important;
   padding: 6px 4px;
   text-align: left;
   font-weight: 500;
@@ -3368,7 +3366,7 @@ function refresh(forceServerRefresh) {
 }
 
 .monthly-grid th.total-header {
-  background-color: #d6f1f5 !important;
+  background-color: #ebfcff !important;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
   z-index: 220;
 }
@@ -3383,7 +3381,7 @@ function refresh(forceServerRefresh) {
   left: 0 !important;
   top: 0 !important;
   z-index: 1000 !important;
-  background-color: #d6f1f5 !important;
+  background-color: #ebfcff !important;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
 }
 
