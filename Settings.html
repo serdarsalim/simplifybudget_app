@@ -126,6 +126,20 @@
           </div>
         </div>
 
+        <!-- Default Account -->
+        <div class="setting-item">
+          <div class="setting-info">
+            <span class="setting-label" data-translate="default_account">Default Account</span>
+            <span class="pill-help" onclick="event.stopPropagation(); showSpreadsheetHelp('defaultAccount')">?</span>
+          </div>
+          <div class="setting-control">
+            <select id="defaultAccountSelector" class="modern-select">
+              <option value="">None</option>
+              <!-- Options added by JavaScript from Net Worth liquid assets -->
+            </select>
+          </div>
+        </div>
+
         <!-- Show Decimals -->
         <div class="setting-item">
           <div class="setting-info">
@@ -175,20 +189,6 @@
               <option value="performance">Performance</option>
               <option value="timeline">Timeline</option>
               <option value="allocation">Allocation</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Default Account -->
-        <div class="setting-item">
-          <div class="setting-info">
-            <span class="setting-label" data-translate="default_account">Default Account</span>
-            <span class="pill-help" onclick="event.stopPropagation(); showSpreadsheetHelp('defaultAccount')">?</span>
-          </div>
-          <div class="setting-control">
-            <select id="defaultAccountSelector" class="modern-select">
-              <option value="">None</option>
-              <!-- Options added by JavaScript from Net Worth liquid assets -->
             </select>
           </div>
         </div>
@@ -520,6 +520,11 @@ body.dark-mode .connection-status.connected {
 .settings-grid {
   display: flex;
   flex-direction: column;
+}
+
+/* Space after display settings card */
+.settings-card[data-section="display"] {
+  margin-bottom: 200px;
 }
 
 .setting-item {

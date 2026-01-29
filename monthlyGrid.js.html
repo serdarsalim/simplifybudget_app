@@ -2517,6 +2517,12 @@ function createTransactionItem(tx) {
       const accountFromTx = tx.account && tx.account !== 'Other' ? tx.account : '';
       const accountToSelect = accountFromTx || defaultAccount;
 
+      // Add empty option so "None" can be selected
+      const emptyOption = document.createElement('option');
+      emptyOption.value = '';
+      emptyOption.textContent = '';
+      accountSelect.appendChild(emptyOption);
+
       uniqueNames.forEach(accountName => {
         const optionEl = document.createElement('option');
         optionEl.value = accountName;
@@ -2528,6 +2534,8 @@ function createTransactionItem(tx) {
       if (accountToSelect && uniqueNames.includes(accountToSelect)) {
         accountSelect.value = accountToSelect;
         tx.account = accountToSelect;
+      } else {
+        accountSelect.value = '';
       }
     } else {
       // NO LIQUID ASSETS FOUND - SHOW MESSAGE
