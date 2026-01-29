@@ -2969,6 +2969,7 @@ const ENGLISH_TRANSLATIONS = {
   "select_account": "-- Select Account --",
   "expense_saved": "Expense saved successfully!",
   "Fixed Expenses": "Fixed Expenses",
+  "Fixed Payments": "Fixed Payments",
 
   // Budget alert messages
   "budget_no_income_tip": "You’ve budgeted {0}. Tip: Adjust to your income.",
@@ -3038,7 +3039,7 @@ const ENGLISH_TRANSLATIONS = {
   // Navigation and views
   "budget": "Dashboard",
   "expenses": "Expenses",
-  "recurring": "Subscriptions",
+  "recurring": "Fixed Payments",
   "reports": "Reports",
   "settings": "Settings",
 
