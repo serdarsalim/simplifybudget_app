@@ -395,33 +395,36 @@ if (subscriptionBody) {
   subscriptionBody.innerHTML = '';
   
   if (data.subscriptions.items && data.subscriptions.items.length > 0) {
-    // Find the next payment date (earliest upcoming)
+    // Find the next payment date (earliest upcoming in current month only)
     let nextPaymentDate = null;
     let earliestDaysDiff = Number.MAX_VALUE;
-    
-    // First pass: determine the next payment date
+
+    // First pass: determine the next payment date (only within current month)
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     data.subscriptions.items.forEach(subscription => {
       if (subscription.nextDate) {
         const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         const [monthStr, dayStr] = subscription.nextDate.split(' ');
         const month = monthNames.indexOf(monthStr);
         const day = parseInt(dayStr);
-        
+
         if (month !== -1 && !isNaN(day)) {
           const nextDate = new Date(today.getFullYear(), month, day);
-          
+
           // If date is in the past, assume it's next year
           if (nextDate < today) {
             nextDate.setFullYear(today.getFullYear() + 1);
           }
-          
+
           const daysDiff = Math.ceil((nextDate - today) / (1000 * 60 * 60 * 24));
 
-          // Consider today and future payments (daysDiff >= 0) for "next payment"
-          if (daysDiff >= 0 && daysDiff < earliestDaysDiff) {
+          // Only consider payments in the current month for "next payment" highlighting
+          const isCurrentMonth = nextDate.getMonth() === today.getMonth() &&
+                                 nextDate.getFullYear() === today.getFullYear();
+
+          if (isCurrentMonth && daysDiff >= 0 && daysDiff < earliestDaysDiff) {
             earliestDaysDiff = daysDiff;
             nextPaymentDate = nextDate;
           }
@@ -433,27 +436,27 @@ if (subscriptionBody) {
     data.subscriptions.items.forEach(subscription => {
       const row = document.createElement('tr');
       let indicatorContent = '';
-      
+
       if (subscription.nextDate) {
         const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         const [monthStr, dayStr] = subscription.nextDate.split(' ');
         const month = monthNames.indexOf(monthStr);
         const day = parseInt(dayStr);
-        
+
         if (month !== -1 && !isNaN(day)) {
   const nextDate = new Date(today.getFullYear(), month, day);
-  
+
   // If date is in the past, assume it's next year
   if (nextDate < today) {
     nextDate.setFullYear(today.getFullYear() + 1);
   }
-  
+
   const daysDiff = Math.ceil((nextDate - today) / (1000 * 60 * 60 * 24));
-  
-  // NEW: Only apply highlighting if the date is in the current month
-  const isCurrentMonth = nextDate.getMonth() === today.getMonth() && 
+
+  // Only apply highlighting if the date is in the current month
+  const isCurrentMonth = nextDate.getMonth() === today.getMonth() &&
                          nextDate.getFullYear() === today.getFullYear();
-  
+
   if (isCurrentMonth) {
     // Add class for highlighting
     if (daysDiff === 0) {
@@ -461,12 +464,12 @@ if (subscriptionBody) {
     } else if (daysDiff > 0 && daysDiff <= 3) {
       row.classList.add('due-soon');
     }
-  }
-  
-  // Add next-payment class and arrow if this is the next upcoming payment
-  if (nextPaymentDate && nextDate.getTime() === nextPaymentDate.getTime()) {
-    row.classList.add('next-payment');
-    indicatorContent = '⟫';
+
+    // Add next-payment class and arrow ONLY if this is the next upcoming payment AND it's in current month
+    if (nextPaymentDate && nextDate.getTime() === nextPaymentDate.getTime()) {
+      row.classList.add('next-payment');
+      indicatorContent = '⟫';
+    }
   }
 }
       }
