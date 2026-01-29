@@ -549,6 +549,14 @@ body.dark-mode .budget-alert.info {
   border-bottom: 1px solid #e8e8e8;
   font-size: 14px !important;
   position: relative;
+  vertical-align: middle;
+}
+
+/* Fix current month savings row border - add height when no progress bar */
+.budget-table td.progress-cell.no-progress::after {
+  content: '';
+  display: block;
+  height: 32px;
 }
 
 /* ONLY expand padding on LARGE screens */
@@ -612,13 +620,15 @@ body.dark-mode .budget-table td {
 }
 
 .budget-table tbody tr:last-child .category-name {
-  font-weight: 700 !important;
+  font-weight: 800 !important;
   color: #065f46 !important;
+  font-size: 15px !important;
 }
 
 .budget-table tbody tr:last-child .budget-value {
-  font-weight: 700 !important;
+  font-weight: 800 !important;
   color: #047857 !important;
+  font-size: 15px !important;
 }
 
 .budget-table tbody tr:last-child .actual-value {
@@ -647,8 +657,6 @@ body.dark-mode .budget-table tbody tr:last-child .actual-value {
 .progress-cell {
   width: 90px;
   vertical-align: middle;
-  padding-top: 8px !important;
-  padding-bottom: 8px !important;
 }
 
 /* Only expand progress cell on large screens */

@@ -318,12 +318,13 @@ function isCurrentMonth() {
 }
 
 // Determine actual value display for savings in current month
-const actualValueDisplay = (category.name === 'Savings 💵' && isCurrentMonth()) 
-  ? '—' 
+const actualValueDisplay = (category.name === 'Savings 💵' && isCurrentMonth())
+  ? ''
   : Utils.formatCurrency(category.actual);
 
 // Determine progress bar display for savings in current month
-const progressBarDisplay = (category.name === 'Savings 💵' && isCurrentMonth())
+const isSavingsCurrentMonth = category.name === 'Savings 💵' && isCurrentMonth();
+const progressBarDisplay = isSavingsCurrentMonth
   ? ''
   : `<div class="progress-bar-container">
       <div class="progress-bar ${progressClass}" style="width: ${Math.min(percentSpent, 100)}%"></div>
@@ -339,7 +340,7 @@ row.innerHTML = `
   </td>
   <td class="budget-value" data-category="${category.name}" data-value="${category.budgeted}">${Utils.formatCurrency(category.budgeted)}</td>
   <td class="actual-value">${actualValueDisplay}</td>
-  <td class="progress-cell">
+  <td class="progress-cell${isSavingsCurrentMonth ? ' no-progress' : ''}">
     ${progressBarDisplay}
   </td>
 `;
