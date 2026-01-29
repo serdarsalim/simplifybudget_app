@@ -1016,8 +1016,22 @@ function showSpreadsheetHelp(type) {
 
         <div class="help-section">
           <h4>Picker not opening?</h4>
-          <p>If the picker doesn't open, the app may be missing Google Drive permissions. <a href="#" onclick="requestDrivePermissions(); return false;" class="help-link">Click here to grant them</a>.</p>
-          <p class="help-note">This permission only allows the app to show your Google Drive files so you can pick the budget template you use with Simplify Budget.</p>
+          <p>If you see a 403 error, you need to re-authorize the app:</p>
+          <ol style="text-align:left;margin:10px 0;">
+            <li>Go to <a href="https://myaccount.google.com/permissions" target="_blank" class="help-link">Google Account Permissions</a></li>
+            <li>Find "Simplify Budget" and click Remove Access</li>
+            <li>Refresh this page — you'll be prompted to authorize again</li>
+            <li>Make sure to check ALL boxes including Google Drive</li>
+          </ol>
+        </div>
+
+        <div class="help-section">
+          <h4>Alternative: Enter URL manually</h4>
+          <p>You can also paste your spreadsheet URL directly:</p>
+          <div style="margin:10px 0;">
+            <input type="text" id="manual-sheet-url" placeholder="Paste Google Sheets URL here" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;margin-bottom:8px;">
+            <button onclick="connectManualSheetUrl()" style="padding:8px 16px;background:#4285f4;color:white;border:none;border-radius:4px;cursor:pointer;">Connect</button>
+          </div>
         </div>
 
         <div class="help-section">
@@ -1098,34 +1112,49 @@ function showSpreadsheetHelp(type) {
 }
 
 /**
- * Request Google Drive permissions via OAuth consent screen
+ * Request Google Drive permissions by redirecting to auth URL
+ * This navigates to a special URL that forces the consent screen on page load.
  */
-function requestDrivePermissions() {
-  // Close the help dialog first
+/**
+ * Connect a spreadsheet using manually entered URL
+ */
+function connectManualSheetUrl() {
+  const input = document.getElementById('manual-sheet-url');
+  const url = input ? input.value.trim() : '';
+
+  if (!url) {
+    SettingsPage.showStatus('Please enter a spreadsheet URL', true);
+    return;
+  }
+
+  // Basic validation - check if it looks like a Google Sheets URL
+  if (!url.includes('docs.google.com/spreadsheets')) {
+    SettingsPage.showStatus('Please enter a valid Google Sheets URL', true);
+    return;
+  }
+
+  // Close the help dialog
   const existingOverlay = document.querySelector('.help-dialog-overlay');
   if (existingOverlay) existingOverlay.remove();
 
-  // Show loading state
-  SettingsPage.showStatus('Requesting permissions...', false);
+  SettingsPage.showStatus('Connecting spreadsheet...', false);
 
-  // Call API to get the OAuth URL and open in new tab only
-  if (typeof API !== 'undefined' && API.getAuthorizationUrl) {
-    API.getAuthorizationUrl(
-      function(result) {
-        if (result && result.url) {
-          window.open(result.url, '_blank', 'noopener');
-          SettingsPage.showStatus('Please complete the authorization in the new window', false);
-        } else {
-          SettingsPage.showStatus('Authorization URL unavailable. Please refresh and try again.', true);
-        }
-      },
-      function(error) {
-        SettingsPage.showStatus('Unable to open consent screen: ' + error, true);
+  API.setBudgetSheetUrl(url,
+    function(result) {
+      if (result.success) {
+        SettingsPage.showStatus('Spreadsheet connected successfully!', false);
+        // Refresh the page to show connected state
+        setTimeout(function() {
+          window.location.reload();
+        }, 1000);
+      } else {
+        SettingsPage.showStatus('Failed to connect: ' + (result.error || 'Unknown error'), true);
       }
-    );
-  } else {
-    SettingsPage.showStatus('Authorization unavailable. Please refresh and try again.', true);
-  }
+    },
+    function(error) {
+      SettingsPage.showStatus('Error connecting spreadsheet: ' + error, true);
+    }
+  );
 }
 
 

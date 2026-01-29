@@ -7,6 +7,7 @@
 
 /**
  * Returns the HTML content for the web app
+ * Handles ?authorizeDrive=1 parameter to force Drive scope authorization
  */
 function doGet() {
   return HtmlService.createTemplateFromFile("Index")
@@ -47,8 +48,16 @@ function setBudgetSheetUrl(url) {
     // Verify it was stored correctly
     const storedUrl = PropertiesService.getUserProperties().getProperty('BUDGET_SHEET_URL');
     Logger.log("Successfully stored URL: " + storedUrl);
-    
-    return { 
+
+    // TRIAL INITIATION: Start trial when user connects via manual URL
+    try {
+      const userEmail = Session.getActiveUser().getEmail();
+      if (userEmail) recordFirstUse(userEmail);
+    } catch (e) {
+      // Completely silent - don't break anything
+    }
+
+    return {
       success: true,
       message: "URL set successfully"
     };
@@ -827,7 +836,15 @@ function createBudgetSheetFromTemplate() {
     const userProps = PropertiesService.getUserProperties();
     userProps.setProperty("BUDGET_SPREADSHEET_ID", newSpreadsheetId);
     userProps.setProperty('BUDGET_SHEET_URL', newSpreadsheet.getUrl());
-    
+
+    // TRIAL INITIATION: Start trial when user creates new sheet from template
+    try {
+      const userEmail = Session.getActiveUser().getEmail();
+      if (userEmail) recordFirstUse(userEmail);
+    } catch (e) {
+      // Completely silent - don't break anything
+    }
+
     return {
       success: true,
       spreadsheetId: newSpreadsheetId,
@@ -851,6 +868,34 @@ function requireSpreadsheetAuthorization() {
   const TEMPLATE_SHEET_ID = '1fA8lHlDC8bZKVHSWSGEGkXHNmVylqF0Ef2imI_2jkZ8';
   SpreadsheetApp.openById(TEMPLATE_SHEET_ID);
   return { success: true };
+}
+
+/**
+ * Get the re-authorization URL to prompt user for all scopes again
+ * This is needed when users unchecked drive.file during initial setup
+ * @return {Object} Result with the authorization URL
+ */
+function getDriveAuthorizationUrl() {
+  try {
+    // Get the authorization URL - this will prompt for ALL scopes again
+    // including drive.file that they may have unchecked
+    const authInfo = ScriptApp.getAuthorizationInfo(ScriptApp.AuthMode.FULL);
+    const authUrl = authInfo.getAuthorizationUrl();
+
+    // authUrl will be null if user has all scopes - but they might have
+    // unchecked drive.file, so we can't rely on this. Always return a URL.
+    if (authUrl) {
+      return { success: true, url: authUrl };
+    }
+
+    // If no auth URL returned, user may have all scopes OR
+    // may have unchecked optional ones. We can't tell the difference.
+    // Return the web app URL which will re-trigger auth if needed.
+    let webAppUrl = ScriptApp.getService().getUrl().replace('/dev', '/exec');
+    return { success: true, url: webAppUrl, note: 'full_auth' };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
 }
 
 /**
@@ -1104,8 +1149,8 @@ function checkTrialStatus(email) {
       }
     }
     
-    // User not found - they're new
-    return { status: 'new' };
+    // User not found - record them now and start trial
+    return recordFirstUse(email);
   } catch (e) {
     // Return error status instead of crashing
     return { status: 'error', error: e.toString() };
