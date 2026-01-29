@@ -2423,16 +2423,28 @@ function createTransactionItem(tx) {
     if (liquidAssets.length > 0) {
       // Create dropdown with REAL accounts INSTANTLY
       const uniqueNames = [...new Set(liquidAssets.map(asset => asset.name.trim()))].sort();
-      
+
+      // Get default account from settings (for new transactions without an account)
+      const cachedSettings = window.CacheManager ? CacheManager.getSettings() : null;
+      const defaultAccount = cachedSettings && cachedSettings.defaultAccount ? cachedSettings.defaultAccount : '';
+
+      // Determine which account to select: existing tx.account or default for new transactions
+      const accountToSelect = tx.account || defaultAccount;
+
       uniqueNames.forEach(accountName => {
         const optionEl = document.createElement('option');
         optionEl.value = accountName;
         optionEl.textContent = accountName;
-        if (accountName === tx.account) {
+        if (accountName === accountToSelect) {
           optionEl.selected = true;
         }
         accountSelect.appendChild(optionEl);
       });
+
+      // Update tx.account if we applied a default (for new transactions)
+      if (!tx.account && defaultAccount && uniqueNames.includes(defaultAccount)) {
+        tx.account = defaultAccount;
+      }
     } else {
       // NO LIQUID ASSETS FOUND - SHOW MESSAGE
       const emptyOption = document.createElement('option');
@@ -4547,14 +4559,14 @@ body.dark-mode .amount-max { background-color: #823200 !important; }
 }
 
 .transaction-description {
-  width: 500px;
+  width: 230px;
   min-width: 0;
   flex-shrink: 0;
 }
 
 .transaction-amount {
   width: 100px;
-  text-align: right;
+  text-align: left;
 }
 
 .transaction-description::placeholder,

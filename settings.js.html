@@ -104,7 +104,7 @@ function initEventListeners() {
   }, 500);
   
   // Set up form controls with autosave (excluding currency selector)
-  document.querySelectorAll('#dateFormat, #showDecimals, #showRemaining, #enableAlerts, #showCategoryTotals, #showCurrencySymbolGrid, #netWorthDefaultChart')
+  document.querySelectorAll('#dateFormat, #showDecimals, #showRemaining, #enableAlerts, #showCategoryTotals, #showCurrencySymbolGrid, #netWorthDefaultChart, #defaultAccountSelector')
     .forEach(element => {
       element.addEventListener('change', debounceAutoSave);
     });
@@ -267,6 +267,97 @@ function buildCurrencyOptions() {
 }
 
 /**
+ * Populate default account dropdown with liquid assets from Net Worth
+ */
+function populateDefaultAccountDropdown(selectEl, currentValue) {
+  if (!selectEl) return;
+
+  // Clear existing options and add "None" first
+  selectEl.innerHTML = '';
+  const noneOption = document.createElement('option');
+  noneOption.value = '';
+  noneOption.textContent = 'None';
+  selectEl.appendChild(noneOption);
+
+  // Helper function to populate options from entries
+  function populateFromEntries(entries) {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    // Filter for liquid assets from current month
+    const liquidAssets = entries.filter(entry => {
+      if (!entry.date) return false;
+      const dateParts = entry.date.split(' ');
+      const entryYear = parseInt(dateParts[1]);
+      const entryMonth = monthNames.indexOf(dateParts[0]);
+
+      return entryMonth === currentMonth &&
+             entryYear === currentYear &&
+             entry.asset === 'Liquid Assets' &&
+             entry.name &&
+             entry.name.trim() !== '' &&
+             parseFloat(entry.amount) > 0;
+    });
+
+    if (liquidAssets.length > 0) {
+      const uniqueNames = [...new Set(liquidAssets.map(asset => asset.name.trim()))].sort();
+
+      uniqueNames.forEach(accountName => {
+        const option = document.createElement('option');
+        option.value = accountName;
+        option.textContent = accountName;
+        if (accountName === currentValue) {
+          option.selected = true;
+        }
+        selectEl.appendChild(option);
+      });
+    }
+
+    // If saved value wasn't found in current accounts, add it as preserved option
+    if (currentValue && selectEl.value !== currentValue) {
+      const option = document.createElement('option');
+      option.value = currentValue;
+      option.textContent = currentValue + ' (saved)';
+      option.selected = true;
+      selectEl.appendChild(option);
+    }
+  }
+
+  // Try cache first
+  const cachedNetWorth = window.CacheManager ? CacheManager.getNetWorthWithTimestamp() : null;
+
+  if (cachedNetWorth && cachedNetWorth.entries && cachedNetWorth.entries.length > 0) {
+    populateFromEntries(cachedNetWorth.entries);
+  } else {
+    // No cache - fetch from API
+    API.getNetWorthData(
+      function(result) {
+        if (result && result.entries) {
+          // Cache the data for future use
+          if (window.CacheManager && CacheManager.setNetWorth) {
+            CacheManager.setNetWorth(result.entries);
+          }
+          populateFromEntries(result.entries);
+        }
+      },
+      function(error) {
+        console.warn('Could not fetch Net Worth data for default account dropdown:', error);
+        // If saved value exists, still show it
+        if (currentValue) {
+          const option = document.createElement('option');
+          option.value = currentValue;
+          option.textContent = currentValue + ' (saved)';
+          option.selected = true;
+          selectEl.appendChild(option);
+        }
+      }
+    );
+  }
+}
+
+/**
  * Update exchange rate field visibility based on currency selection
  */
 function updateExchangeRateVisibility() {
@@ -416,7 +507,8 @@ function applyDefaultsWithAutoLanguage() {
     exchangeRate: 1,
     showCategoryTotals: true,
     showCurrencySymbolGrid: true,
-    netWorthDefaultChart: 'allocation'
+    netWorthDefaultChart: 'allocation',
+    defaultAccount: ''
   };
   
   // Override language with auto-detection if available
@@ -529,6 +621,12 @@ function applySettingsToForm(settings) {
     netWorthDefaultChartSelect.value = mode;
   }
 
+  // Default account selector - populate and set value
+  const defaultAccountSelect = document.getElementById('defaultAccountSelector');
+  if (defaultAccountSelect) {
+    populateDefaultAccountDropdown(defaultAccountSelect, settings.defaultAccount || '');
+  }
+
   // Update exchange rate visibility
   updateExchangeRateVisibility();
 }
@@ -554,6 +652,8 @@ function applySettingsToForm(settings) {
       const showCurrencySymbolGridEl = document.getElementById('showCurrencySymbolGrid');
       const netWorthDefaultChartEl = document.getElementById('netWorthDefaultChart');
 
+      const defaultAccountEl = document.getElementById('defaultAccountSelector');
+
       const settings = {
         currencySymbol: currencyEl ? currencyEl.value : '$',
         dateFormat: dateFormatEl ? dateFormatEl.value : 'MM/DD/YYYY',
@@ -566,7 +666,8 @@ function applySettingsToForm(settings) {
         exchangeRate: exchangeRateEl ? parseFloat(exchangeRateEl.value) || 1 : 1,
         showCategoryTotals: showCategoryTotalsEl ? showCategoryTotalsEl.checked : true,
         showCurrencySymbolGrid: showCurrencySymbolGridEl ? showCurrencySymbolGridEl.checked : true,
-        netWorthDefaultChart: netWorthDefaultChartEl ? netWorthDefaultChartEl.value || 'allocation' : 'allocation'
+        netWorthDefaultChart: netWorthDefaultChartEl ? netWorthDefaultChartEl.value || 'allocation' : 'allocation',
+        defaultAccount: defaultAccountEl ? defaultAccountEl.value : ''
       };
       
       // Save sheet URL (this is still separate since it requires verification)
@@ -1056,8 +1157,16 @@ function showSpreadsheetHelp(type) {
       title: 'Display Currency',
       html: `
         <p>Converts all displayed values to a different currency using the exchange rate you set.</p>
-        <p>Example: if you budget in Argentine pesos, you can display everything in USD to see what you’re really paying.</p>
+        <p>Example: if you budget in Argentine pesos, you can display everything in USD to see what you're really paying.</p>
         <p class="help-note">Display-only. It does not change the currency or any data inside your spreadsheet.</p>
+      `
+    },
+    defaultAccount: {
+      title: 'Default Account',
+      html: `
+        <p>Pre-selects an account when adding new expenses. Choose from your liquid assets (bank accounts, wallets, etc.) tracked in Net Worth.</p>
+        <p>Set to "None" to leave the account field empty by default — you'll still be able to select an account for each expense.</p>
+        <p class="help-note">Accounts are pulled from your Liquid Assets in Net Worth for the current month.</p>
       `
     },
     connected: {
