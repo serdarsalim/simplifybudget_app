@@ -3274,6 +3274,9 @@ function showMonthDetailsPopup(month, currentYear) {
           .category-mobile {
             display: inline !important;
           }
+          .detail-account {
+            display: none !important;
+          }
         }
       </style>
       <div class="yearly-popup-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
@@ -3292,14 +3295,15 @@ function showMonthDetailsPopup(month, currentYear) {
               ${incomeTransactions
                 .sort((a, b) => new Date(a.date) - new Date(b.date))
                 .map(tx => `
-                  <div class="transaction-detail" style="display: grid; grid-template-columns: 80px 1fr 100px 100px; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid #f0f0f0;">
+                  <div class="transaction-detail" style="display: grid; grid-template-columns: 55px 160px 90px 70px 80px; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid #f0f0f0;">
                     <div class="detail-date" style="font-size: 12px; color: #666; font-weight: 500;">${tx.date.getDate()} ${monthName.substring(0, 3)}</div>
-                    <div class="detail-name" style="font-weight: 500; overflow: hidden; text-overflow: ellipsis;">${tx.description || 'Income'}</div>
+                    <div class="detail-name" style="font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${tx.description || 'Income'}</div>
                     <div class="detail-category" style="color: #2e7d32; font-size: 13px; overflow: hidden; text-overflow: ellipsis;">
                       <span class="category-desktop">${tx.category || 'Income'}</span>
                       <span class="category-mobile" style="display: none;">${getCategoryEmojiForMobile(tx.category, allCategories) || '💰'}</span>
                     </div>
                     <div class="detail-amount" style="font-weight: bold; color: #2e7d32;">+${formatCurrency(tx.amount)}</div>
+                    <div class="detail-account" style="font-size: 12px; color: #888; text-align: left; padding-right: 10px;">${tx.account || ''}</div>
                   </div>
                 `).join('')}
             </div>
@@ -3313,14 +3317,15 @@ function showMonthDetailsPopup(month, currentYear) {
               ${expenseTransactions
                 .sort((a, b) => new Date(a.date) - new Date(b.date))
                 .map(tx => `
-                  <div class="transaction-detail" style="display: grid; grid-template-columns: 80px 1fr 100px 100px; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid #f0f0f0;">
+                  <div class="transaction-detail" style="display: grid; grid-template-columns: 55px 160px 90px 70px 80px; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid #f0f0f0;">
                     <div class="detail-date" style="font-size: 12px; color: #666; font-weight: 500;">${tx.date.getDate()} ${monthName.substring(0, 3)}</div>
-                    <div class="detail-name" style="font-weight: 500; overflow: hidden; text-overflow: ellipsis;">${tx.description || 'Expense'}</div>
+                    <div class="detail-name" style="font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${tx.description || 'Expense'}</div>
                     <div class="detail-category" style="color: #666; font-size: 13px; overflow: hidden; text-overflow: ellipsis;">
                       <span class="category-desktop">${tx.category || 'Other'}</span>
                       <span class="category-mobile" style="display: none;">${getCategoryEmojiForMobile(tx.category, allCategories) || '💸'}</span>
                     </div>
                     <div class="detail-amount" style="font-weight: bold;">${formatCurrency(tx.amount)}</div>
+                    <div class="detail-account" style="font-size: 12px; color: #888; text-align: left; padding-right: 10px;">${tx.account || ''}</div>
                   </div>
                 `).join('')}
             </div>
