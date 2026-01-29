@@ -1690,22 +1690,78 @@ if (window.CacheManager) {
     if (gridContainer) {
       gridContainer.addEventListener('click', function(e) {
         if (_isClosingModal) return;
-        
+
         const cell = e.target.closest('.grid-cell[data-day][data-category]');
         if (cell) {
           e.stopPropagation();
-          
+
           const day = cell.getAttribute('data-day');
           const category = cell.getAttribute('data-category');
-          
+
           _isOpeningModal = true;
           openTransactionModal(day, category);
-          
+
           setTimeout(() => {
             _isOpeningModal = false;
           }, 300);
         }
       });
+
+      // Desktop tooltip for cell hover (only on devices with hover capability)
+      if (window.matchMedia('(hover: hover)').matches) {
+        let tooltip = document.querySelector('.cell-tooltip');
+        if (!tooltip) {
+          tooltip = document.createElement('div');
+          tooltip.className = 'cell-tooltip';
+          document.body.appendChild(tooltip);
+        }
+
+        gridContainer.addEventListener('mouseover', function(e) {
+          const cell = e.target.closest('.grid-cell[data-day][data-category]');
+          if (cell) {
+            const day = parseInt(cell.getAttribute('data-day'));
+            const categoryId = cell.getAttribute('data-category');
+            const category = _categories.find(c => c.id === categoryId);
+
+            if (category) {
+              const today = new Date();
+              const isToday = day === today.getDate() &&
+                              _currentMonth === today.getMonth() &&
+                              _currentYear === today.getFullYear();
+
+              const emojiRegex = /[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu;
+              const categoryText = category.name.replace(emojiRegex, '').trim();
+
+              if (isToday) {
+                tooltip.textContent = `Today · ${categoryText}`;
+                tooltip.classList.add('today-tooltip');
+              } else {
+                const dateObj = new Date(_currentYear, _currentMonth, day);
+                const dayName = dateObj.toLocaleString('en-US', { weekday: 'short' });
+                tooltip.textContent = `${dayName} ${day} · ${categoryText}`;
+                tooltip.classList.remove('today-tooltip');
+              }
+              tooltip.classList.add('visible');
+            }
+          }
+        });
+
+        gridContainer.addEventListener('mousemove', function(e) {
+          const cell = e.target.closest('.grid-cell[data-day][data-category]');
+          if (cell && tooltip.classList.contains('visible')) {
+            tooltip.style.left = (e.clientX + 12) + 'px';
+            tooltip.style.top = (e.clientY + 12) + 'px';
+          }
+        });
+
+        gridContainer.addEventListener('mouseout', function(e) {
+          const cell = e.target.closest('.grid-cell[data-day][data-category]');
+          const relatedCell = e.relatedTarget?.closest?.('.grid-cell[data-day][data-category]');
+          if (cell && !relatedCell) {
+            tooltip.classList.remove('visible');
+          }
+        });
+      }
     }
     
     // Remove existing event listeners first to prevent duplicates
@@ -3390,9 +3446,7 @@ function refresh(forceServerRefresh) {
   background-color: #ffffff;
 }
 
-.day-row:hover {
-  background-color: rgba(214, 241, 245, 0.65);
-}
+/* Row hover disabled - tooltip shows date/category instead */
 
 
 .weekend-row .date-cell {
@@ -3402,9 +3456,7 @@ function refresh(forceServerRefresh) {
   background-color: rgba(211, 236, 243, 0.3) !important;
 }
 
-.weekend-row:hover {
-  background-color: rgba(211, 236, 243, 0.55) !important;
-}
+/* Weekend row hover disabled */
 
 /* Apply highlighting only to the cell */
 .today-cell {
@@ -3423,9 +3475,7 @@ function refresh(forceServerRefresh) {
   color: white !important;
 }
 
-.today-row  {
-  background-color: rgba(80, 205, 172, 0.18) !important;
-}
+/* Today row tint removed - date cell highlight is sufficient */
 
 .monthly-grid td {
   padding: 2px;
@@ -3439,7 +3489,7 @@ function refresh(forceServerRefresh) {
   position: sticky !important;
   left: 0 !important;
   z-index: 100 !important;
-  background-color: #e9f9fb !important;
+  background-color: #f3feff !important;
 }
 
 .date-container {
@@ -4523,9 +4573,7 @@ body.dark-mode .today-row.today-row .date-cell .day-name {
   color: white !important;
 }
 
-body.dark-mode .today-row.today-row {
-  background-color: rgba(8, 145, 178, 0.12) !important;
-}
+/* Dark mode today row tint removed */
 
 body.dark-mode .day-name,
 body.dark-mode .day-number {
@@ -4536,17 +4584,13 @@ body.dark-mode .day-row {
   background-color: #252525;
 }
 
-body.dark-mode .day-row:hover {
-  background-color: rgba(255, 255, 255, 0.05);
-}
+/* Dark mode row hover disabled */
 
 body.dark-mode .weekend-row {
   background-color: #0a2c47 !important;
 }
 
-body.dark-mode .weekend-row:hover {
-  background-color: rgba(255, 249, 219, 0.1) !important;
-}
+/* Dark mode weekend row hover disabled */
 
 body.dark-mode .total-cell {
   background-color: rgba(244, 67, 54, 0.1);
@@ -4929,15 +4973,36 @@ body.dark-mode .weekend-row {
   background-color: rgba(231, 243, 255, 0.08) !important;
 }
 
-body.dark-mode .weekend-row:hover {
-  background-color: rgba(231, 243, 255, 0.12) !important;
-}
+/* Dark mode weekend row hover disabled */
 
 /* Mobile adjustments */
 @media (max-width: 768px) {
-  
+
   .recurring-icon i {
     font-size: 16px;
   }
+}
+
+/* Cell tooltip for desktop */
+.cell-tooltip {
+  position: fixed;
+  background: rgba(30, 41, 59, 0.95);
+  color: white;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  pointer-events: none;
+  z-index: 10000;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.cell-tooltip.visible {
+  opacity: 1;
+}
+.cell-tooltip.today-tooltip {
+  background: #0891b2;
 }
 </style>
