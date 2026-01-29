@@ -1928,10 +1928,9 @@ document.addEventListener("click", function(e) {
         backdrop.classList.toggle("sb-visible");
       }
 
-      // Update toggle icon
-      mobileToggle.innerHTML = sidebar.classList.contains("sb-open")
-        ? '<i class="material-icons">close</i>'
-        : '<i class="material-icons">menu</i>';
+      // Keep menu icon even when open (no close "X")
+      mobileToggle.innerHTML = '<i class="material-icons">menu</i>';
+      mobileToggle.style.display = sidebar.classList.contains("sb-open") ? "none" : "";
 
       // Lock/unlock body scroll
       document.body.style.overflow = sidebar.classList.contains("sb-open")
@@ -1975,6 +1974,8 @@ document.addEventListener("click", function(e) {
           document.body.style.overflow = "";
           if (mobileToggle)
             mobileToggle.innerHTML = '<i class="material-icons">menu</i>';
+          if (mobileToggle)
+            mobileToggle.style.display = "";
         }
       });
 
@@ -2033,6 +2034,8 @@ document.addEventListener("click", function(e) {
         );
         if (mobileToggle)
           mobileToggle.innerHTML = '<i class="material-icons">menu</i>';
+        if (mobileToggle)
+          mobileToggle.style.display = "";
       }
     }, 250)
   );
@@ -2052,6 +2055,8 @@ document.addEventListener("click", function(e) {
         );
         if (mobileToggle)
           mobileToggle.innerHTML = '<i class="material-icons">menu</i>';
+        if (mobileToggle)
+          mobileToggle.style.display = "";
       }
     });
   }
