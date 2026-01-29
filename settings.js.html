@@ -676,6 +676,8 @@ function applySettingsToForm(settings) {
       
       // FIX: Use SimBudget.Settings.saveAll instead of calling API directly
       if (window.SimBudget && SimBudget.Settings) {
+        // Update cache immediately so other components see the change right away
+        CacheManager.setSettings(settings);
         SimBudget.Settings.saveAll(settings);
         
         // Handle sheet URL separately

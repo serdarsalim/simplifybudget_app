@@ -2207,7 +2207,7 @@ function createEmptyTransaction(day, categoryId) {
     category: categoryId,
     amount: 0,
     description: '',
-    account: 'Other',
+    account: '',
     notes: '',
     isNew: true  // Mark as new
   };
@@ -2324,7 +2324,7 @@ function createNewYearlyTransaction(month, categoryId) {
     category: categoryId,
     amount: 0,
     description: '',
-    account: 'Other',
+    account: '',
     notes: '',
     isNew: true
   };
@@ -2429,28 +2429,26 @@ function createTransactionItem(tx) {
       const defaultAccount = cachedSettings && cachedSettings.defaultAccount ? cachedSettings.defaultAccount : '';
 
       // Determine which account to select: existing tx.account or default for new transactions
-      const accountToSelect = tx.account || defaultAccount;
+      const accountFromTx = tx.account && tx.account !== 'Other' ? tx.account : '';
+      const accountToSelect = accountFromTx || defaultAccount;
 
       uniqueNames.forEach(accountName => {
         const optionEl = document.createElement('option');
         optionEl.value = accountName;
         optionEl.textContent = accountName;
-        if (accountName === accountToSelect) {
-          optionEl.selected = true;
-        }
         accountSelect.appendChild(optionEl);
       });
 
-      // Update tx.account if we applied a default (for new transactions)
-      if (!tx.account && defaultAccount && uniqueNames.includes(defaultAccount)) {
-        tx.account = defaultAccount;
+      // Set the selected value after all options are added
+      if (accountToSelect && uniqueNames.includes(accountToSelect)) {
+        accountSelect.value = accountToSelect;
+        tx.account = accountToSelect;
       }
     } else {
       // NO LIQUID ASSETS FOUND - SHOW MESSAGE
       const emptyOption = document.createElement('option');
       emptyOption.value = '';
-      emptyOption.textContent = 'No accounts for this month';
-      emptyOption.disabled = true;
+      emptyOption.textContent = '';
       accountSelect.appendChild(emptyOption);
     }
   } else {
