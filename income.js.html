@@ -2327,17 +2327,52 @@ function saveEditedRecurringIncome(originalItem, overlay) {
       Utils.showToast('Recurring income added', 'success');
     }
 
-    // Update cache
-    if (window.CacheManager && typeof CacheManager.setRecurringWithTimestamp === 'function') {
-      const recurringCache = CacheManager.getRecurringWithTimestamp();
-      if (recurringCache && recurringCache.entries) {
-        CacheManager.setRecurringWithTimestamp([newItem, ...recurringCache.entries], new Date().toISOString());
-      }
-    }
+    // Save to server using API.saveBatchRecurring
+    if (window.API && typeof API.saveBatchRecurring === 'function') {
+      // Prepare item for saving - ensure proper date formatting
+      const itemToSave = {
+        id: newItem.id,
+        name: newItem.name,
+        category: newItem.category,
+        type: newItem.type,
+        frequency: newItem.frequency,
+        amount: newItem.amount,
+        account: newItem.account,
+        notes: newItem.notes || '',
+        startDate: new Date(newItem.startDate).toISOString(),
+        endDate: newItem.endDate ? new Date(newItem.endDate).toISOString() : ''
+      };
 
-    // Save to server
-    if (window.RecurringManager && typeof RecurringManager.saveItem === 'function') {
-      RecurringManager.saveItem(newItem);
+      API.saveBatchRecurring([itemToSave],
+        function(result) {
+          if (result && result.success) {
+            // Update cache after successful save
+            if (window.CacheManager && typeof CacheManager.setRecurringWithTimestamp === 'function') {
+              const recurringCache = CacheManager.getRecurringWithTimestamp();
+              if (recurringCache && recurringCache.entries) {
+                CacheManager.setRecurringWithTimestamp([newItem, ...recurringCache.entries], new Date().toISOString());
+              }
+            }
+
+            // Dispatch event for other components
+            document.dispatchEvent(new CustomEvent('recurring-saved', {
+              detail: { itemId: newItem.id, itemName: newItem.name, timestamp: Date.now() }
+            }));
+          } else {
+            if (window.Utils && Utils.showToast) {
+              Utils.showToast('Error saving recurring income', 'error');
+            }
+          }
+        },
+        function(error) {
+          console.error('Error saving recurring income:', error);
+          if (window.Utils && Utils.showToast) {
+            Utils.showToast('Error saving: ' + error, 'error');
+          }
+        }
+      );
+    } else {
+      console.error('API.saveBatchRecurring not available');
     }
   }
 
