@@ -435,28 +435,36 @@ function clearNetWorthRow(identifier) {
 }
 
 /**
- * Get net worth data with timestamp (enhanced version)
+ * Get net worth data with timestamp
  * @return {Object} Result with entries and timestamp for caching
  */
 function getNetWorthWithTimestamp() {
   try {
-    
-    // Get the data
     const result = getNetWorthData();
-    
+
     if (!result.success) {
       return result;
     }
-    
-    // Ensure timestamp is included
+
+    // Get timestamp from Dontedit J6
     if (!result.timestamp) {
-      result.timestamp = getNetWorthTimestamp();
+      const sheet = getBudgetSheet("Dontedit");
+      if (sheet) {
+        const value = sheet.getRange("J6").getValue();
+        if (value instanceof Date) {
+          result.timestamp = value.toISOString();
+        } else if (value) {
+          result.timestamp = value.toString();
+        } else {
+          result.timestamp = new Date().toISOString();
+        }
+      } else {
+        result.timestamp = new Date().toISOString();
+      }
     }
-    
- 
-    
+
     return result;
-    
+
   } catch (error) {
     console.log("Error in getNetWorthWithTimestamp: " + error.toString());
     return {
