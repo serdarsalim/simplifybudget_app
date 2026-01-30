@@ -1002,14 +1002,14 @@ var RecurringManager = (function() {
                 <span data-translate="add">Add</span>
                 <i class="material-icons">repeat</i>
               </button>
-              <div class="rec-filter-buttons">
-                <button class="rec-filter-btn active" id="activeFilterBtn">
+              <div class="rec-segmented-control">
+                <button class="rec-segment active" id="activeFilterBtn">
                   <span data-translate="active">Active</span>
-                  <span class="rec-filter-count" id="activeCount"></span>
+                  <span class="rec-segment-count" id="activeCount"></span>
                 </button>
-                <button class="rec-filter-btn" id="expiredFilterBtn">
+                <button class="rec-segment" id="expiredFilterBtn">
                   <span>All</span>
-                  <span class="rec-filter-count" id="expiredCount"></span>
+                  <span class="rec-segment-count" id="expiredCount"></span>
                 </button>
               </div>
             </div>
@@ -3871,42 +3871,47 @@ body.dark-mode .rec-confirm-btn.rec-delete-btn:hover {
   margin-bottom: 8px;
 }
 
-.rec-filter-btn {
+.rec-segmented-control {
+  display: flex;
   background-color: #eef2f6;
-  border: 1px solid #d7dee6;
   border-radius: 999px;
-  padding: 8px 14px;
-  font-size: 12px;
+  padding: 4px;
+  gap: 0;
+}
+
+.rec-segment {
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
-}
-
-.rec-filter-btn.active {
-  background-color: #2f3a4a;
-  color: white;
-  border-color: #2f3a4a;
-  box-shadow: 0 8px 18px rgba(47, 58, 74, 0.22);
-}
-
-.rec-filter-buttons {
+  color: #555;
   display: flex;
-  gap: 8px;
   align-items: center;
+  gap: 6px;
 }
 
-.rec-filter-count {
+.rec-segment:hover:not(.active) {
+  color: #333;
+}
+
+.rec-segment.active {
+  background-color: #6b7c8a;
+  color: white;
+  box-shadow: 0 2px 6px rgba(107, 124, 138, 0.2);
+}
+
+.rec-segment-count {
   font-weight: 600;
-  background-color: rgba(255, 255, 255, 0.2);
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  min-width: 16px;
-  text-align: center;
+  font-size: 12px;
+  opacity: 0.7;
 }
 
-.rec-filter-btn.active .rec-filter-count {
-  background-color: rgba(255, 255, 255, 0.3);
+.rec-segment.active .rec-segment-count {
+  opacity: 0.85;
 }
 
 /* Controls row layout */
@@ -4254,10 +4259,10 @@ body.dark-mode .rec-confirm-btn.rec-delete-btn:hover {
     font-size: 16px;
   }
   
-  /* Filter adjustments */
-  .rec-filter-btn {
-    padding: 6px 8px;
-    font-size: 11px;
+  /* Segmented control adjustments */
+  .rec-segment {
+    padding: 6px 12px;
+    font-size: 12px;
   }
   
   /* Show abbreviated text on mobile for space */
@@ -4375,9 +4380,20 @@ body.dark-mode .rec-category-emoji {
   text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
 }
 
-body.dark-mode .rec-filter-btn.active {
+body.dark-mode .rec-segmented-control {
+  background-color: #2a2a2a;
+}
+
+body.dark-mode .rec-segment {
+  color: #aaa;
+}
+
+body.dark-mode .rec-segment:hover:not(.active) {
+  color: #ddd;
+}
+
+body.dark-mode .rec-segment.active {
   background-color: #3b4758;
-  border-color: #3b4758;
   color: #e8edf2;
 }
 
