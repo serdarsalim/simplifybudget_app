@@ -2416,6 +2416,7 @@ function restoreNextPaymentColumn() {
                 const endDate = recurringItem.endDate ? new Date(recurringItem.endDate) : null;
                 const frequency = (recurringItem.frequency || 'Monthly').toLowerCase();
                 const now = new Date();
+                const originalDay = startDate.getDate();
 
                 // Create a date iterator starting from the start date
                 const iteratorDate = new Date(startDate);
@@ -2453,8 +2454,10 @@ function restoreNextPaymentColumn() {
                     });
                   }
 
-                  // Move to next month
-                  iteratorDate.setMonth(iteratorDate.getMonth() + 1);
+                  // Move to next month, clamping to month end if needed (e.g., 31 -> 30/28)
+                  iteratorDate.setMonth(iteratorDate.getMonth() + 1, 1);
+                  const lastDay = new Date(iteratorDate.getFullYear(), iteratorDate.getMonth() + 1, 0).getDate();
+                  iteratorDate.setDate(Math.min(originalDay, lastDay));
                   isFirstPayment = false;
                 }
 

@@ -403,7 +403,7 @@ function saveToPersistentStorage(key, data, metadata) {
       if (month !== undefined && year !== undefined) {
         return unifiedCache.expenses.filter(expense => {
           if (!expense.date) return false;
-          const expenseDate = expense.date instanceof Date ? expense.date : new Date(expense.date);
+          const expenseDate = parseExpenseDate(expense.date);
           if (isNaN(expenseDate.getTime())) return false;
           return expenseDate.getMonth() === month && expenseDate.getFullYear() === year;
         });
@@ -413,6 +413,31 @@ function saveToPersistentStorage(key, data, metadata) {
       }
     }
     return null;
+  }
+
+  // Parse dates stored as either ISO strings or "DD MMM YYYY"
+  function parseExpenseDate(value) {
+    if (!value) return new Date('');
+    if (value instanceof Date) return value;
+    const dateStr = value.toString().trim();
+    if (dateStr.includes('T') && (dateStr.includes('Z') || dateStr.includes('+'))) {
+      return new Date(dateStr);
+    }
+    const parts = dateStr.split(/\s+/);
+    if (parts.length === 3) {
+      const [dayStr, monthStr, yearStr] = parts;
+      const day = parseInt(dayStr, 10);
+      const year = parseInt(yearStr, 10);
+      const monthMap = {
+        Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
+        Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11
+      };
+      const month = monthMap[monthStr];
+      if (!isNaN(day) && !isNaN(year) && month !== undefined) {
+        return new Date(year, month, day, 12, 0, 0, 0);
+      }
+    }
+    return new Date(dateStr);
   }
   
     /**
@@ -747,11 +772,13 @@ function setBudgetData(data) {
   function getNextPaymentDate(item, month, year) {
     if (!item.startDate) return '';
     
-    const start = new Date(item.startDate);
+    const start = parseExpenseDate(item.startDate);
     const frequency = (item.frequency || 'Monthly').toLowerCase();
     
     if (frequency.includes('monthly')) {
-      const nextDate = new Date(year, month, start.getDate());
+      const day = start.getDate();
+      const lastDay = new Date(year, month + 1, 0).getDate();
+      const nextDate = new Date(year, month, Math.min(day, lastDay));
       return nextDate.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
     }
     
