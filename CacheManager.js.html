@@ -672,6 +672,64 @@ function setBudgetData(data) {
       category: tx.category || 'Uncategorized',
       id: tx.transactionId || `sub-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`
     }));
+
+    // If current month is missing recurring items, add from recurring cache (current month only)
+    const now = new Date();
+    const isCurrentMonthForSubscriptions = (month === now.getMonth() && year === now.getFullYear());
+    if (isCurrentMonthForSubscriptions) {
+      const recurringCache = get('recurring_with_timestamp');
+      if (recurringCache && Array.isArray(recurringCache.entries)) {
+        const existingIds = new Set(subscriptionsThisMonth.map(item => String(item.id)));
+        const monthStart = new Date(year, month, 1);
+        const monthEnd = new Date(year, month + 1, 0, 23, 59, 59, 999);
+
+        recurringCache.entries.forEach(item => {
+          if (!item) return;
+          if (item.category && item.category.toLowerCase().includes('income')) return;
+
+          const start = parseExpenseDate(item.startDate);
+          if (isNaN(start.getTime())) return;
+          const end = item.endDate ? parseExpenseDate(item.endDate) : null;
+          if (end && end < monthStart) return;
+          if (start > monthEnd) return;
+
+          const frequency = (item.frequency || 'Monthly').toLowerCase();
+          const monthsSinceStart = (year - start.getFullYear()) * 12 + (month - start.getMonth());
+          let occursThisMonth = false;
+
+          if (frequency.includes('monthly')) {
+            occursThisMonth = monthsSinceStart >= 0;
+          } else if (frequency.includes('quarterly')) {
+            occursThisMonth = monthsSinceStart >= 0 && monthsSinceStart % 3 === 0;
+          } else if (frequency.includes('yearly') || frequency.includes('annual')) {
+            occursThisMonth = monthsSinceStart >= 0 && month === start.getMonth();
+          } else {
+            occursThisMonth = monthsSinceStart >= 0;
+          }
+
+          if (!occursThisMonth) return;
+
+          const day = start.getDate();
+          const lastDay = new Date(year, month + 1, 0).getDate();
+          const paymentDate = new Date(year, month, Math.min(day, lastDay));
+          if (end && paymentDate > end) return;
+
+          const id = item.id || item.transactionId || item.name;
+          if (existingIds.has(String(id))) return;
+
+          subscriptionsThisMonth.push({
+            name: item.name || 'Unnamed Subscription',
+            amount: Math.abs(item.amount || 0),
+            frequency: item.frequency || 'Monthly',
+            startDate: paymentDate,
+            category: item.category || 'Uncategorized',
+            id: id
+          });
+
+          existingIds.add(String(id));
+        });
+      }
+    }
     
     // Calculate left to spend (never negative)
         // FIND line 446 (around "Calculate left to spend"):
