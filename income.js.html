@@ -1234,104 +1234,128 @@ function createIncomeRow(item, isRecurringView = false) {
   }
   
   /**
-   * Show edit popup for recurring income
+   * Show edit popup for recurring income - NEW 2-COLUMN GRID DESIGN
    */
   function showEditRecurringIncomePopup(item) {
     // Nuclear cleanup first
     removeAllOverlays();
-    
+
     // Always reload settings before editing to get current currency
     loadSettings();
-    
+
+    // Hide mobile sidebar toggle
+    const mobileToggle = document.getElementById('mobileSidebarToggle');
+    if (mobileToggle) mobileToggle.style.display = 'none';
+
     // Create popup overlay
     const overlay = document.createElement('div');
-    overlay.className = 'rec-add-overlay';
-    
+    overlay.className = 'inc-add-overlay';
+
     // Create popup
     const popup = document.createElement('div');
-    popup.className = 'rec-add-popup';
-    
+    popup.className = 'inc-add-popup inc-popup-grid';
+
     // Format dates for input fields
-    const startDateValue = item.originalRecurringData.startDate ? 
+    const startDateValue = item.originalRecurringData.startDate ?
       new Date(item.originalRecurringData.startDate).toISOString().split('T')[0] : '';
-    const endDateValue = item.originalRecurringData.endDate ? 
+    const endDateValue = item.originalRecurringData.endDate ?
       new Date(item.originalRecurringData.endDate).toISOString().split('T')[0] : '';
-    
+
+    // Check if notes exist to show/hide notes area
+    const hasNotes = item.notes && item.notes.trim() !== '';
+
+    // Hidden category field
+    const hiddenCategory = `<input type="hidden" id="editCategory" value="Income 💵">`;
+
     popup.innerHTML = `
-      <div class="rec-add-header">
+      <div class="inc-popup-header">
         <h3 data-translate="edit_recurring_income">Edit Recurring Income</h3>
+        <button class="inc-popup-close" type="button" aria-label="Close">×</button>
       </div>
-      <div class="rec-add-body">
-        <div class="rec-add-form-wrapper">
-          <div class="rec-add-form-column">
-            <div class="rec-add-grid">
-              <div class="rec-add-row">
-                <label data-translate="name_label">Name *</label>
-                <input type="text" id="editName" class="rec-add-input" placeholder="Income name" value="${item.name}" required>
-              </div>
-              <div class="rec-add-row">
-                <label data-translate="amount_label">Amount *</label>
-                <div class="rec-add-amount-wrapper">
-                  <span class="rec-add-currency">${_currencySymbol}</span>
-                  <input type="number" id="editAmount" class="rec-add-input rec-add-amount" 
-                    placeholder="0.00" step="1" min="0" value="${item.amount}" inputmode="decimal" required>
-                </div>
-              </div>
-              <div class="rec-add-row" style="display: none;">
-                <label data-translate="category_label">Category</label>
-                <select id="editCategory" class="rec-add-input">
-                  <option value="Income 💵" selected>Income 💵</option>
-                </select>
-              </div>
-              <div class="rec-add-row">
-                <label data-translate="start_date">Start Date *</label>
-                <input type="date" id="editStartDate" class="rec-add-input" value="${startDateValue}" required>
-              </div>
-              <div class="rec-add-row">
-                <label data-translate="end_date">End Date</label>
-                <input type="date" id="editEndDate" class="rec-add-input" value="${endDateValue}">
-              </div>
-              <div class="rec-add-row">
-                <label data-translate="frequency">Frequency</label>
-                <select id="editFrequency" class="rec-add-input">
-                  <option value="Monthly" ${item.frequency === 'Monthly' ? 'selected' : ''}>${Utils.translateCategory('monthly')}</option>
-                  <option value="Quarterly" ${item.frequency === 'Quarterly' ? 'selected' : ''}>${Utils.translateCategory('quarterly')}</option>
-                  <option value="Yearly" ${item.frequency === 'Yearly' ? 'selected' : ''}>${Utils.translateCategory('yearly')}</option>
-                </select>
-              </div>
-              <div class="rec-add-row">
-                <label data-translate="account">Account</label>
-                ${buildAccountField(item.account || '', 'editAccount', 'rec-add-input')}
-              </div>
-              <div class="rec-add-row">
-                <label data-translate="source">Source</label>
-                <input type="text" id="editSource" class="rec-add-input" placeholder="Income source" value="${item.source || ''}">
-              </div>
+      <div class="inc-popup-body">
+        ${hiddenCategory}
+        <!-- 2 Column Grid -->
+        <div class="inc-grid">
+          <div class="inc-grid-item">
+            <label data-translate="name_label">Name</label>
+            <input type="text" id="editName" class="inc-input" placeholder="Income name" value="${item.name}" required>
+          </div>
+          <div class="inc-grid-item">
+            <label data-translate="amount_label">Amount</label>
+            <div class="inc-input-amount">
+              <span class="inc-currency">${_currencySymbol}</span>
+              <input type="number" id="editAmount" class="inc-input" placeholder="0.00" step="1" min="0" value="${item.amount}" inputmode="decimal" required>
             </div>
           </div>
-          <div class="rec-add-notes-column">
-            <div class="rec-add-row rec-add-notes-row">
-              <label data-translate="notes_label">Notes</label>
-              <textarea id="editNotes" class="rec-add-input rec-add-textarea" placeholder="Additional notes...">${item.notes || ''}</textarea>
+          <div class="inc-grid-item">
+            <label data-translate="start_date">Start Date</label>
+            <input type="date" id="editStartDate" class="inc-input" value="${startDateValue}" required>
+          </div>
+          <div class="inc-grid-item">
+            <label data-translate="account">Account</label>
+            ${buildAccountField(item.account || '', 'editAccount', 'inc-input')}
+          </div>
+          <div class="inc-grid-item">
+            <label data-translate="source">Source</label>
+            <input type="text" id="editSource" class="inc-input" placeholder="Company name" value="${item.source || ''}">
+          </div>
+          <div class="inc-grid-item inc-notes-item">
+            <button type="button" class="inc-add-note-btn" id="editRecNotesToggleBtn">${hasNotes ? '− Hide Note' : '+ Add Note'}</button>
+          </div>
+        </div>
+
+        <!-- Notes textarea (shown if notes exist) -->
+        <div class="inc-notes-area" id="editRecNotesRow" style="display: ${hasNotes ? 'block' : 'none'};">
+          <textarea id="editNotes" class="inc-input inc-textarea" placeholder="Additional notes...">${item.notes || ''}</textarea>
+        </div>
+
+        <!-- Recurring fields (always shown for recurring) -->
+        <div class="inc-recurring-fields" style="display: block;">
+          <div class="inc-grid">
+            <div class="inc-grid-item">
+              <label data-translate="frequency">Frequency</label>
+              <select id="editFrequency" class="inc-input">
+                <option value="Monthly" ${item.frequency === 'Monthly' ? 'selected' : ''}>Monthly</option>
+                <option value="Quarterly" ${item.frequency === 'Quarterly' ? 'selected' : ''}>Quarterly</option>
+                <option value="Yearly" ${item.frequency === 'Yearly' ? 'selected' : ''}>Yearly</option>
+              </select>
+            </div>
+            <div class="inc-grid-item">
+              <label data-translate="end_date">End Date</label>
+              <input type="${endDateValue ? 'date' : 'text'}" id="editEndDate" class="inc-input" ${endDateValue ? `value="${endDateValue}"` : 'placeholder="mm/dd/yyyy"'} onfocus="this.type='date'" onblur="if(!this.value)this.type='text'">
             </div>
           </div>
         </div>
       </div>
-      <div class="rec-add-actions">
-        <button class="rec-add-btn rec-add-cancel-btn" type="button" data-translate="cancel_button">Cancel</button>
-        <button class="rec-add-btn rec-add-delete-btn" type="button" style="background-color: #f44336; color: white;" data-translate="delete_button">Delete</button>
-        <button class="rec-add-btn rec-add-save-btn" type="button" data-translate="save_button">Save</button>
+      <div class="inc-popup-footer">
+        <button class="inc-btn-delete" type="button" data-translate="delete_button">Delete</button>
+        <button class="inc-btn-cancel" type="button" data-translate="cancel_button">Cancel</button>
+        <button class="inc-btn-save" type="button" data-translate="save_button">Save</button>
       </div>
     `;
-    
+
     overlay.appendChild(popup);
     document.body.appendChild(overlay);
-    
+
     // Apply translations to the dynamically created modal
     if (window.SimBudget && SimBudget.applyTranslations) {
       SimBudget.applyTranslations();
     }
-    
+
+    // Notes toggle
+    const notesToggle = document.getElementById('editRecNotesToggleBtn');
+    const notesRow = document.getElementById('editRecNotesRow');
+    notesToggle.addEventListener('click', function() {
+      if (notesRow.style.display === 'none') {
+        notesRow.style.display = 'block';
+        this.textContent = '− Hide Note';
+        document.getElementById('editNotes').focus();
+      } else {
+        notesRow.style.display = 'none';
+        this.textContent = '+ Add Note';
+      }
+    });
+
     // Focus the name input
     setTimeout(() => {
       const nameInput = document.getElementById('editName');
@@ -1340,36 +1364,38 @@ function createIncomeRow(item, isRecurringView = false) {
         nameInput.select();
       }
     }, 100);
-    
+
+    // Close button
+    popup.querySelector('.inc-popup-close').addEventListener('click', removeAllOverlays);
+
     // Handle button clicks
-    const saveBtn = popup.querySelector('.rec-add-save-btn');
-    const cancelBtn = popup.querySelector('.rec-add-cancel-btn');
-    const deleteBtn = popup.querySelector('.rec-add-delete-btn');
-    
+    const saveBtn = popup.querySelector('.inc-btn-save');
+    const cancelBtn = popup.querySelector('.inc-btn-cancel');
+    const deleteBtn = popup.querySelector('.inc-btn-delete');
+
     saveBtn.addEventListener('click', function() {
       saveEditedRecurringIncome(item, overlay);
     });
-    
+
     deleteBtn.addEventListener('click', function() {
       removeAllOverlays();
       deleteRecurringIncomeItem(item.id);
     });
-    
+
     cancelBtn.addEventListener('click', function() {
       removeAllOverlays();
     });
-    
+
     // Handle keyboard events
     popup.addEventListener('keydown', function(e) {
       if (e.key === 'Enter' && !e.target.matches('textarea')) {
         e.preventDefault();
         saveBtn.click();
       } else if (e.key === 'Escape') {
-        e.preventDefault();
         removeAllOverlays();
       }
     });
-    
+
     // Handle overlay click (close on outside click)
     overlay.addEventListener('click', function(e) {
       if (e.target === overlay) {
@@ -1582,125 +1608,155 @@ function saveEditedRecurringIncome(originalItem, overlay) {
 }
 
   /**
-   * Show edit popup for normal (one-time) income
-   * FAILSAFE: Based on recurring popup but simplified
+   * Show edit popup for normal (one-time) income - NEW 2-COLUMN GRID DESIGN
    */
   function showEditNormalIncomePopup(item) {
     try {
       // Nuclear cleanup first
       removeAllOverlays();
-      
+
       // Always reload settings before editing to get current currency
       loadSettings();
-      
+
+      // Hide mobile sidebar toggle
+      const mobileToggle = document.getElementById('mobileSidebarToggle');
+      if (mobileToggle) mobileToggle.style.display = 'none';
+
       // Create popup overlay
       const overlay = document.createElement('div');
-      overlay.className = 'rec-add-overlay';
-      
+      overlay.className = 'inc-add-overlay';
+
       // Create popup
       const popup = document.createElement('div');
-      popup.className = 'rec-add-popup';
-      
+      popup.className = 'inc-add-popup inc-popup-grid';
+
       // Format date for input field
-      const dateValue = item.date && item.date instanceof Date ? 
+      const dateValue = item.date && item.date instanceof Date ?
         item.date.toISOString().split('T')[0] : '';
-      
+
+      // Check if notes exist to show/hide notes area
+      const hasNotes = item.notes && item.notes.trim() !== '';
+
       popup.innerHTML = `
-        <div class="rec-add-header">
+        <div class="inc-popup-header">
           <h3 data-translate="edit_income">Edit Income</h3>
+          <button class="inc-popup-close" type="button" aria-label="Close">×</button>
         </div>
-        <div class="inc-add-body">
-          <div class="rec-add-form-wrapper">
-            <div class="inc-add-fields-column">
-              <div class="inc-add-grid">
-                <div class="inc-add-row">
-                  <label data-translate="name_label">Name *</label>
-                  <input type="text" id="editNormalName" class="inc-add-input" placeholder="Income name" value="${item.name}" required>
-                </div>
-                <div class="inc-add-row">
-                  <label data-translate="amount_label">Amount *</label>
-                  <div class="inc-add-amount-wrapper">
-                    <span class="inc-add-currency">${_currencySymbol}</span>
-                    <input type="number" id="editNormalAmount" class="inc-add-input inc-add-amount" 
-                      placeholder="0.00" step="1" min="0" value="${item.amount}" inputmode="decimal" required>
-                  </div>
-                </div>
-                <div class="inc-add-row">
-                  <label data-translate="date">Date *</label>
-                  <input type="date" id="editNormalDate" class="inc-add-input" value="${dateValue}" required>
-                </div>
-                <div class="inc-add-row">
-                  <label data-translate="account">Account</label>
-                  ${buildAccountField(item.account || '', 'editNormalAccount', 'inc-add-input')}
-                </div>
-                <div class="inc-add-row">
-                  <label data-translate="source">Source</label>
-                  <input type="text" id="editNormalSource" class="inc-add-input" placeholder="Income source" value="${item.source || ''}">
-                </div>
+        <div class="inc-popup-body">
+          <!-- 2 Column Grid -->
+          <div class="inc-grid">
+            <div class="inc-grid-item">
+              <label data-translate="name_label">Name</label>
+              <input type="text" id="editNormalName" class="inc-input" placeholder="Income name" value="${item.name}" required>
+            </div>
+            <div class="inc-grid-item">
+              <label data-translate="amount_label">Amount</label>
+              <div class="inc-input-amount">
+                <span class="inc-currency">${_currencySymbol}</span>
+                <input type="number" id="editNormalAmount" class="inc-input" placeholder="0.00" step="1" min="0" value="${item.amount}" inputmode="decimal" required>
               </div>
             </div>
-            <div class="inc-add-notes-column">
-              <div class="inc-add-notes-row">
-                <label data-translate="notes_label">Notes</label>
-                <textarea id="editNormalNotes" class="inc-add-input inc-add-textarea" placeholder="Additional notes...">${item.notes || ''}</textarea>
-              </div>
+            <div class="inc-grid-item">
+              <label data-translate="date">Date</label>
+              <input type="date" id="editNormalDate" class="inc-input" value="${dateValue}" required>
+            </div>
+            <div class="inc-grid-item">
+              <label data-translate="account">Account</label>
+              ${buildAccountField(item.account || '', 'editNormalAccount', 'inc-input')}
+            </div>
+            <div class="inc-grid-item">
+              <label data-translate="source">Source</label>
+              <input type="text" id="editNormalSource" class="inc-input" placeholder="Company name" value="${item.source || ''}">
+            </div>
+            <div class="inc-grid-item inc-notes-item">
+              <button type="button" class="inc-add-note-btn" id="editNotesToggleBtn">${hasNotes ? '− Hide Note' : '+ Add Note'}</button>
             </div>
           </div>
+
+          <!-- Notes textarea (shown if notes exist) -->
+          <div class="inc-notes-area" id="editNotesRow" style="display: ${hasNotes ? 'block' : 'none'};">
+            <textarea id="editNormalNotes" class="inc-input inc-textarea" placeholder="Additional notes...">${item.notes || ''}</textarea>
+          </div>
         </div>
-        <div class="inc-add-actions">
-          <button type="button" class="inc-add-btn inc-add-cancel-btn" data-translate="cancel_button">Cancel</button>
-          <button type="button" class="inc-add-btn inc-add-delete-btn" style="background-color: #f44336; color: white;" data-translate="delete_button">Delete</button>
-          <button type="button" class="inc-add-btn inc-add-save-btn" data-translate="save_button">Save</button>
+        <div class="inc-popup-footer">
+          <button class="inc-btn-delete" type="button" data-translate="delete_button">Delete</button>
+          <button class="inc-btn-cancel" type="button" data-translate="cancel_button">Cancel</button>
+          <button class="inc-btn-save" type="button" data-translate="save_button">Save</button>
         </div>
       `;
-      
+
       overlay.appendChild(popup);
       document.body.appendChild(overlay);
-      
+
       // Apply translations to the dynamically created modal
       if (window.SimBudget && SimBudget.applyTranslations) {
         SimBudget.applyTranslations();
       }
-      
+
+      // Notes toggle
+      const notesToggle = document.getElementById('editNotesToggleBtn');
+      const notesRow = document.getElementById('editNotesRow');
+      notesToggle.addEventListener('click', function() {
+        if (notesRow.style.display === 'none') {
+          notesRow.style.display = 'block';
+          this.textContent = '− Hide Note';
+          document.getElementById('editNormalNotes').focus();
+        } else {
+          notesRow.style.display = 'none';
+          this.textContent = '+ Add Note';
+        }
+      });
+
       // Focus the name input
       const nameInput = popup.querySelector('#editNormalName');
-      setTimeout(() => nameInput?.focus(), 100);
-      
+      setTimeout(() => {
+        if (nameInput) {
+          nameInput.focus();
+          nameInput.select();
+        }
+      }, 100);
+
+      // Close button
+      popup.querySelector('.inc-popup-close').addEventListener('click', removeAllOverlays);
+
       // Handle save button
-      const saveBtn = popup.querySelector('.inc-add-save-btn');
-      const cancelBtn = popup.querySelector('.inc-add-cancel-btn');
-      const deleteBtn = popup.querySelector('.inc-add-delete-btn');
-      
+      const saveBtn = popup.querySelector('.inc-btn-save');
+      const cancelBtn = popup.querySelector('.inc-btn-cancel');
+      const deleteBtn = popup.querySelector('.inc-btn-delete');
+
       saveBtn.addEventListener('click', function() {
         saveNormalIncomeFromPopup(item, popup);
       });
-      
+
       // Handle cancel button
       cancelBtn.addEventListener('click', function() {
         removeAllOverlays();
       });
-      
+
       // Handle delete button
       deleteBtn.addEventListener('click', function() {
         // Close edit popup, then show delete confirmation
         removeAllOverlays();
         deleteIncomeItem(item.id);
       });
-      
-      // Handle escape key
-      overlay.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
+
+      // Keyboard events
+      popup.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.target.matches('textarea')) {
+          e.preventDefault();
+          saveBtn.click();
+        } else if (e.key === 'Escape') {
           removeAllOverlays();
         }
       });
-      
+
       // Handle overlay click
       overlay.addEventListener('click', function(e) {
         if (e.target === overlay) {
           removeAllOverlays();
         }
       });
-      
+
     } catch (error) {
       console.error('Error showing normal income popup:', error);
       if (window.Utils && Utils.showToast) {
@@ -2319,6 +2375,33 @@ function saveEditedRecurringIncome(originalItem, overlay) {
     const generatedPayments = processRecurringIncomeData([newItem]);
     _recurringIncomeData = [...generatedPayments, ..._recurringIncomeData];
 
+    // ✅ OPTIMISTICALLY UPDATE RECURRING CACHE IMMEDIATELY (before API call)
+    if (window.CacheManager && typeof CacheManager.setRecurringWithTimestamp === 'function') {
+      const recurringCache = CacheManager.getRecurringWithTimestamp();
+      if (recurringCache && recurringCache.entries) {
+        CacheManager.setRecurringWithTimestamp([newItem, ...recurringCache.entries], new Date().toISOString());
+      } else {
+        // No existing cache, create new one
+        CacheManager.setRecurringWithTimestamp([newItem], new Date().toISOString());
+      }
+    }
+
+    // ✅ INVALIDATE DASHBOARD CACHE - Force recalculation on next view
+    if (window.CacheManager) {
+      const currentDate = new Date();
+      const currentMonth = currentDate.getMonth();
+      const currentYear = currentDate.getFullYear();
+      const dashboardKey = `dashboard_${currentYear}-${currentMonth}`;
+      CacheManager.invalidate(dashboardKey);
+
+      // If currently viewing dashboard, refresh it immediately
+      if (window.SimBudget && SimBudget.Views && SimBudget.Views.getCurrent() === 'budget') {
+        if (typeof SimBudget.loadBudgetData === 'function') {
+          SimBudget.loadBudgetData(false);
+        }
+      }
+    }
+
     updateSummaryCards();
     updateIncomeTable();
     removeAllOverlays();
@@ -2346,15 +2429,7 @@ function saveEditedRecurringIncome(originalItem, overlay) {
       API.saveBatchRecurring([itemToSave],
         function(result) {
           if (result && result.success) {
-            // Update cache after successful save
-            if (window.CacheManager && typeof CacheManager.setRecurringWithTimestamp === 'function') {
-              const recurringCache = CacheManager.getRecurringWithTimestamp();
-              if (recurringCache && recurringCache.entries) {
-                CacheManager.setRecurringWithTimestamp([newItem, ...recurringCache.entries], new Date().toISOString());
-              }
-            }
-
-            // Dispatch event for other components
+            // Dispatch event for other components (like RecurringManager)
             document.dispatchEvent(new CustomEvent('recurring-saved', {
               detail: { itemId: newItem.id, itemName: newItem.name, timestamp: Date.now() }
             }));
@@ -2362,6 +2437,10 @@ function saveEditedRecurringIncome(originalItem, overlay) {
             if (window.Utils && Utils.showToast) {
               Utils.showToast('Error saving recurring income', 'error');
             }
+            // Revert optimistic update on failure
+            _recurringIncomeData = _recurringIncomeData.filter(item => item.id !== newItem.id);
+            updateSummaryCards();
+            updateIncomeTable();
           }
         },
         function(error) {
@@ -2369,6 +2448,10 @@ function saveEditedRecurringIncome(originalItem, overlay) {
           if (window.Utils && Utils.showToast) {
             Utils.showToast('Error saving: ' + error, 'error');
           }
+          // Revert optimistic update on failure
+          _recurringIncomeData = _recurringIncomeData.filter(item => item.id !== newItem.id);
+          updateSummaryCards();
+          updateIncomeTable();
         }
       );
     } else {
@@ -3713,7 +3796,8 @@ select.inc-input {
 }
 
 .inc-btn-cancel,
-.inc-btn-save {
+.inc-btn-save,
+.inc-btn-delete {
   padding: 10px 20px;
   border-radius: 8px;
   font-size: 14px;
@@ -3740,6 +3824,17 @@ select.inc-input {
 
 .inc-btn-save:hover {
   background: #1a252f;
+}
+
+.inc-btn-delete {
+  background: white;
+  border: 1px solid #f44336;
+  color: #f44336;
+}
+
+.inc-btn-delete:hover {
+  background: #f44336;
+  color: white;
 }
 
 /* Dark mode for grid popup */
@@ -3840,6 +3935,17 @@ body.dark-mode .inc-btn-save {
 
 body.dark-mode .inc-btn-save:hover {
   background: #5aa0b4;
+}
+
+body.dark-mode .inc-btn-delete {
+  background: transparent;
+  border-color: #f44336;
+  color: #f44336;
+}
+
+body.dark-mode .inc-btn-delete:hover {
+  background: #f44336;
+  color: white;
 }
 
 /* Mobile responsive for grid popup */
