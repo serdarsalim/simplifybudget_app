@@ -1655,178 +1655,199 @@ var RecurringManager = (function() {
   }
 
   /**
-   * Show edit popup for recurring transactions
-   * Uses existing add popup as template but pre-filled with item data
+   * Show edit popup for recurring transactions - NEW 2-COLUMN GRID DESIGN
    */
   function showEditRecurringPopup(item) {
     try {
       // Nuclear cleanup first
       removeAllOverlays();
-      
+
+      // Always reload settings
+      loadSettings();
+
+      // Hide mobile sidebar toggle
+      const mobileToggle = document.getElementById('mobileSidebarToggle');
+      if (mobileToggle) mobileToggle.style.display = 'none';
+
       // Create popup overlay
       const overlay = document.createElement('div');
-      overlay.className = 'rec-add-overlay';
-      
+      overlay.className = 'rec-popup-overlay';
+
       // Create popup
       const popup = document.createElement('div');
-      popup.className = 'rec-add-popup';
-      
+      popup.className = 'rec-popup-grid';
+
       // Format dates for input fields
-      const startDateValue = item.startDate && item.startDate instanceof Date ? 
+      const startDateValue = item.startDate && item.startDate instanceof Date ?
         item.startDate.toISOString().split('T')[0] : (item.startDate || '');
-      const endDateValue = item.endDate && item.endDate instanceof Date ? 
+      const endDateValue = item.endDate && item.endDate instanceof Date ?
         item.endDate.toISOString().split('T')[0] : (item.endDate || '');
-      
+
+      // Check if notes exist
+      const hasNotes = item.notes && item.notes.trim() !== '';
+
+      // Hidden type field
+      const hiddenType = `<input type="hidden" id="editType" value="${item.type === 'TRUE' ? 'Subscription' : 'Payment'}">`;
+
+      // Calculate stats
+      const totalPaid = calculateTotalPaid(item);
+      const thisYearCost = calculateThisYearCost(item);
+
       popup.innerHTML = `
-        <div class="rec-add-header">
+        <div class="rec-popup-header">
           <h3 data-translate="edit_subscription">Edit Subscription</h3>
+          <button class="rec-popup-close" type="button" aria-label="Close">×</button>
         </div>
-        <div class="rec-add-body">
-          <div class="rec-add-form-wrapper">
-            <div class="rec-add-form-column">
-              <div class="rec-add-grid">
-                <div class="rec-add-row">
-                  <label data-translate="name">Name *</label>
-                  <input type="text" id="editName" class="rec-add-input" placeholder="Subscription name" value="${item.name || ''}" required>
-                </div>
-                <div class="rec-add-row">
-                  <label data-translate="amount">Amount *</label>
-                  <div class="rec-add-amount-wrapper">
-                    <span class="rec-add-currency">${_currencySymbol}</span>
-                    <input type="number" id="editAmount" class="rec-add-input rec-add-amount" 
-                      placeholder="0.00" step="1" min="0" value="${item.amount || ''}" inputmode="decimal" required>
-                  </div>
-                </div>
-                <div class="rec-add-row" style="display: none;">
-                  <label data-translate="type">Type</label>
-                  <select id="editType" class="rec-add-input">
-                    <option value="Subscription" ${item.type === 'TRUE' ? 'selected' : ''}>Subscription</option>
-                    <option value="Payment" ${item.type === 'FALSE' ? 'selected' : ''}>Fixed Payment</option>
-                  </select>
-                </div>
-                <div class="rec-add-row">
-                  <label data-translate="category">Category</label>
-                  <select id="editCategory" class="rec-add-input">
-                    ${(_categories || []).map(cat => {
-                      // Match either just the name or the name with emoji
-                      const categoryWithEmoji = `${cat.name} ${cat.emoji || ''}`.trim();
-                      const isSelected = cat.name === item.category || categoryWithEmoji === item.category;
-                      
-                      // Extract text for translation
-                      const emojiRegex = /[\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}\u{2460}-\u{24FF}\u{2500}-\u{257F}\u{2580}-\u{259F}\u{25A0}-\u{25FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2B50}\u{2B55}\u{231A}\u{231B}\u{2328}\u{23CF}\u{23E9}-\u{23F3}\u{23F8}-\u{23FA}\u{24C2}\u{25AA}\u{25AB}\u{25B6}\u{25C0}\u{25FB}-\u{25FE}\u{2934}\u{2935}\u{3030}\u{303D}\u{3297}\u{3299}]|\u{FE0F}/gu;
-                      const categoryText = cat.name.replace(emojiRegex, '').trim();
-                      const translatedCatName = Utils.translateCategory ? Utils.translateCategory(categoryText) : categoryText;
-                      
-                      return `<option value="${cat.name}" ${isSelected ? 'selected' : ''}>${cat.emoji || '📄'} ${translatedCatName}</option>`;
-                    }).join('')}
-                  </select>
-                </div>
-                <div class="rec-add-row">
-                  <label data-translate="start_date">Start Date *</label>
-                  <input type="date" id="editStartDate" class="rec-add-input" value="${startDateValue}" required>
-                </div>
-                <div class="rec-add-row">
-                  <label data-translate="end_date">End Date</label>
-                  <input type="date" id="editEndDate" class="rec-add-input" value="${endDateValue}">
-                </div>
-                <div class="rec-add-row">
-                  <label data-translate="frequency">Frequency</label>
-                  <select id="editFrequency" class="rec-add-input">
-                    <option value="Monthly" ${item.frequency === 'Monthly' ? 'selected' : ''}>Monthly</option>
-                    <option value="Quarterly" ${item.frequency === 'Quarterly' ? 'selected' : ''}>Quarterly</option>
-                    <option value="Yearly" ${item.frequency === 'Yearly' ? 'selected' : ''}>Yearly</option>
-                  </select>
-                </div>
-                <div class="rec-add-row">
-                  <label data-translate="account">Account</label>
-                  <select id="editAccount" class="rec-add-input">
-                    <option value="">Select Account</option>
-                  </select>
-                </div>
+        <div class="rec-popup-body">
+          ${hiddenType}
+          <!-- 2 Column Grid -->
+          <div class="rec-grid">
+            <!-- Row 1: Name, Amount -->
+            <div class="rec-grid-item">
+              <label data-translate="name">Name</label>
+              <input type="text" id="editName" class="rec-input" placeholder="Subscription name" value="${item.name || ''}" required>
+            </div>
+            <div class="rec-grid-item">
+              <label data-translate="amount">Amount</label>
+              <div class="rec-input-amount">
+                <span class="rec-currency">${_currencySymbol}</span>
+                <input type="number" id="editAmount" class="rec-input" placeholder="0.00" step="1" min="0" value="${item.amount || ''}" inputmode="decimal" required>
               </div>
             </div>
-            <div class="rec-add-notes-column">
-              <div class="rec-add-row rec-add-notes-row">
-                <label data-translate="notes">Notes</label>
-                <textarea id="editNotes" class="rec-add-input rec-add-textarea" placeholder="Optional notes">${item.notes || ''}</textarea>
+            <!-- Row 2: Category, Start Date -->
+            <div class="rec-grid-item">
+              <label data-translate="category">Category</label>
+              <select id="editCategory" class="rec-input">
+                ${(_categories || []).map(cat => {
+                  const categoryWithEmoji = `${cat.name} ${cat.emoji || ''}`.trim();
+                  const isSelected = cat.name === item.category || categoryWithEmoji === item.category;
+                  const emojiRegex = /[\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}\u{2460}-\u{24FF}\u{2500}-\u{257F}\u{2580}-\u{259F}\u{25A0}-\u{25FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2B50}\u{2B55}\u{231A}\u{231B}\u{2328}\u{23CF}\u{23E9}-\u{23F3}\u{23F8}-\u{23FA}\u{24C2}\u{25AA}\u{25AB}\u{25B6}\u{25C0}\u{25FB}-\u{25FE}\u{2934}\u{2935}\u{3030}\u{303D}\u{3297}\u{3299}]|\u{FE0F}/gu;
+                  const categoryText = cat.name.replace(emojiRegex, '').trim();
+                  const translatedCatName = Utils.translateCategory ? Utils.translateCategory(categoryText) : categoryText;
+                  return `<option value="${cat.name}" ${isSelected ? 'selected' : ''}>${cat.emoji || '📄'} ${translatedCatName}</option>`;
+                }).join('')}
+              </select>
+            </div>
+            <div class="rec-grid-item">
+              <label data-translate="start_date">Start Date</label>
+              <input type="date" id="editStartDate" class="rec-input" value="${startDateValue}" required>
+            </div>
+            <!-- Row 3: Frequency, End Date -->
+            <div class="rec-grid-item">
+              <label data-translate="frequency">Frequency</label>
+              <select id="editFrequency" class="rec-input">
+                <option value="Monthly" ${item.frequency === 'Monthly' ? 'selected' : ''}>Monthly</option>
+                <option value="Quarterly" ${item.frequency === 'Quarterly' ? 'selected' : ''}>Quarterly</option>
+                <option value="Yearly" ${item.frequency === 'Yearly' ? 'selected' : ''}>Yearly</option>
+              </select>
+            </div>
+            <div class="rec-grid-item">
+              <label data-translate="end_date">End Date</label>
+              <input type="${endDateValue ? 'date' : 'text'}" id="editEndDate" class="rec-input" ${endDateValue ? `value="${endDateValue}"` : 'placeholder="mm/dd/yyyy"'} onfocus="this.type='date'" onblur="if(!this.value)this.type='text'">
+            </div>
+            <!-- Row 4: Account, Add Note -->
+            <div class="rec-grid-item">
+              <label data-translate="account">Account</label>
+              <select id="editAccount" class="rec-input">
+                <option value="">Select Account</option>
+              </select>
+            </div>
+            <div class="rec-grid-item rec-notes-item">
+              <button type="button" class="rec-add-note-btn" id="editNotesToggleBtn">${hasNotes ? '− Hide Note' : '+ Add Note'}</button>
+            </div>
+          </div>
+
+          <!-- Notes textarea (shown if notes exist) -->
+          <div class="rec-notes-area" id="editNotesRow" style="display: ${hasNotes ? 'block' : 'none'};">
+            <textarea id="editNotes" class="rec-input rec-textarea" placeholder="Additional notes...">${item.notes || ''}</textarea>
+          </div>
+
+          <!-- Stats Card - 2 Column -->
+          <div class="rec-stats-card">
+            <div class="rec-stats-grid">
+              <div class="rec-stats-item">
+                <span class="rec-stats-label">Paid So Far</span>
+                <span class="rec-stats-value">${formatCurrency(totalPaid)}</span>
               </div>
-              <div class="rec-calc-summary">
-                <div class="rec-calc-row">
-                  <span class="rec-calc-label">Total Paid:</span>
-                  <span class="rec-calc-value">${formatCurrency(calculateTotalPaid(item))}</span>
-                </div>
-                ${calculateThisYearCost(item) > 0 ? `
-                <div class="rec-calc-row">
-                  <span class="rec-calc-label">${new Date().getFullYear()} Cost (Projected):</span>
-                  <span class="rec-calc-value">${formatCurrency(calculateThisYearCost(item))}</span>
-                </div>
-                ` : ''}
+              <div class="rec-stats-item">
+                <span class="rec-stats-label">${new Date().getFullYear()} Projected</span>
+                <span class="rec-stats-value">${formatCurrency(thisYearCost)}</span>
               </div>
             </div>
           </div>
         </div>
-        <div class="rec-add-actions">
-          <button class="rec-add-btn rec-add-cancel-btn" type="button" data-translate="cancel">Cancel</button>
-          <button class="rec-add-btn rec-add-delete-btn" type="button" style="background-color: #f44336; color: white;" data-translate="delete">Delete</button>
-          <button class="rec-add-btn rec-add-save-btn" type="button" data-translate="save">Save</button>
+        <div class="rec-popup-footer">
+          <button class="rec-btn-delete" type="button" data-translate="delete">Delete</button>
+          <button class="rec-btn-cancel" type="button" data-translate="cancel">Cancel</button>
+          <button class="rec-btn-save" type="button" data-translate="save">Save</button>
         </div>
       `;
-      
+
       overlay.appendChild(popup);
       document.body.appendChild(overlay);
-      
-      // Apply translations to the dynamically created modal
+
+      // Apply translations
       if (window.SimBudget && SimBudget.applyTranslations) {
         SimBudget.applyTranslations();
       }
-      
-      // Populate account dropdown with full account list
+
+      // Notes toggle
+      const notesToggle = document.getElementById('editNotesToggleBtn');
+      const notesRow = document.getElementById('editNotesRow');
+      notesToggle.addEventListener('click', function() {
+        if (notesRow.style.display === 'none') {
+          notesRow.style.display = 'block';
+          this.textContent = '− Hide Note';
+          document.getElementById('editNotes').focus();
+        } else {
+          notesRow.style.display = 'none';
+          this.textContent = '+ Add Note';
+        }
+      });
+
+      // Populate account dropdown
       const accountSelect = document.getElementById('editAccount');
       if (accountSelect) {
-        // Get from cache IMMEDIATELY - no API calls
         const cachedNetWorth = window.CacheManager ? CacheManager.getNetWorthWithTimestamp() : null;
-        
+
         if (cachedNetWorth && cachedNetWorth.entries) {
-          // Filter for liquid assets from current month only
           const currentMonth = new Date().getMonth();
           const currentYear = new Date().getFullYear();
-          
+
           const liquidAssets = cachedNetWorth.entries.filter(entry => {
-            // Check if it's this month/year
             if (!entry.date) return false;
-            // Parse "MMM YYYY" format (e.g., "Jan 2024")
             const dateParts = entry.date.split(' ');
             const entryYear = parseInt(dateParts[1]);
             const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            const entryMonth = monthNames.indexOf(dateParts[0]); // Already 0-based
-            
-            return entryMonth === currentMonth && 
+            const entryMonth = monthNames.indexOf(dateParts[0]);
+
+            return entryMonth === currentMonth &&
                    entryYear === currentYear &&
                    entry.asset === 'Liquid Assets' &&
-                   entry.name && 
+                   entry.name &&
                    entry.name.trim() !== '' &&
                    parseFloat(entry.amount) > 0;
           });
-          
+
           if (liquidAssets.length > 0) {
-            // Clear any existing options first
             accountSelect.innerHTML = '';
-            
-            // Create dropdown with REAL accounts INSTANTLY
+            const defaultOption = document.createElement('option');
+            defaultOption.value = '';
+            defaultOption.textContent = 'Select Account';
+            defaultOption.setAttribute('data-translate', 'select_account');
+            accountSelect.appendChild(defaultOption);
+
             const uniqueNames = [...new Set(liquidAssets.map(asset => asset.name.trim()))].sort();
-            
             uniqueNames.forEach(accountName => {
               const optionEl = document.createElement('option');
               optionEl.value = accountName;
               optionEl.textContent = accountName;
-              // Set selected if this is the item's account
               if (accountName === item.account) {
                 optionEl.selected = true;
               }
               accountSelect.appendChild(optionEl);
             });
           } else {
-            // NO LIQUID ASSETS FOUND - SHOW MESSAGE
             accountSelect.innerHTML = '';
             const emptyOption = document.createElement('option');
             emptyOption.value = '';
@@ -1835,7 +1856,6 @@ var RecurringManager = (function() {
             accountSelect.appendChild(emptyOption);
           }
         } else {
-          // NO CACHE - SHOW MESSAGE
           accountSelect.innerHTML = '';
           const noCacheOption = document.createElement('option');
           noCacheOption.value = '';
@@ -1844,45 +1864,52 @@ var RecurringManager = (function() {
           accountSelect.appendChild(noCacheOption);
         }
       }
-      
+
+      // Close button
+      popup.querySelector('.rec-popup-close').addEventListener('click', removeAllOverlays);
+
       // Focus the name input
-      const nameInput = popup.querySelector('#editName');
-      setTimeout(() => nameInput?.focus(), 100);
-      
-      // Handle save button
-      const saveBtn = popup.querySelector('.rec-add-save-btn');
-      const cancelBtn = popup.querySelector('.rec-add-cancel-btn');
-      const deleteBtn = popup.querySelector('.rec-add-delete-btn');
-      
+      setTimeout(() => {
+        const nameInput = document.getElementById('editName');
+        if (nameInput) {
+          nameInput.focus();
+          nameInput.select();
+        }
+      }, 100);
+
+      // Handle button clicks
+      const saveBtn = popup.querySelector('.rec-btn-save');
+      const cancelBtn = popup.querySelector('.rec-btn-cancel');
+      const deleteBtn = popup.querySelector('.rec-btn-delete');
+
       saveBtn.addEventListener('click', function() {
         saveRecurringFromPopup(item, popup);
       });
-      
-      // Handle cancel button
-      cancelBtn.addEventListener('click', function() {
-        removeAllOverlays();
-      });
-      
-      // Handle delete button
+
+      cancelBtn.addEventListener('click', removeAllOverlays);
+
       deleteBtn.addEventListener('click', function() {
         removeAllOverlays();
         deleteRecurringItem(item.id);
       });
-      
-      // Handle escape key
-      overlay.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
+
+      // Keyboard events
+      popup.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.target.matches('textarea')) {
+          e.preventDefault();
+          saveBtn.click();
+        } else if (e.key === 'Escape') {
           removeAllOverlays();
         }
       });
-      
+
       // Handle overlay click
       overlay.addEventListener('click', function(e) {
         if (e.target === overlay) {
           removeAllOverlays();
         }
       });
-      
+
     } catch (error) {
       console.error('Error showing recurring edit popup:', error);
       if (window.Utils && Utils.showToast) {
@@ -5032,6 +5059,57 @@ body.dark-mode .rec-btn-delete {
 body.dark-mode .rec-btn-delete:hover {
   background: #f44336;
   color: white;
+}
+
+/* Stats Card for Edit Popup - 2 Column Grid */
+.rec-stats-card {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #eee;
+}
+
+.rec-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.rec-stats-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rec-stats-label {
+  font-size: 12px;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.rec-stats-value {
+  font-size: 16px;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+body.dark-mode .rec-stats-card {
+  background: rgba(255,255,255,0.05);
+  border-color: rgba(255,255,255,0.1);
+}
+
+body.dark-mode .rec-stats-label {
+  color: rgba(255,255,255,0.6);
+}
+
+body.dark-mode .rec-stats-value {
+  color: rgba(255,255,255,0.9);
+}
+
+body.dark-mode .rec-stats-value {
+  color: rgba(255,255,255,0.9);
 }
 
 /* Mobile responsive for grid popup */
