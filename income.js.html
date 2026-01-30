@@ -2103,6 +2103,9 @@ function saveEditedRecurringIncome(originalItem, overlay) {
     document.querySelectorAll('.inc-add-overlay, .inc-confirm-overlay, .rec-add-overlay').forEach(el => {
       el.remove();
     });
+    // Show mobile sidebar toggle again
+    const mobileToggle = document.getElementById('mobileSidebarToggle');
+    if (mobileToggle) mobileToggle.style.display = '';
   }
 
   /**
@@ -2114,6 +2117,10 @@ function saveEditedRecurringIncome(originalItem, overlay) {
 
     // Always reload settings before creating new item to get current currency
     loadSettings();
+
+    // Hide mobile sidebar toggle
+    const mobileToggle = document.getElementById('mobileSidebarToggle');
+    if (mobileToggle) mobileToggle.style.display = 'none';
 
     // Create popup overlay
     const overlay = document.createElement('div');
