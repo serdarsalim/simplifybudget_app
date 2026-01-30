@@ -331,25 +331,12 @@
 
 .sb-nav-link:hover {
   background-color: rgba(0, 0, 0, 0.04);
-  transform: translateX(2px);
 }
 
 .sb-nav-item.active .sb-nav-link {
   background-color: rgb(0 127 255 / 14%);
   color: var(--sb-text-primary) !important;
   font-weight: 600;
-}
-
-.sb-nav-item.active .sb-nav-link::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 16px;
-  background-color: rgb(0 127 255 / 14%);
-  border-radius: 2px;
 }
 
 .sb-nav-link i {
@@ -523,10 +510,6 @@ body.dark-mode .sb-nav-item.active .sb-nav-link {
   color: #FFFFFF !important;
 }
 
-body.dark-mode .sb-nav-item.active .sb-nav-link::before {
-  background-color: var(--sb-icon-budget);
-}
-
 /* Keep colorful icons in dark mode */
 body.dark-mode .sb-nav-item .material-icons {
   opacity: 0.9;
@@ -608,11 +591,6 @@ body.dark-mode .sb-mobile-toggle:hover {
   .sb-mobile-toggle {
     display: none;
   }
-}
-
-/* Remove the black line when sidebar is collapsed */
-.sb-sidebar.sb-collapsed .sb-nav-item.active .sb-nav-link::before {
-  display: none;
 }
 
 /* Center icons and adjust padding when collapsed */

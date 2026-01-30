@@ -470,6 +470,35 @@ var RecurringManager = (function() {
     return cycleEnd;
   }
 
+  // Normalize incoming date values to a local, date-only Date object
+  function parseDateOnly(value) {
+    if (!value) return null;
+    if (value instanceof Date) {
+      if (isNaN(value.getTime())) return null;
+      return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+    }
+    if (typeof value === 'string') {
+      const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (match) {
+        const year = Number(match[1]);
+        const month = Number(match[2]) - 1;
+        const day = Number(match[3]);
+        return new Date(year, month, day);
+      }
+    }
+    const parsed = new Date(value);
+    if (isNaN(parsed.getTime())) return null;
+    return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+  }
+
+  function toDateInputValue(date) {
+    if (!date || !(date instanceof Date) || isNaN(date.getTime())) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
   function cacheLoadedData(recurringData) {
     try {
       // Cache the fresh recurring data with timestamp
@@ -561,8 +590,8 @@ var RecurringManager = (function() {
         return true;
       })
       .map(item => {
-        const startDate = item.startDate ? new Date(item.startDate) : null;
-        const endDate = item.endDate ? new Date(item.endDate) : null;
+        const startDate = parseDateOnly(item.startDate);
+        const endDate = parseDateOnly(item.endDate);
         
         // Calculate next payment 
         const nextPayment = startDate ? calculateNextPayment(startDate, item.frequency || 'Monthly', endDate) : null;
@@ -1395,7 +1424,7 @@ var RecurringManager = (function() {
     }, 50);
 
     // Set default start date to today
-    const today = new Date().toISOString().split('T')[0];
+    const today = toDateInputValue(new Date());
     document.getElementById('addStartDate').value = today;
 
     // Close button
@@ -1679,9 +1708,9 @@ var RecurringManager = (function() {
 
       // Format dates for input fields
       const startDateValue = item.startDate && item.startDate instanceof Date ?
-        item.startDate.toISOString().split('T')[0] : (item.startDate || '');
+        toDateInputValue(item.startDate) : (item.startDate || '');
       const endDateValue = item.endDate && item.endDate instanceof Date ?
-        item.endDate.toISOString().split('T')[0] : (item.endDate || '');
+        toDateInputValue(item.endDate) : (item.endDate || '');
 
       // Check if notes exist
       const hasNotes = item.notes && item.notes.trim() !== '';
