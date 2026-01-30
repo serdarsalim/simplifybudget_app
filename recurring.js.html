@@ -3540,22 +3540,22 @@ body.dark-mode .rec-chart-toggle {
     padding-bottom: 30px; /* Minimal space for legend on desktop */
   }
 
-   .rec-table-container {
-    padding: 20px 120px !important; /* Wider horizontal padding on desktop only */
-    margin-left: auto;
-    margin-right: auto;
-    max-width: 70%;
-  }
-  
-  .rec-chart-summary {
-    font-size: 18px;
-    gap: 30px;
-  }
-  
+   .rec-table-container,
   .rec-chart-container {
     margin-left: auto;
     margin-right: auto;
-    max-width: 70%;
+    width: fit-content;
+    min-width: 600px;
+    box-sizing: border-box;
+  }
+
+  .rec-table-container {
+    padding: 20px 24px !important;
+  }
+
+  .rec-chart-summary {
+    font-size: 18px;
+    gap: 30px;
   }
 }
 
@@ -3974,7 +3974,7 @@ body.dark-mode .rec-confirm-btn.rec-delete-btn:hover {
 }
 
 .rec-table {
-  width: 100%;
+  width: auto;
   border-collapse: collapse;
   font-size: 14px;
 }
@@ -4027,8 +4027,11 @@ body.dark-mode .rec-confirm-btn.rec-delete-btn:hover {
 }
 
 /* Name cell - Updated with emoji and name styling */
-.rec-name-cell {
-  max-width: 160px;
+.rec-name-cell,
+.rec-name-header {
+  width: 180px !important;
+  min-width: 180px !important;
+  max-width: 180px !important;
   text-align: left !important;
 }
 
