@@ -2152,10 +2152,9 @@ function saveEditedRecurringIncome(originalItem, overlay) {
           </div>
           <div class="inc-grid-item">
             <label data-translate="source">Source</label>
-            <input type="text" id="addSource" class="inc-input" placeholder="">
+            <input type="text" id="addSource" class="inc-input" placeholder="Company name">
           </div>
-          <div class="inc-grid-item">
-            <label data-translate="notes_label">Notes</label>
+          <div class="inc-grid-item inc-notes-item">
             <button type="button" class="inc-add-note-btn" id="notesToggleBtn">+ Add Note</button>
           </div>
         </div>
@@ -2192,6 +2191,7 @@ function saveEditedRecurringIncome(originalItem, overlay) {
           </div>
         </div>
       </div>
+      <div class="inc-popup-footer">
         <button class="inc-btn-cancel" type="button" data-translate="cancel_button">Cancel</button>
         <button class="inc-btn-save" type="button" data-translate="save_button">Save</button>
       </div>
@@ -2433,20 +2433,20 @@ function saveEditedRecurringIncome(originalItem, overlay) {
 
     function buildAccountField(currentValue = '', fieldId = 'addAccount', className = 'inc-add-input') {
     const accountOptions = getAccountOptionsForIncome();
-    
+
     if (accountOptions.length > 0) {
       return `
         <select id="${fieldId}" class="${className}">
-          <option value="">${Utils.translateCategory('select_account')}</option>
-          ${accountOptions.map(accountName => 
+          <option value="" data-translate="select_account">Select Account</option>
+          ${accountOptions.map(accountName =>
             `<option value="${accountName}" ${accountName === currentValue ? 'selected' : ''}>${accountName}</option>`
           ).join('')}
         </select>
       `;
     } else {
       return `
-        <input type="text" id="${fieldId}" class="${className}" 
-          value="${currentValue}" 
+        <input type="text" id="${fieldId}" class="${className}"
+          value="${currentValue}"
           placeholder="Account/Card">
       `;
     }
@@ -3547,8 +3547,16 @@ select.inc-input {
   cursor: pointer;
 }
 
+/* Notes item - align button with adjacent input fields */
+.inc-notes-item {
+  display: flex;
+  align-items: flex-end;
+  padding-top: 22px; /* Match the label height + gap */
+}
+
 /* Add Note button */
 .inc-add-note-btn {
+  width: 100%;
   padding: 10px 12px;
   border: 1px dashed #ccc;
   border-radius: 8px;
@@ -3642,9 +3650,9 @@ select.inc-input {
 /* Footer */
 .inc-popup-footer {
   display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  padding: 16px 20px;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px 24px;
   background: #f8f9fa;
   border-top: 1px solid #eee;
   border-radius: 0 0 12px 12px;

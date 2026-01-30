@@ -192,7 +192,7 @@ const TURKISH_TRANSLATIONS = {
   "amount": "Tutar",
   "description": "Açıklama",
   "notes_optional": "Notlar (isteğe bağlı)",
-  "select_account": "-- Hesap Seç --",
+  "select_account": "Hesap Seç",
   "expense_saved": "Gider başarıyla kaydedildi!",
   "Fixed Expenses": "Sabit Giderler",
   "budget_no_income_tip": "{0} bütçelendi. İpucu: Gelirinize göre ayarlayın.",
@@ -545,7 +545,7 @@ const FRENCH_TRANSLATIONS = {
   "amount": "Montant",
   "description": "Description",
   "notes_optional": "Notes (optionnelles)",
-  "select_account": "-- Sélectionner un compte --",
+  "select_account": "Sélectionner un compte",
   "expense_saved": "Dépense enregistrée avec succès !",
   "Fixed Expenses": "Dépenses Fixes",
   "budget_no_income_tip": "Vous avez budgété {0}. Astuce : alignez-le sur vos revenus.",
@@ -1286,7 +1286,7 @@ const SPANISH_TRANSLATIONS = {
   "amount": "Cantidad",
   "description": "Descripción",
   "notes_optional": "Notas (Opcional)",
-  "select_account": "-- Seleccionar cuenta --",
+  "select_account": "Seleccionar cuenta",
   "expense_saved": "¡Gasto guardado correctamente!",
   "Fixed Expenses": "Gastos Fijos",
   
@@ -1687,7 +1687,7 @@ const MALAY_TRANSLATIONS = {
   "amount": "Jumlah",
   "description": "Keterangan",
   "notes_optional": "Nota (pilihan)",
-  "select_account": "-- Pilih Akaun --",
+  "select_account": "Pilih Akaun",
   "expense_saved": "Perbelanjaan berjaya disimpan!",
   "Fixed Expenses": "Perbelanjaan Tetap",
   "budget_no_income_tip": "Anda telah bajetkan {0}. Tip: Sesuaikan dengan pendapatan anda.",
@@ -2113,7 +2113,7 @@ const PORTUGUESE_TRANSLATIONS = {
   // Quick Expense Modal
   "quick_expense": "Despesa Rápida",
   "notes_optional": "Notas (opcional)",
-  "select_account": "-- Selecionar Conta --",
+  "select_account": "Selecionar Conta",
   "expense_saved": "Despesa salva com sucesso!",
   "Fixed Expenses": "Despesas Fixas",
   
@@ -2564,7 +2564,7 @@ const JAPANESE_TRANSLATIONS = {
   // Quick Expense Modal
   "quick_expense": "クイック支出",
   "notes_optional": "メモ（任意）",
-  "select_account": "-- アカウントを選択 --",
+  "select_account": "アカウントを選択",
   "expense_saved": "支出が正常に保存されました！",
   "Fixed Expenses": "固定費",
   
@@ -2966,7 +2966,6 @@ const ENGLISH_TRANSLATIONS = {
   "amount": "Amount",
   "description": "Description",
   "notes_optional": "Notes (optional)",
-  "select_account": "-- Select Account --",
   "expense_saved": "Expense saved successfully!",
   "Fixed Expenses": "Fixed Expenses",
   "Fixed Payments": "Fixed Payments",
@@ -3147,6 +3146,7 @@ const ENGLISH_TRANSLATIONS = {
   "Subscriptions": "Subscriptions",
   "daily_summary": "Daily Summary",
   "monthly_summary": "Monthly Summary",
+  
 
   // Monthly Grid specific translations
   "spending_on_day": "Spending on {dayName}, {monthDay}",
