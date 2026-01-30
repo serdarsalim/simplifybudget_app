@@ -2479,31 +2479,33 @@ function init(containerId, cachedData) {
           </div>
           <div class="nw-modal-body">
             <div class="nw-modal-form">
-              <div class="nw-modal-fields-row">
-                <div class="nw-field-group">
-                  <label for="assetName" data-translate="name_label">Name</label>
-                  <input type="text" id="assetName" class="nw-form-input">
-                </div>
-                <div class="nw-field-group">
-                  <label for="assetCategory" data-translate="category_label">Category</label>
-                  <input type="text" id="assetCategory" class="nw-form-input">
-                  <div class="nw-autocomplete-container"></div>
-                </div>
-                <div class="nw-field-group">
-                  <label for="assetAmount" data-translate="amount_label">Amount</label>
-                  <div class="nw-amount-input">
-                    <input type="number" id="assetAmount" class="nw-form-input" inputmode="decimal">
+              <div class="nw-modal-top-row">
+                <div class="nw-modal-fields-column">
+                  <div class="nw-field-group">
+                    <label for="assetName" data-translate="name_label">Name</label>
+                    <input type="text" id="assetName" class="nw-form-input">
+                  </div>
+                  <div class="nw-field-group">
+                    <label for="assetCategory" data-translate="category_label">Category</label>
+                    <input type="text" id="assetCategory" class="nw-form-input">
+                    <div class="nw-autocomplete-container"></div>
+                  </div>
+                  <div class="nw-field-group">
+                    <label for="assetAmount" data-translate="amount_label">Amount</label>
+                    <div class="nw-amount-input">
+                      <input type="number" id="assetAmount" class="nw-form-input" inputmode="decimal">
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div class="nw-modal-chart" id="assetChartSection">
-                <div class="nw-chart-placeholder">
-                  <canvas id="assetHistoryChart" height="200"></canvas>
+                <div class="nw-modal-chart" id="assetChartSection">
+                  <div class="nw-chart-placeholder">
+                    <canvas id="assetHistoryChart" height="180"></canvas>
+                  </div>
                 </div>
               </div>
               <div class="nw-field-group nw-notes-group">
                 <label for="assetNotes" data-translate="notes_label">Notes</label>
-                <textarea id="assetNotes" class="nw-form-textarea" rows="3"></textarea>
+                <textarea id="assetNotes" class="nw-form-textarea" rows="2"></textarea>
               </div>
             </div>
           </div>
@@ -6402,10 +6404,17 @@ body.dark-mode .nw-table th {
   gap: 20px;
 }
 
-.nw-modal-fields-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 16px;
+.nw-modal-top-row {
+  display: flex;
+  gap: 20px;
+  align-items: stretch;
+}
+
+.nw-modal-fields-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 200px;
 }
 
 .nw-field-group {
@@ -6446,11 +6455,12 @@ body.dark-mode .nw-table th {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   background-color: #f8f9fa;
   border-radius: 8px;
-  padding: 16px;
-  min-height: 200px;
-  width: 100%;
+  padding: 12px;
+  flex: 1;
+  min-width: 300px;
   box-sizing: border-box;
 }
 
@@ -6458,9 +6468,19 @@ body.dark-mode .nw-table th {
   display: none;
 }
 
+.nw-modal-top-row:has(.nw-modal-chart.hidden) .nw-modal-fields-column {
+  flex-direction: row;
+  gap: 16px;
+  width: 100%;
+}
+
+.nw-modal-top-row:has(.nw-modal-chart.hidden) .nw-modal-fields-column .nw-field-group {
+  flex: 1;
+}
+
 #assetHistoryChart {
   width: 100%;
-  max-width: 600px;
+  max-height: 160px;
 }
 
 .nw-chart-placeholder {
@@ -6625,24 +6645,27 @@ input[type="number"] {
 }
 
 @media (max-width: 768px) {
-  .nw-modal-fields-row {
-    grid-template-columns: 1fr;
-    gap: 12px;
+  .nw-modal-top-row {
+    flex-direction: column;
   }
 
-  .nw-modal-fields-row .nw-field-group {
+  .nw-modal-fields-column {
+    min-width: auto;
+  }
+
+  .nw-modal-fields-column .nw-field-group {
     flex-direction: row;
     align-items: center;
     gap: 12px;
   }
 
-  .nw-modal-fields-row .nw-field-group label {
+  .nw-modal-fields-column .nw-field-group label {
     min-width: 70px;
     margin: 0;
   }
 
-  .nw-modal-fields-row .nw-field-group .nw-form-input,
-  .nw-modal-fields-row .nw-field-group .nw-amount-input {
+  .nw-modal-fields-column .nw-field-group .nw-form-input,
+  .nw-modal-fields-column .nw-field-group .nw-amount-input {
     flex: 1;
   }
 
