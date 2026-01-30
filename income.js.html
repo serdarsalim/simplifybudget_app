@@ -2186,7 +2186,7 @@ function saveEditedRecurringIncome(originalItem, overlay) {
             </div>
             <div class="inc-grid-item">
               <label data-translate="end_date">End Date</label>
-              <input type="date" id="addRecEndDate" class="inc-input">
+              <input type="text" id="addRecEndDate" class="inc-input" placeholder="mm/dd/yyyy" onfocus="this.type='date'" onblur="if(!this.value)this.type='text'">
             </div>
           </div>
         </div>
