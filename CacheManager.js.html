@@ -564,6 +564,76 @@ function setBudgetData(data) {
     
     // Initialize summary with default values
     const summary = { income: 0, spent: 0, leftToSpend: 0 };
+
+    // For current month, include recurring items not yet in expenses
+    const now = new Date();
+    const isCurrentMonthForExpenses = (month === now.getMonth() && year === now.getFullYear());
+    if (isCurrentMonthForExpenses) {
+      const recurringCache = get('recurring_with_timestamp');
+      if (recurringCache && Array.isArray(recurringCache.entries)) {
+        const existingKeys = new Set(
+          (expenses || []).map(exp => {
+            const d = parseExpenseDate(exp.date);
+            if (isNaN(d.getTime())) return '';
+            const id = exp.transactionId || exp.id || exp.name || '';
+            return `${id}|${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+          })
+        );
+        const monthStart = new Date(year, month, 1);
+        const monthEnd = new Date(year, month + 1, 0, 23, 59, 59, 999);
+
+        recurringCache.entries.forEach(item => {
+          if (!item) return;
+          if (item.category && item.category.toLowerCase().includes('income')) return;
+          const status = item.status ? item.status.toString().toLowerCase() : 'active';
+          if (status === 'ended') return;
+
+          const start = parseExpenseDate(item.startDate);
+          if (isNaN(start.getTime())) return;
+          const end = item.endDate ? parseExpenseDate(item.endDate) : null;
+          if (end && end < monthStart) return;
+          if (start > monthEnd) return;
+
+          const frequency = (item.frequency || 'Monthly').toLowerCase();
+          const monthsSinceStart = (year - start.getFullYear()) * 12 + (month - start.getMonth());
+          let occursThisMonth = false;
+
+          if (frequency.includes('monthly')) {
+            occursThisMonth = monthsSinceStart >= 0;
+          } else if (frequency.includes('quarterly')) {
+            occursThisMonth = monthsSinceStart >= 0 && monthsSinceStart % 3 === 0;
+          } else if (frequency.includes('yearly') || frequency.includes('annual')) {
+            occursThisMonth = monthsSinceStart >= 0 && month === start.getMonth();
+          } else {
+            occursThisMonth = monthsSinceStart >= 0;
+          }
+
+          if (!occursThisMonth) return;
+
+          const day = start.getDate();
+          const lastDay = new Date(year, month + 1, 0).getDate();
+          const paymentDate = new Date(year, month, Math.min(day, lastDay));
+          if (end && paymentDate > end) return;
+
+          const id = item.id || item.transactionId || item.name || '';
+          const key = `${id}|${paymentDate.getFullYear()}-${paymentDate.getMonth()}-${paymentDate.getDate()}`;
+          if (existingKeys.has(key)) return;
+
+          expenses = expenses || [];
+          expenses.push({
+            date: paymentDate,
+            amount: Math.abs(parseFloat(item.amount) || 0),
+            category: item.category || 'Uncategorized',
+            name: item.name || '',
+            notes: item.notes || '',
+            label: item.type && item.type.toString().toUpperCase() === 'TRUE' ? 'Subscription' : 'Fixed Payment',
+            transactionId: id
+          });
+
+          existingKeys.add(key);
+        });
+      }
+    }
     
     // Create fast lookup maps for categories (major performance boost)
     const categoryKeyMap = new Map();
@@ -674,7 +744,6 @@ function setBudgetData(data) {
     }));
 
     // If current month is missing recurring items, add from recurring cache (current month only)
-    const now = new Date();
     const isCurrentMonthForSubscriptions = (month === now.getMonth() && year === now.getFullYear());
     if (isCurrentMonthForSubscriptions) {
       const recurringCache = get('recurring_with_timestamp');

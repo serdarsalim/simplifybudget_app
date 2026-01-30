@@ -1071,6 +1071,9 @@ if (!expense.transactionId || expense.transactionId.trim() === '') {
   // Store processed transactions (categories are loaded separately)
   _transactions = processedTransactions;
   
+  // Add current month's recurring items that may not be in expenses yet
+  addCurrentMonthRecurringTransactions();
+  
   
   try {
     await addInactiveCategoriesWithSpending();
@@ -1080,6 +1083,73 @@ if (!expense.transactionId || expense.transactionId.trim() === '') {
   }
   
 
+}
+
+function addCurrentMonthRecurringTransactions() {
+  if (!window.CacheManager) return;
+  
+  const now = new Date();
+  if (_currentMonth !== now.getMonth() || _currentYear !== now.getFullYear()) return;
+  
+  const recurringCache = CacheManager.getRecurringWithTimestamp();
+  if (!recurringCache || !Array.isArray(recurringCache.entries)) return;
+  
+  const existingKeys = new Set(
+    _transactions.map(tx => `${tx.transactionId}|${tx.date.getFullYear()}-${tx.date.getMonth()}-${tx.date.getDate()}`)
+  );
+  
+  recurringCache.entries.forEach(item => {
+    if (!item) return;
+    
+    const status = item.status ? item.status.toString().toLowerCase() : 'active';
+    if (status === 'ended') return;
+    if (item.category && item.category.toLowerCase().includes('income')) return;
+    
+    const start = parseSpreadsheetDate(item.startDate);
+    if (!start || isNaN(start.getTime())) return;
+    const end = item.endDate ? parseSpreadsheetDate(item.endDate) : null;
+    
+    const frequency = (item.frequency || 'Monthly').toLowerCase();
+    const monthsSinceStart = (_currentYear - start.getFullYear()) * 12 + (_currentMonth - start.getMonth());
+    let occursThisMonth = false;
+    
+    if (frequency.includes('monthly')) {
+      occursThisMonth = monthsSinceStart >= 0;
+    } else if (frequency.includes('quarterly')) {
+      occursThisMonth = monthsSinceStart >= 0 && monthsSinceStart % 3 === 0;
+    } else if (frequency.includes('yearly') || frequency.includes('annual')) {
+      occursThisMonth = monthsSinceStart >= 0 && _currentMonth === start.getMonth();
+    } else {
+      occursThisMonth = monthsSinceStart >= 0;
+    }
+    
+    if (!occursThisMonth) return;
+    
+    const day = start.getDate();
+    const lastDay = new Date(_currentYear, _currentMonth + 1, 0).getDate();
+    const paymentDate = new Date(_currentYear, _currentMonth, Math.min(day, lastDay), 12, 0, 0, 0);
+    if (end && paymentDate > end) return;
+    
+    const id = item.id || item.transactionId || item.name || '';
+    const key = `${id}|${paymentDate.getFullYear()}-${paymentDate.getMonth()}-${paymentDate.getDate()}`;
+    if (existingKeys.has(key)) return;
+    
+    const parsed = parseCategoryNameAndEmoji((item.category || 'Uncategorized').trim());
+    const label = item.type && item.type.toString().toUpperCase() === 'TRUE' ? 'Subscription' : 'Fixed Payment';
+    
+    _transactions.push({
+      transactionId: id,
+      date: paymentDate,
+      category: parsed.name,
+      amount: Math.abs(parseFloat(item.amount) || 0),
+      description: item.name || '',
+      account: item.account || 'Other',
+      notes: item.notes || '',
+      label: label
+    });
+    
+    existingKeys.add(key);
+  });
 }
 
 /**
