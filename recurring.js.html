@@ -1217,139 +1217,158 @@ var RecurringManager = (function() {
   function showAddSubscriptionPopup() {
     // Nuclear cleanup first - remove ALL overlays
     removeAllOverlays();
-    
+
     // Always reload settings before creating new item to get current currency
     loadSettings();
-    
+
+    // Hide mobile sidebar toggle
+    const mobileToggle = document.getElementById('mobileSidebarToggle');
+    if (mobileToggle) mobileToggle.style.display = 'none';
+
     // Create popup overlay
     const overlay = document.createElement('div');
-    overlay.className = 'rec-add-overlay';
-    
+    overlay.className = 'rec-popup-overlay';
+
     // Create popup
     const popup = document.createElement('div');
-    popup.className = 'rec-add-popup';
-    
-        popup.innerHTML = `
-      <div class="rec-add-header">
-        <h3 data-translate="add_subscription">Add New Subscription</h3>
+    popup.className = 'rec-popup-grid';
+
+    // Hidden type field (always subscription)
+    const hiddenType = `<input type="hidden" id="addType" value="Subscription">`;
+
+    popup.innerHTML = `
+      <div class="rec-popup-header">
+        <h3 data-translate="add_subscription">Add Subscription</h3>
+        <button class="rec-popup-close" type="button" aria-label="Close">×</button>
       </div>
-      <div class="rec-add-body">
-        <div class="rec-add-form-wrapper">
-          <div class="rec-add-form-column">
-            <div class="rec-add-grid">
-              <div class="rec-add-row">
-                <label data-translate="name">Name *</label>
-                <input type="text" id="addName" class="rec-add-input" placeholder="Subscription name" data-translate-placeholder="subscription_name" required>
-              </div>
-              <div class="rec-add-row">
-                <label data-translate="amount">Amount *</label>
-                <div class="rec-add-amount-wrapper">
-                  <span class="rec-add-currency">${_currencySymbol}</span>
-                  <input type="number" id="addAmount" class="rec-add-input rec-add-amount" 
-                    placeholder="0.00" step="1" min="0" inputmode="decimal" required>
-                </div>
-              </div>
-              <div class="rec-add-row" style="display: none;">
-                <label data-translate="type">Type</label>
-                <select id="addType" class="rec-add-input">
-                  <option value="Subscription" data-translate="subscription">Subscription</option>
-                  <option value="Payment" data-translate="fixed_payment">Fixed Payment</option>
-                </select>
-              </div>
-              <div class="rec-add-row">
-                <label data-translate="category">Category</label>
-                <select id="addCategory" class="rec-add-input">
-                  ${_categories.map(cat => {
-                    // Extract text for translation
-                    const emojiRegex = /[\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}\u{2460}-\u{24FF}\u{2500}-\u{257F}\u{2580}-\u{259F}\u{25A0}-\u{25FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2B50}\u{2B55}\u{231A}\u{231B}\u{2328}\u{23CF}\u{23E9}-\u{23F3}\u{23F8}-\u{23FA}\u{24C2}\u{25AA}\u{25AB}\u{25B6}\u{25C0}\u{25FB}-\u{25FE}\u{2934}\u{2935}\u{3030}\u{303D}\u{3297}\u{3299}]|\u{FE0F}/gu;
-                    const categoryText = cat.name.replace(emojiRegex, '').trim();
-                    const translatedCatName = Utils.translateCategory ? Utils.translateCategory(categoryText) : categoryText;
-                    return `<option value="${cat.name}">${cat.emoji || '📄'} ${translatedCatName}</option>`;
-                  }).join('')}
-                </select>
-              </div>
-              <div class="rec-add-row">
-                <label data-translate="start_date">Start Date *</label>
-                <input type="date" id="addStartDate" class="rec-add-input" required>
-              </div>
-              <div class="rec-add-row">
-                <label data-translate="end_date">End Date</label>
-                <input type="date" id="addEndDate" class="rec-add-input">
-              </div>
-              <div class="rec-add-row">
-                <label data-translate="frequency">Frequency</label>
-                <select id="addFrequency" class="rec-add-input">
-                  <option value="Monthly" data-translate="monthly">Monthly</option>
-                  <option value="Quarterly" data-translate="quarterly">Quarterly</option>
-                  <option value="Yearly" data-translate="yearly">Yearly</option>
-                </select>
-              </div>
-              <div class="rec-add-row">
-                <label data-translate="account">Account</label>
-                <select id="addAccount" class="rec-add-input">
-                  <!-- Options will be populated by JavaScript AFTER DOM insertion -->
-                </select>
-              </div>
+      <div class="rec-popup-body">
+        ${hiddenType}
+        <!-- 2 Column Grid -->
+        <div class="rec-grid">
+          <div class="rec-grid-item">
+            <label data-translate="name">Name</label>
+            <input type="text" id="addName" class="rec-input" placeholder="Subscription name" required>
+          </div>
+          <div class="rec-grid-item">
+            <label data-translate="amount">Amount</label>
+            <div class="rec-input-amount">
+              <span class="rec-currency">${_currencySymbol}</span>
+              <input type="number" id="addAmount" class="rec-input" placeholder="0.00" step="1" min="0" inputmode="decimal" required>
             </div>
           </div>
-          <div class="rec-add-notes-column">
-            <div class="rec-add-row rec-add-notes-row">
-              <label data-translate="notes">Notes</label>
-              <textarea id="addNotes" class="rec-add-input rec-add-textarea" placeholder="Additional notes..." data-translate-placeholder="additional_notes"></textarea>
+          <div class="rec-grid-item">
+            <label data-translate="category">Category</label>
+            <select id="addCategory" class="rec-input">
+              ${_categories.map(cat => {
+                const emojiRegex = /[\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}\u{2460}-\u{24FF}\u{2500}-\u{257F}\u{2580}-\u{259F}\u{25A0}-\u{25FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2B50}\u{2B55}\u{231A}\u{231B}\u{2328}\u{23CF}\u{23E9}-\u{23F3}\u{23F8}-\u{23FA}\u{24C2}\u{25AA}\u{25AB}\u{25B6}\u{25C0}\u{25FB}-\u{25FE}\u{2934}\u{2935}\u{3030}\u{303D}\u{3297}\u{3299}]|\u{FE0F}/gu;
+                const categoryText = cat.name.replace(emojiRegex, '').trim();
+                const translatedCatName = Utils.translateCategory ? Utils.translateCategory(categoryText) : categoryText;
+                return `<option value="${cat.name}">${cat.emoji || '📄'} ${translatedCatName}</option>`;
+              }).join('')}
+            </select>
+          </div>
+          <div class="rec-grid-item">
+            <label data-translate="account">Account</label>
+            <select id="addAccount" class="rec-input">
+              <!-- Options will be populated by JavaScript AFTER DOM insertion -->
+            </select>
+          </div>
+          <div class="rec-grid-item">
+            <label data-translate="start_date">Start Date</label>
+            <input type="date" id="addStartDate" class="rec-input" required>
+          </div>
+          <div class="rec-grid-item rec-notes-item">
+            <button type="button" class="rec-add-note-btn" id="addNotesToggleBtn">+ Add Note</button>
+          </div>
+        </div>
+
+        <!-- Notes textarea (hidden by default) -->
+        <div class="rec-notes-area" id="addNotesRow" style="display: none;">
+          <textarea id="addNotes" class="rec-input rec-textarea" placeholder="Additional notes..."></textarea>
+        </div>
+
+        <!-- Frequency/End Date section -->
+        <div class="rec-frequency-section">
+          <div class="rec-grid">
+            <div class="rec-grid-item">
+              <label data-translate="frequency">Frequency</label>
+              <select id="addFrequency" class="rec-input">
+                <option value="Monthly" data-translate="monthly">Monthly</option>
+                <option value="Quarterly" data-translate="quarterly">Quarterly</option>
+                <option value="Yearly" data-translate="yearly">Yearly</option>
+              </select>
+            </div>
+            <div class="rec-grid-item">
+              <label data-translate="end_date">End Date</label>
+              <input type="text" id="addEndDate" class="rec-input" placeholder="mm/dd/yyyy" onfocus="this.type='date'" onblur="if(!this.value)this.type='text'">
             </div>
           </div>
         </div>
       </div>
-      <div class="rec-add-actions">
-        <button class="rec-add-btn rec-add-cancel-btn" type="button" data-translate="cancel">Cancel</button>
-        <button class="rec-add-btn rec-add-save-btn" type="button" data-translate="save">Save</button>
+      <div class="rec-popup-footer">
+        <button class="rec-btn-cancel" type="button" data-translate="cancel">Cancel</button>
+        <button class="rec-btn-save" type="button" data-translate="save">Save</button>
       </div>
     `;
-    
+
     overlay.appendChild(popup);
     document.body.appendChild(overlay);
-    
+
     // Apply translations to the dynamically created modal
     if (window.SimBudget && SimBudget.applyTranslations) {
       SimBudget.applyTranslations();
     }
-    
+
+    // Notes toggle
+    const notesToggle = document.getElementById('addNotesToggleBtn');
+    const notesRow = document.getElementById('addNotesRow');
+    notesToggle.addEventListener('click', function() {
+      if (notesRow.style.display === 'none') {
+        notesRow.style.display = 'block';
+        this.textContent = '− Hide Note';
+        document.getElementById('addNotes').focus();
+      } else {
+        notesRow.style.display = 'none';
+        this.textContent = '+ Add Note';
+      }
+    });
+
     // NOW populate the account dropdown AFTER it's in the DOM
     setTimeout(() => {
       const accountSelect = document.getElementById('addAccount');
       if (accountSelect) {
         // Get from cache IMMEDIATELY - no API calls
         const cachedNetWorth = window.CacheManager ? CacheManager.getNetWorthWithTimestamp() : null;
-        
+
         if (cachedNetWorth && cachedNetWorth.entries) {
           // Filter for liquid assets from current month only
           const currentMonth = new Date().getMonth();
           const currentYear = new Date().getFullYear();
-          
+
           const liquidAssets = cachedNetWorth.entries.filter(entry => {
-            // Check if it's this month/year
             if (!entry.date) return false;
-            // Parse "MMM YYYY" format (e.g., "Jan 2024")
             const dateParts = entry.date.split(' ');
             const entryYear = parseInt(dateParts[1]);
             const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            const entryMonth = monthNames.indexOf(dateParts[0]); // Already 0-based
-            
-            return entryMonth === currentMonth && 
+            const entryMonth = monthNames.indexOf(dateParts[0]);
+
+            return entryMonth === currentMonth &&
                    entryYear === currentYear &&
                    entry.asset === 'Liquid Assets' &&
-                   entry.name && 
+                   entry.name &&
                    entry.name.trim() !== '' &&
                    parseFloat(entry.amount) > 0;
           });
-          
+
           if (liquidAssets.length > 0) {
-            // Clear any existing options first
             accountSelect.innerHTML = '';
-            
-            // Create dropdown with REAL accounts INSTANTLY
+            const defaultOption = document.createElement('option');
+            defaultOption.value = '';
+            defaultOption.textContent = 'Select Account';
+            defaultOption.setAttribute('data-translate', 'select_account');
+            accountSelect.appendChild(defaultOption);
+
             const uniqueNames = [...new Set(liquidAssets.map(asset => asset.name.trim()))].sort();
-            
             uniqueNames.forEach(accountName => {
               const optionEl = document.createElement('option');
               optionEl.value = accountName;
@@ -1357,7 +1376,6 @@ var RecurringManager = (function() {
               accountSelect.appendChild(optionEl);
             });
           } else {
-            // NO LIQUID ASSETS FOUND - SHOW MESSAGE
             accountSelect.innerHTML = '';
             const emptyOption = document.createElement('option');
             emptyOption.value = '';
@@ -1366,7 +1384,6 @@ var RecurringManager = (function() {
             accountSelect.appendChild(emptyOption);
           }
         } else {
-          // NO CACHE - SHOW MESSAGE
           accountSelect.innerHTML = '';
           const noCacheOption = document.createElement('option');
           noCacheOption.value = '';
@@ -1375,12 +1392,20 @@ var RecurringManager = (function() {
           accountSelect.appendChild(noCacheOption);
         }
       }
-    }, 50); // Small delay to ensure DOM is ready
-  
+    }, 50);
+
     // Set default start date to today
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('addStartDate').value = today;
-    
+
+    // Close button
+    popup.querySelector('.rec-popup-close').addEventListener('click', function() {
+      removeAllOverlays();
+      // Show mobile sidebar toggle again
+      const mobileToggle = document.getElementById('mobileSidebarToggle');
+      if (mobileToggle) mobileToggle.style.display = '';
+    });
+
     // Focus the name input
     setTimeout(() => {
       const nameInput = document.getElementById('addName');
@@ -1391,25 +1416,30 @@ var RecurringManager = (function() {
     }, 100);
     
     // Handle button clicks
-    const saveBtn = popup.querySelector('.rec-add-save-btn');
-    const cancelBtn = popup.querySelector('.rec-add-cancel-btn');
-    
+    const saveBtn = popup.querySelector('.rec-btn-save');
+    const cancelBtn = popup.querySelector('.rec-btn-cancel');
+
     saveBtn.addEventListener('click', function() {
       saveNewSubscriptionFromPopup(overlay);
     });
-    
+
     cancelBtn.addEventListener('click', function() {
       removeAllOverlays();
+      // Show mobile sidebar toggle again
+      const mobileToggle = document.getElementById('mobileSidebarToggle');
+      if (mobileToggle) mobileToggle.style.display = '';
     });
-    
+
     // Handle keyboard events
     popup.addEventListener('keydown', function(e) {
       if (e.key === 'Enter' && !e.target.matches('textarea')) {
         e.preventDefault();
         saveBtn.click();
       } else if (e.key === 'Escape') {
-        e.preventDefault();
         removeAllOverlays();
+        // Show mobile sidebar toggle again
+        const mobileToggle = document.getElementById('mobileSidebarToggle');
+        if (mobileToggle) mobileToggle.style.display = '';
       }
     });
     
@@ -1417,6 +1447,9 @@ var RecurringManager = (function() {
     overlay.addEventListener('click', function(e) {
       if (e.target === overlay) {
         removeAllOverlays();
+        // Show mobile sidebar toggle again
+        const mobileToggle = document.getElementById('mobileSidebarToggle');
+        if (mobileToggle) mobileToggle.style.display = '';
       }
     });
   }
@@ -2054,9 +2087,12 @@ function restoreNextPaymentColumn() {
    * Remove all overlays - nuclear option for cleanup (copied from income)
    */
   function removeAllOverlays() {
-    document.querySelectorAll('.rec-add-overlay, .rec-confirm-overlay').forEach(el => {
+    document.querySelectorAll('.rec-add-overlay, .rec-confirm-overlay, .rec-popup-overlay').forEach(el => {
       el.remove();
     });
+    // Show mobile sidebar toggle again
+    const mobileToggle = document.getElementById('mobileSidebarToggle');
+    if (mobileToggle) mobileToggle.style.display = '';
   }
   function showConfirmDialog(message, onConfirm, onCancel) {
     // Remove any existing dialog
@@ -4639,6 +4675,390 @@ body.dark-mode .rec-calc-value {
   /* Dark mode border for form column separator */
   body.dark-mode .rec-add-form-column {
     border-bottom-color: var(--dark-border, rgba(255, 255, 255, 0.12));
+  }
+}
+
+/* ==============================================================
+   NEW 2-COLUMN GRID POPUP STYLES
+   ============================================================== */
+
+/* Overlay */
+.rec-popup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  animation: rec-overlay-fade 0.2s ease;
+}
+
+@keyframes rec-overlay-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Popup container */
+.rec-popup-grid {
+  background: white;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 480px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: rec-popup-appear 0.2s ease;
+}
+
+@keyframes rec-popup-appear {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Header */
+.rec-popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-bottom: 1px solid #eee;
+  border-radius: 12px 12px 0 0;
+}
+
+.rec-popup-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.rec-popup-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #999;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.rec-popup-close:hover {
+  color: #333;
+}
+
+.rec-popup-body {
+  padding: 20px;
+}
+
+/* 2 Column Grid */
+.rec-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.rec-grid-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rec-grid-item label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #555;
+}
+
+/* Input styling */
+.rec-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: 'Lato', sans-serif;
+  color: #333;
+  background: #fff;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.rec-input:focus {
+  outline: none;
+  border-color: #2c3e50;
+  box-shadow: 0 0 0 3px rgba(44, 62, 80, 0.1);
+}
+
+.rec-input::placeholder {
+  color: #aaa;
+}
+
+/* Amount input with currency */
+.rec-input-amount {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.rec-currency {
+  position: absolute;
+  left: 12px;
+  color: #666;
+  font-weight: 500;
+  pointer-events: none;
+}
+
+.rec-input-amount .rec-input {
+  padding-left: 28px;
+  width: 100%;
+}
+
+/* Select dropdown and date input */
+.rec-input[type="date"],
+select.rec-input {
+  cursor: pointer;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* iOS date input fix */
+.rec-input[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-height: auto;
+  line-height: normal;
+}
+
+/* Notes item - align button with adjacent input fields */
+.rec-notes-item {
+  display: flex;
+  align-items: flex-end;
+  padding-top: 22px;
+}
+
+/* Add Note button */
+.rec-add-note-btn {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px dashed #ccc;
+  border-radius: 8px;
+  background: #fafafa;
+  color: #666;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: left;
+}
+
+.rec-add-note-btn:hover {
+  border-color: #999;
+  background: #f5f5f5;
+}
+
+/* Notes area */
+.rec-notes-area {
+  margin-top: 16px;
+}
+
+.rec-textarea {
+  width: 100%;
+  min-height: 80px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+/* Frequency section */
+.rec-frequency-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #eee;
+}
+
+/* Footer */
+.rec-popup-footer {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px 24px;
+  background: #f8f9fa;
+  border-top: 1px solid #eee;
+  border-radius: 0 0 12px 12px;
+}
+
+.rec-btn-cancel,
+.rec-btn-save,
+.rec-btn-delete {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.rec-btn-cancel {
+  background: white;
+  border: 1px solid #ddd;
+  color: #666;
+}
+
+.rec-btn-cancel:hover {
+  background: #f5f5f5;
+}
+
+.rec-btn-save {
+  background: #2c3e50;
+  border: 1px solid #2c3e50;
+  color: white;
+}
+
+.rec-btn-save:hover {
+  background: #1a252f;
+}
+
+.rec-btn-delete {
+  background: white;
+  border: 1px solid #f44336;
+  color: #f44336;
+}
+
+.rec-btn-delete:hover {
+  background: #f44336;
+  color: white;
+}
+
+/* Dark mode for grid popup */
+body.dark-mode .rec-popup-grid {
+  background: #1e1e1e;
+}
+
+body.dark-mode .rec-popup-header {
+  background: linear-gradient(135deg, #252525 0%, #1e1e1e 100%);
+  border-bottom-color: rgba(255,255,255,0.1);
+}
+
+body.dark-mode .rec-popup-header h3 {
+  color: rgba(255,255,255,0.9);
+}
+
+body.dark-mode .rec-popup-close {
+  color: rgba(255,255,255,0.5);
+}
+
+body.dark-mode .rec-popup-close:hover {
+  color: rgba(255,255,255,0.8);
+}
+
+body.dark-mode .rec-grid-item label {
+  color: rgba(255,255,255,0.7);
+}
+
+body.dark-mode .rec-input {
+  background: #2a2a2a;
+  border-color: rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.9);
+}
+
+body.dark-mode .rec-input:focus {
+  border-color: #4a90a4;
+  box-shadow: 0 0 0 3px rgba(74, 144, 164, 0.2);
+}
+
+body.dark-mode .rec-input::placeholder {
+  color: rgba(255,255,255,0.4);
+}
+
+body.dark-mode .rec-currency {
+  color: rgba(255,255,255,0.6);
+}
+
+body.dark-mode .rec-add-note-btn {
+  background: #2a2a2a;
+  border-color: rgba(255,255,255,0.2);
+  color: rgba(255,255,255,0.6);
+}
+
+body.dark-mode .rec-add-note-btn:hover {
+  border-color: rgba(255,255,255,0.3);
+  background: #333;
+}
+
+body.dark-mode .rec-frequency-section {
+  border-top-color: rgba(255,255,255,0.1);
+}
+
+body.dark-mode .rec-popup-footer {
+  background: #252525;
+  border-top-color: rgba(255,255,255,0.1);
+}
+
+body.dark-mode .rec-btn-cancel {
+  background: #2a2a2a;
+  border-color: rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.8);
+}
+
+body.dark-mode .rec-btn-cancel:hover {
+  background: #333;
+}
+
+body.dark-mode .rec-btn-save {
+  background: #4a90a4;
+  border-color: #4a90a4;
+}
+
+body.dark-mode .rec-btn-save:hover {
+  background: #5aa0b4;
+}
+
+body.dark-mode .rec-btn-delete {
+  background: transparent;
+  border-color: #f44336;
+  color: #f44336;
+}
+
+body.dark-mode .rec-btn-delete:hover {
+  background: #f44336;
+  color: white;
+}
+
+/* Mobile responsive for grid popup */
+@media (max-width: 540px) {
+  .rec-popup-grid {
+    width: 100%;
+    max-width: 100%;
+    border-radius: 16px 16px 0 0;
+    max-height: 90vh;
+  }
+
+  .rec-popup-overlay {
+    align-items: flex-end;
+  }
+
+  .rec-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .rec-popup-header {
+    border-radius: 16px 16px 0 0;
+  }
+
+  .rec-popup-footer {
+    border-radius: 0;
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
   }
 }
 
