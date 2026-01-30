@@ -2478,39 +2478,39 @@ function init(containerId, cachedData) {
             <button class="nw-modal-close" id="modalClose">&times;</button>
           </div>
           <div class="nw-modal-body">
-            <div class="nw-modal-columns">
-              <div class="nw-modal-labels">
-                <div class="nw-label-item"><span data-translate="name_label">Name:</span> <span class="nw-required">*</span></div>
-                <div class="nw-label-item"><span data-translate="category_label">Category:</span> <span class="nw-required">*</span></div>
-                <div class="nw-label-item"><span data-translate="amount_label">Amount:</span> <span class="nw-required">*</span></div>
-                <div class="nw-label-item" data-translate="notes_label">Notes:</div>
-              </div>
-              <div class="nw-modal-inputs">
-                <div class="nw-input-item" data-label="Name:">
+            <div class="nw-modal-form">
+              <div class="nw-modal-fields-row">
+                <div class="nw-field-group">
+                  <label for="assetName" data-translate="name_label">Name</label>
                   <input type="text" id="assetName" class="nw-form-input">
                 </div>
-                <div class="nw-input-item" data-label="Category:">
+                <div class="nw-field-group">
+                  <label for="assetCategory" data-translate="category_label">Category</label>
                   <input type="text" id="assetCategory" class="nw-form-input">
                   <div class="nw-autocomplete-container"></div>
                 </div>
-                <div class="nw-input-item nw-amount-input" data-label="Amount:">
-                  <input type="number" id="assetAmount" class="nw-form-input" inputmode="decimal">
-                </div>
-                <div class="nw-input-item" data-label="Notes:">
-                  <textarea id="assetNotes" class="nw-form-textarea" rows="2"></textarea>
+                <div class="nw-field-group">
+                  <label for="assetAmount" data-translate="amount_label">Amount</label>
+                  <div class="nw-amount-input">
+                    <input type="number" id="assetAmount" class="nw-form-input" inputmode="decimal">
+                  </div>
                 </div>
               </div>
-              <div class="nw-modal-chart">
+              <div class="nw-modal-chart" id="assetChartSection">
                 <div class="nw-chart-placeholder">
                   <canvas id="assetHistoryChart" height="200"></canvas>
                 </div>
               </div>
+              <div class="nw-field-group nw-notes-group">
+                <label for="assetNotes" data-translate="notes_label">Notes</label>
+                <textarea id="assetNotes" class="nw-form-textarea" rows="3"></textarea>
+              </div>
             </div>
           </div>
-          <div class="nw-modal-footer">
-            <button class="nw-add-btn nw-add-delete-btn" id="deleteAssetBtn" data-translate="delete_button">Delete</button>
-            <button class="nw-add-btn nw-add-cancel-btn" id="cancelAssetBtn" data-translate="cancel_button">Cancel</button>
-            <button class="nw-add-btn nw-add-save-btn" id="saveAssetBtn" data-translate="save_button">Save</button>
+          <div class="nw-modal-footer nw-edit-footer">
+            <button class="nw-btn-delete" id="deleteAssetBtn" data-translate="delete">Delete</button>
+            <button class="nw-btn-cancel" id="cancelAssetBtn" data-translate="cancel">Cancel</button>
+            <button class="nw-btn-save" id="saveAssetBtn" data-translate="save">Save</button>
           </div>
         </div>
       </div>
@@ -3345,22 +3345,23 @@ function init(containerId, cachedData) {
     try {
       // Reset chart area
       const canvas = document.getElementById('assetHistoryChart');
-      const fallback = document.getElementById('chartFallback');
-      
+      const chartSection = document.getElementById('assetChartSection');
+
+      // Show chart section by default, hide if no data
+      if (chartSection) {
+        chartSection.classList.remove('hidden');
+      }
       if (canvas) {
         canvas.style.display = 'block';
       }
-      if (fallback) {
-        fallback.style.display = 'none';
-      }
-      
+
       // Check if Chart.js is available
       if (typeof Chart === 'undefined') {
         console.warn('Chart.js not available for asset history');
         showChartFallback(getTranslation('chart_library_not_available'));
         return;
       }
-      
+
       // Check canvas element again
       if (!canvas) {
         console.warn('Canvas element not found');
@@ -3511,25 +3512,9 @@ function init(containerId, cachedData) {
   }
   
   function showChartFallback(message) {
-    const canvas = document.getElementById('assetHistoryChart');
-    if (canvas) {
-      // Hide canvas and show message next to it
-      canvas.style.display = 'none';
-      let fallback = document.getElementById('chartFallback');
-      if (!fallback) {
-        fallback = document.createElement('div');
-        fallback.id = 'chartFallback';
-        canvas.parentNode.appendChild(fallback);
-      }
-      fallback.innerHTML = `
-        <div style="display: flex; align-items: center; justify-content: center; height: 200px; color: #666; text-align: center;">
-          <div>
-            <i class="material-icons" style="font-size: 48px; opacity: 0.3;">show_chart</i>
-            <p style="margin-top: 10px; font-size: 14px;">${message}</p>
-          </div>
-        </div>
-      `;
-      fallback.style.display = 'block';
+    const chartSection = document.getElementById('assetChartSection');
+    if (chartSection) {
+      chartSection.classList.add('hidden');
     }
   }
   
@@ -5358,8 +5343,13 @@ body.dark-mode #netWorthView .networth-banner-summary {
 }
 
 .nw-btn-delete:hover {
-  background: #e74c3c;
+  background: #f44336;
   color: white;
+}
+
+/* Edit modal footer - centered like recurring */
+.nw-edit-footer {
+  justify-content: center;
 }
 
 /* Dark mode for new popup styles */
@@ -5709,16 +5699,34 @@ body.dark-mode .nw-btn-delete:hover {
   }
   
   /* Mobile responsive for enhanced section titles */
+  .nw-section-header {
+    position: relative;
+    padding: 12px 16px;
+    padding-right: 50px;
+  }
+
   .nw-section-title-container {
     flex-direction: row;
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
   }
-  
+
+  .nw-section-title {
+    font-size: 15px;
+  }
+
   .nw-totals-display {
-    flex-wrap: wrap;
+    display: flex;
+    align-items: center;
     gap: 6px;
+  }
+
+  .nw-header-controls {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
   }
   
   .nw-total-badge-asset,
@@ -5803,15 +5811,7 @@ body.dark-mode .nw-btn-delete:hover {
   .nw-action-btn i {
     font-size: 16px;
   }
-  
-  .nw-section-header {
-    padding: 12px 16px;
-  }
-  
-  .nw-header-controls {
-    gap: 4px;
-  }
-  
+
   .nw-add-btn span,
   .nw-remove-toggle span {
     display: none;
@@ -6396,55 +6396,47 @@ body.dark-mode .nw-table th {
   padding: 24px;
 }
 
-.nw-modal-columns {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 24px;
-  align-items: start;
-}
-
-/* Desktop: Make input column narrower, chart wider */
-@media (min-width: 768px) {
-  .nw-modal-columns {
-    grid-template-columns: auto 0.6fr 1.4fr;
-  }
-}
-
-.nw-modal-labels {
+.nw-modal-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  min-width: 80px;
+  gap: 20px;
 }
 
-.nw-label-item {
+.nw-modal-fields-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+}
+
+.nw-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+}
+
+.nw-field-group label {
   font-weight: 500;
   color: #2c3e50;
   font-size: 0.9rem;
-  padding: 10px 0;
-  text-align: left;
 }
 
-.nw-modal-inputs {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-width: 200px;
+.nw-field-group .nw-form-input,
+.nw-field-group .nw-form-textarea {
+  width: 100%;
+  box-sizing: border-box;
 }
 
-.nw-input-item {
-  display: flex;
-  align-items: center;
+.nw-notes-group {
+  width: 100%;
 }
 
-.nw-modal-inputs .nw-form-input,
-.nw-modal-inputs .nw-form-textarea {
-  width: 100% !important;
-  box-sizing: border-box !important;
+.nw-notes-group .nw-form-textarea {
+  width: 100%;
+  resize: vertical;
 }
 
 @media (min-width: 768px) {
-
   .nw-enhanced-modal .nw-simple-form {
     padding: 0 100px;
   }
@@ -6453,43 +6445,28 @@ body.dark-mode .nw-table th {
 .nw-modal-chart {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
   background-color: #f8f9fa;
   border-radius: 8px;
   padding: 16px;
-  min-height: 250px;
-  min-width: 400px;
+  min-height: 200px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.nw-modal-chart.hidden {
+  display: none;
 }
 
 #assetHistoryChart {
-  width: 400px;
-}
-
-@media (max-width: 767px) {
-  #assetHistoryChart {
-    width: 300px;
-  }
+  width: 100%;
+  max-width: 600px;
 }
 
 .nw-chart-placeholder {
-  margin-bottom: 16px;
-}
-
-.nw-notes-section {
   width: 100%;
-}
-
-.nw-notes-label {
-  font-weight: 500;
-  color: #2c3e50;
-  font-size: 0.9rem;
-  margin-bottom: 6px;
-  text-align: left;
-}
-
-.nw-required {
-  color: #e74c3c;
-  font-weight: bold;
+  display: flex;
+  justify-content: center;
 }
 
 .nw-autocomplete-container {
@@ -6594,9 +6571,11 @@ input[type="number"] {
 
 .nw-form-textarea {
   resize: vertical;
-  min-height: 80px;
+  min-height: 60px;
   width: 200px;
   box-sizing: border-box;
+  font-family: inherit;
+  line-height: 1.4;
 }
 
 .nw-modal-footer {
@@ -6646,43 +6625,31 @@ input[type="number"] {
 }
 
 @media (max-width: 768px) {
-  .nw-modal-columns {
-    display: flex !important;
-    flex-direction: column !important;
-    gap: 20px !important;
+  .nw-modal-fields-row {
+    grid-template-columns: 1fr;
+    gap: 12px;
   }
-  
-  .nw-modal-labels {
-    display: none !important;
+
+  .nw-modal-fields-row .nw-field-group {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
   }
-  
-  .nw-modal-inputs {
-    display: flex !important;
-    flex-direction: column !important;
-    gap: 16px !important;
-    min-width: auto !important;
+
+  .nw-modal-fields-row .nw-field-group label {
+    min-width: 70px;
+    margin: 0;
   }
-  
-  .nw-modal-inputs .nw-input-item {
-    display: grid !important;
-    grid-template-columns: 80px 1fr !important;
-    gap: 16px !important;
-    align-items: center !important;
+
+  .nw-modal-fields-row .nw-field-group .nw-form-input,
+  .nw-modal-fields-row .nw-field-group .nw-amount-input {
+    flex: 1;
   }
-  
-  .nw-modal-inputs .nw-input-item::before {
-    content: attr(data-label);
-    font-weight: 500;
-    color: #2c3e50;
-    font-size: 0.9rem;
-  }
-  
+
   .nw-modal-chart {
-    min-width: auto !important;
-    width: 100% !important;
-    order: 2 !important;
+    display: none;
   }
-  
+
   .nw-modal-content {
     width: 95%;
     margin: 20px auto;
