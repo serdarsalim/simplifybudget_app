@@ -2106,204 +2106,232 @@ function saveEditedRecurringIncome(originalItem, overlay) {
   }
 
   /**
-   * Show add income popup - EXISTING FUNCTIONALITY
+   * Show add income popup - 2 COLUMN GRID VERSION
    */
   function showAddIncomePopup() {
     // Nuclear cleanup first
     removeAllOverlays();
-    
+
     // Always reload settings before creating new item to get current currency
     loadSettings();
-    
+
     // Create popup overlay
     const overlay = document.createElement('div');
     overlay.className = 'inc-add-overlay';
-    
+
     // Create popup
     const popup = document.createElement('div');
-    popup.className = 'inc-add-popup';
-    
+    popup.className = 'inc-add-popup inc-popup-grid';
+
     popup.innerHTML = `
-      <div class="inc-add-header">
+      <div class="inc-popup-header">
         <h3 data-translate="add_income">Add Income</h3>
-        <div class="inc-add-tabs">
-          <button class="inc-add-tab active" data-tab="onetime" data-translate="one_time">One-time</button>
-          <button class="inc-add-tab" data-tab="recurring" data-translate="recurring-income">Recurring</button>
-        </div>
+        <button class="inc-popup-close" type="button" aria-label="Close">×</button>
       </div>
-      <div class="inc-add-body">
-        <!-- One-time Income Tab -->
-        <div class="inc-add-tab-content active" id="onetime-tab">
-          <div class="rec-add-form-wrapper">
-            <div class="inc-add-fields-column">
-              <div class="inc-add-grid">
-                <div class="inc-add-row">
-                  <label data-translate="name_label">Name *</label>
-                  <input type="text" id="addName" class="inc-add-input" placeholder="Income name" required>
-                </div>
-                <div class="inc-add-row">
-                  <label data-translate="amount_label">Amount *</label>
-                  <div class="inc-add-amount-wrapper">
-                    <span class="inc-add-currency">${_currencySymbol}</span>
-                    <input type="number" id="addAmount" class="inc-add-input inc-add-amount" 
-                      placeholder="0.00" step="1" min="0" inputmode="decimal" required>
-                  </div>
-                </div>
-                <div class="inc-add-row">
-                  <label data-translate="date">Date *</label>
-                  <input type="date" id="addDate" class="inc-add-input" required>
-                </div>
-                <div class="inc-add-row">
-                  <label data-translate="account">Account</label>
-                  ${buildAccountField('', 'addAccount', 'inc-add-input')}
-                </div>
-                <div class="inc-add-row">
-                  <label data-translate="source">Source</label>
-                  <input type="text" id="addSource" class="inc-add-input" placeholder="Income source">
-                </div>
-              </div>
+      <div class="inc-popup-body">
+        <!-- 2 Column Grid -->
+        <div class="inc-grid">
+          <div class="inc-grid-item">
+            <label data-translate="name_label">Name</label>
+            <input type="text" id="addName" class="inc-input" placeholder="Income name" required>
+          </div>
+          <div class="inc-grid-item">
+            <label data-translate="amount_label">Amount</label>
+            <div class="inc-input-amount">
+              <span class="inc-currency">${_currencySymbol}</span>
+              <input type="number" id="addAmount" class="inc-input" placeholder="0.00" step="1" min="0" inputmode="decimal" required>
             </div>
-            <div class="inc-add-notes-column">
-              <div class="inc-add-notes-row">
-                <label data-translate="notes_label">Notes</label>
-                <textarea id="addNotes" class="inc-add-input inc-add-textarea" placeholder="Additional notes..."></textarea>
-              </div>
-            </div>
+          </div>
+          <div class="inc-grid-item">
+            <label data-translate="date">Date</label>
+            <input type="date" id="addDate" class="inc-input" required>
+          </div>
+          <div class="inc-grid-item">
+            <label data-translate="account">Account</label>
+            ${buildAccountField('', 'addAccount', 'inc-input')}
+          </div>
+          <div class="inc-grid-item">
+            <label data-translate="source">Source</label>
+            <input type="text" id="addSource" class="inc-input" placeholder="">
+          </div>
+          <div class="inc-grid-item">
+            <label data-translate="notes_label">Notes</label>
+            <button type="button" class="inc-add-note-btn" id="notesToggleBtn">+ Add Note</button>
           </div>
         </div>
 
-        <!-- Recurring Income Tab -->
-        <div class="inc-add-tab-content" id="recurring-tab">
-          <div class="rec-add-form-wrapper">
-            <div class="inc-add-fields-column">
-              <div class="inc-add-grid">
-                <div class="inc-add-row">
-                  <label data-translate="name_label">Name *</label>
-                  <input type="text" id="addRecName" class="inc-add-input" placeholder="Income name" required>
-                </div>
-                <div class="inc-add-row">
-                  <label data-translate="amount_label">Amount *</label>
-                  <div class="inc-add-amount-wrapper">
-                    <span class="inc-add-currency">${_currencySymbol}</span>
-                    <input type="number" id="addRecAmount" class="inc-add-input inc-add-amount" 
-                      placeholder="0.00" step="1" min="0" inputmode="decimal" required>
-                  </div>
-                </div>
-                <div class="inc-add-row">
-                  <label data-translate="start_date">Start Date *</label>
-                  <input type="date" id="addRecStartDate" class="inc-add-input" required>
-                </div>
-                <div class="inc-add-row">
-                  <label data-translate="end_date">End Date</label>
-                  <input type="date" id="addRecEndDate" class="inc-add-input">
-                </div>
-                <div class="inc-add-row">
-                  <label data-translate="frequency">Frequency *</label>
-                  <select id="addRecFrequency" class="inc-add-input" required>
-                    <option value="Monthly">Monthly</option>
-                    <option value="Quarterly">Quarterly</option>
-                    <option value="Yearly">Yearly</option>
-                  </select>
-                </div>
-                <div class="inc-add-row">
-                  <label data-translate="account">Account</label>
-                  ${buildAccountField('', 'addRecAccount', 'inc-add-input')}
-                </div>
-                <div class="inc-add-row">
-                  <label data-translate="source">Source</label>
-                  <input type="text" id="addRecSource" class="inc-add-input" placeholder="Income source">
-                </div>
-              </div>
+        <!-- Notes textarea (hidden by default) -->
+        <div class="inc-notes-area" id="notesRow" style="display: none;">
+          <textarea id="addNotes" class="inc-input inc-textarea" placeholder="Additional notes..."></textarea>
+        </div>
+
+        <!-- Recurring toggle -->
+        <div class="inc-recurring-toggle">
+          <label class="inc-toggle">
+            <input type="checkbox" id="addRecurring">
+            <span class="inc-toggle-slider"></span>
+            <span class="inc-toggle-label" data-translate="recurring_income">Recurring Income</span>
+          </label>
+        </div>
+
+        <!-- Recurring fields (hidden by default) -->
+        <div class="inc-recurring-fields" id="recurringFields" style="display: none;">
+          <div class="inc-grid">
+            <div class="inc-grid-item">
+              <label data-translate="frequency">Frequency</label>
+              <select id="addRecFrequency" class="inc-input">
+                <option value="Monthly">Monthly</option>
+                <option value="Quarterly">Quarterly</option>
+                <option value="Yearly">Yearly</option>
+              </select>
             </div>
-            <div class="inc-add-notes-column">
-              <div class="inc-add-notes-row">
-                <label data-translate="notes_label">Notes</label>
-                <textarea id="addRecNotes" class="inc-add-input inc-add-textarea" placeholder="Additional notes..."></textarea>
-              </div>
+            <div class="inc-grid-item">
+              <label data-translate="end_date">End Date</label>
+              <input type="date" id="addRecEndDate" class="inc-input">
             </div>
           </div>
         </div>
       </div>
-      <div class="inc-add-actions">
-        <button class="inc-add-btn inc-add-cancel-btn" type="button" data-translate="cancel_button">Cancel</button>
-        <button class="inc-add-btn inc-add-save-btn" type="button" data-translate="save_button">Save</button>
+        <button class="inc-btn-cancel" type="button" data-translate="cancel_button">Cancel</button>
+        <button class="inc-btn-save" type="button" data-translate="save_button">Save</button>
       </div>
     `;
-    
+
     overlay.appendChild(popup);
     document.body.appendChild(overlay);
-    
-    // Apply translations to the dynamically created modal
+
+    // Apply translations
     if (window.SimBudget && SimBudget.applyTranslations) {
       SimBudget.applyTranslations();
     }
-    
-    // Set default dates
+
+    // Set default date
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('addDate').value = today;
-    document.getElementById('addRecStartDate').value = today;
-    
-    // Tab switching logic
-    const tabs = popup.querySelectorAll('.inc-add-tab');
-    const tabContents = popup.querySelectorAll('.inc-add-tab-content');
-    
-    tabs.forEach(tab => {
-      tab.addEventListener('click', function() {
-        const targetTab = this.dataset.tab;
-        
-        // Remove active from all tabs and contents
-        tabs.forEach(t => t.classList.remove('active'));
-        tabContents.forEach(content => content.classList.remove('active'));
-        
-        // Add active to clicked tab and corresponding content
-        this.classList.add('active');
-        document.getElementById(targetTab + '-tab').classList.add('active');
-      });
+
+    // Notes toggle
+    const notesToggle = document.getElementById('notesToggleBtn');
+    const notesRow = document.getElementById('notesRow');
+    notesToggle.addEventListener('click', function() {
+      if (notesRow.style.display === 'none') {
+        notesRow.style.display = 'block';
+        this.textContent = '− Hide Note';
+        document.getElementById('addNotes').focus();
+      } else {
+        notesRow.style.display = 'none';
+        this.textContent = '+ Add Note';
+      }
     });
-    
-    // Focus the name input
+
+    // Recurring toggle
+    const recurringCheckbox = document.getElementById('addRecurring');
+    const recurringFields = document.getElementById('recurringFields');
+    recurringCheckbox.addEventListener('change', function() {
+      recurringFields.style.display = this.checked ? 'block' : 'none';
+    });
+
+    // Close button
+    popup.querySelector('.inc-popup-close').addEventListener('click', removeAllOverlays);
+
+    // Focus name input
     setTimeout(() => {
       const nameInput = document.getElementById('addName');
-      if (nameInput) {
-        nameInput.focus();
-        nameInput.select();
-      }
+      if (nameInput) nameInput.focus();
     }, 100);
-    
-    // Handle button clicks
-    const saveBtn = popup.querySelector('.inc-add-save-btn');
-    const cancelBtn = popup.querySelector('.inc-add-cancel-btn');
-    
+
+    // Save/Cancel buttons
+    const saveBtn = popup.querySelector('.inc-btn-save');
+    const cancelBtn = popup.querySelector('.inc-btn-cancel');
+
     saveBtn.addEventListener('click', function() {
-      const activeTab = popup.querySelector('.inc-add-tab.active').dataset.tab;
-      if (activeTab === 'onetime') {
-        saveNewIncomeFromPopup(overlay);
+      const isRecurring = document.getElementById('addRecurring').checked;
+      if (isRecurring) {
+        saveRecurringIncomeFromGrid(overlay);
       } else {
-        saveNewRecurringIncomeFromPopup(overlay);
+        saveNewIncomeFromPopup(overlay);
       }
     });
-    
-    cancelBtn.addEventListener('click', function() {
-      removeAllOverlays();
-    });
-    
-    // Handle keyboard events
+
+    cancelBtn.addEventListener('click', removeAllOverlays);
+
+    // Keyboard events
     popup.addEventListener('keydown', function(e) {
       if (e.key === 'Enter' && !e.target.matches('textarea')) {
         e.preventDefault();
         saveBtn.click();
       } else if (e.key === 'Escape') {
-        e.preventDefault();
         removeAllOverlays();
       }
     });
-    
-    // Handle overlay click (close on outside click)
+
+    // Click outside to close
     overlay.addEventListener('click', function(e) {
-      if (e.target === overlay) {
-        removeAllOverlays();
-      }
+      if (e.target === overlay) removeAllOverlays();
     });
+  }
+
+  /**
+   * Save recurring income from grid form
+   */
+  function saveRecurringIncomeFromGrid(overlay) {
+    const formData = {
+      name: document.getElementById('addName').value.trim(),
+      category: 'Income 💵',
+      frequency: document.getElementById('addRecFrequency').value,
+      amount: document.getElementById('addAmount').value.trim(),
+      account: document.getElementById('addAccount').value.trim(),
+      source: document.getElementById('addSource').value,
+      startDate: document.getElementById('addDate').value,
+      endDate: document.getElementById('addRecEndDate').value,
+      notes: document.getElementById('addNotes').value.trim()
+    };
+
+    // Validate
+    if (!formData.name || !formData.amount || parseFloat(formData.amount) <= 0 || !formData.startDate) {
+      if (window.Utils && Utils.showToast) {
+        Utils.showToast('Please fill Name, Amount, and Date', 'error');
+      }
+      return;
+    }
+
+    const newItem = {
+      id: `REC-${Date.now()}`,
+      rowIndex: null,
+      startDate: formData.startDate,
+      endDate: formData.endDate || '',
+      name: formData.name,
+      category: formData.category,
+      type: 'FALSE',
+      frequency: formData.frequency,
+      amount: parseFloat(formData.amount),
+      account: formData.account,
+      source: formData.source,
+      notes: formData.notes
+    };
+
+    const generatedPayments = processRecurringIncomeData([newItem]);
+    _recurringIncomeData = [...generatedPayments, ..._recurringIncomeData];
+
+    updateSummaryCards();
+    updateIncomeTable();
+    removeAllOverlays();
+
+    if (window.Utils && Utils.showToast) {
+      Utils.showToast('Recurring income added', 'success');
+    }
+
+    // Update cache
+    if (window.CacheManager && typeof CacheManager.setRecurringWithTimestamp === 'function') {
+      const recurringCache = CacheManager.getRecurringWithTimestamp();
+      if (recurringCache && recurringCache.entries) {
+        CacheManager.setRecurringWithTimestamp([newItem, ...recurringCache.entries], new Date().toISOString());
+      }
+    }
+
+    // Save to server
+    if (window.RecurringManager && typeof RecurringManager.saveItem === 'function') {
+      RecurringManager.saveItem(newItem);
+    }
   }
 
   /**
@@ -3404,6 +3432,380 @@ body.dark-mode .inc-notes-popup {
   overflow-y: auto;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   animation: inc-dialog-appear 0.2s ease-out;
+}
+
+/* ========== NEW 2-COLUMN GRID POPUP ========== */
+.inc-popup-grid {
+  min-width: auto;
+  width: 500px;
+  max-width: 95vw;
+  border-radius: 12px;
+  border: none;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+}
+
+.inc-popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #f0f9fa 0%, #e3f2f5 100%);
+  border-bottom: 1px solid #e0e0e0;
+  border-radius: 12px 12px 0 0;
+}
+
+.inc-popup-header h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.inc-popup-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #999;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.inc-popup-close:hover {
+  color: #333;
+}
+
+.inc-popup-body {
+  padding: 20px;
+}
+
+/* 2 Column Grid */
+.inc-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.inc-grid-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.inc-grid-item label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #555;
+}
+
+/* Input styling */
+.inc-input {
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: 'Lato', sans-serif;
+  color: #333;
+  background: #fff;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.inc-input:focus {
+  outline: none;
+  border-color: #2c3e50;
+  box-shadow: 0 0 0 3px rgba(44, 62, 80, 0.1);
+}
+
+.inc-input::placeholder {
+  color: #aaa;
+}
+
+/* Amount input with currency */
+.inc-input-amount {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.inc-currency {
+  position: absolute;
+  left: 12px;
+  color: #666;
+  font-weight: 500;
+  pointer-events: none;
+}
+
+.inc-input-amount .inc-input {
+  padding-left: 28px;
+  width: 100%;
+}
+
+/* Select dropdown */
+.inc-input[type="date"],
+select.inc-input {
+  cursor: pointer;
+}
+
+/* Add Note button */
+.inc-add-note-btn {
+  padding: 10px 12px;
+  border: 1px dashed #ccc;
+  border-radius: 8px;
+  background: #fafafa;
+  color: #666;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: left;
+}
+
+.inc-add-note-btn:hover {
+  border-color: #999;
+  background: #f5f5f5;
+}
+
+/* Notes area */
+.inc-notes-area {
+  margin-top: 16px;
+}
+
+.inc-textarea {
+  width: 100%;
+  min-height: 80px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+/* Recurring toggle */
+.inc-recurring-toggle {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #eee;
+}
+
+.inc-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.inc-toggle input {
+  display: none;
+}
+
+.inc-toggle-slider {
+  width: 44px;
+  height: 24px;
+  background: #ddd;
+  border-radius: 12px;
+  position: relative;
+  transition: background 0.2s;
+}
+
+.inc-toggle-slider::after {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  background: white;
+  border-radius: 50%;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.inc-toggle input:checked + .inc-toggle-slider {
+  background: #2c3e50;
+}
+
+.inc-toggle input:checked + .inc-toggle-slider::after {
+  transform: translateX(20px);
+}
+
+.inc-toggle-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #444;
+}
+
+/* Recurring fields */
+.inc-recurring-fields {
+  margin-top: 16px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+/* Footer */
+.inc-popup-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 20px;
+  background: #f8f9fa;
+  border-top: 1px solid #eee;
+  border-radius: 0 0 12px 12px;
+}
+
+.inc-btn-cancel,
+.inc-btn-save {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.inc-btn-cancel {
+  background: white;
+  border: 1px solid #ddd;
+  color: #666;
+}
+
+.inc-btn-cancel:hover {
+  background: #f5f5f5;
+}
+
+.inc-btn-save {
+  background: #2c3e50;
+  border: 1px solid #2c3e50;
+  color: white;
+}
+
+.inc-btn-save:hover {
+  background: #1a252f;
+}
+
+/* Dark mode for grid popup */
+body.dark-mode .inc-popup-grid {
+  background: #1e1e1e;
+}
+
+body.dark-mode .inc-popup-header {
+  background: linear-gradient(135deg, #252525 0%, #1e1e1e 100%);
+  border-bottom-color: rgba(255,255,255,0.1);
+}
+
+body.dark-mode .inc-popup-header h3 {
+  color: rgba(255,255,255,0.9);
+}
+
+body.dark-mode .inc-popup-close {
+  color: rgba(255,255,255,0.5);
+}
+
+body.dark-mode .inc-popup-close:hover {
+  color: rgba(255,255,255,0.8);
+}
+
+body.dark-mode .inc-grid-item label {
+  color: rgba(255,255,255,0.7);
+}
+
+body.dark-mode .inc-input {
+  background: #2a2a2a;
+  border-color: rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.9);
+}
+
+body.dark-mode .inc-input:focus {
+  border-color: #4a90a4;
+  box-shadow: 0 0 0 3px rgba(74, 144, 164, 0.2);
+}
+
+body.dark-mode .inc-input::placeholder {
+  color: rgba(255,255,255,0.4);
+}
+
+body.dark-mode .inc-currency {
+  color: rgba(255,255,255,0.6);
+}
+
+body.dark-mode .inc-add-note-btn {
+  background: #2a2a2a;
+  border-color: rgba(255,255,255,0.2);
+  color: rgba(255,255,255,0.6);
+}
+
+body.dark-mode .inc-add-note-btn:hover {
+  border-color: rgba(255,255,255,0.3);
+  background: #333;
+}
+
+body.dark-mode .inc-recurring-toggle {
+  border-top-color: rgba(255,255,255,0.1);
+}
+
+body.dark-mode .inc-toggle-slider {
+  background: rgba(255,255,255,0.2);
+}
+
+body.dark-mode .inc-toggle input:checked + .inc-toggle-slider {
+  background: #4a90a4;
+}
+
+body.dark-mode .inc-toggle-label {
+  color: rgba(255,255,255,0.8);
+}
+
+body.dark-mode .inc-recurring-fields {
+  background: rgba(255,255,255,0.05);
+}
+
+body.dark-mode .inc-popup-footer {
+  background: #252525;
+  border-top-color: rgba(255,255,255,0.1);
+}
+
+body.dark-mode .inc-btn-cancel {
+  background: #2a2a2a;
+  border-color: rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.8);
+}
+
+body.dark-mode .inc-btn-cancel:hover {
+  background: #333;
+}
+
+body.dark-mode .inc-btn-save {
+  background: #4a90a4;
+  border-color: #4a90a4;
+}
+
+body.dark-mode .inc-btn-save:hover {
+  background: #5aa0b4;
+}
+
+/* Mobile responsive for grid popup */
+@media (max-width: 540px) {
+  .inc-popup-grid {
+    width: 100%;
+    max-width: 100%;
+    border-radius: 16px 16px 0 0;
+    max-height: 90vh;
+  }
+
+  .inc-add-overlay {
+    align-items: flex-end;
+  }
+
+  .inc-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .inc-popup-header {
+    border-radius: 16px 16px 0 0;
+  }
+
+  .inc-popup-footer {
+    border-radius: 0;
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
 }
 
 @keyframes inc-dialog-appear {

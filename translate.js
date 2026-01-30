@@ -3047,6 +3047,8 @@ const ENGLISH_TRANSLATIONS = {
   "add_expense": "Add Expense",
   "add_income": "Add Income",
   "add_recurring": "Add Recurring",
+  "add_note": "Add Note",
+  "recurring_income": "Recurring Income",
 
   // Expense view
   "search_expenses": "Search expenses...",
