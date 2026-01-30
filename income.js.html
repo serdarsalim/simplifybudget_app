@@ -1047,17 +1047,15 @@ function updateIncomeTable() {
   // Clear table body
   tbody.innerHTML = '';
 
-  // Populate table with paginated data - dual color with month dividers
-  // Check for dark mode
+  // Populate table with month dividers and current month bold
   const isDarkMode = document.body.classList.contains('dark-mode');
+  const dividerColor = isDarkMode ? '#3a5a7a' : '#dde5ed';
 
-  const color1 = isDarkMode ? '#1a1a1a' : '#ffffff'; // Dark: very dark gray, Light: pure white
-  const color2 = isDarkMode ? '#252525' : '#fcfbf9'; // Dark: slightly lighter dark gray, Light: very subtle warm tint
-  const dividerColor = isDarkMode ? '#3a5a7a' : '#c7d7e8'; // Dark: muted blue, Light: soft blue
+  // Get current month for bold styling
+  const now = new Date();
+  const currentMonthYear = `${now.getFullYear()}-${now.getMonth()}`;
 
-  let currentMonth = null;
-  let monthColorIndex = 0;
-  let isFirstInMonth = false;
+  let previousMonth = null;
 
   paginatedData.forEach(item => {
     const row = createIncomeRow(item, statusFilter === 'recurring');
@@ -1066,25 +1064,17 @@ function updateIncomeTable() {
     const itemDate = item.date instanceof Date ? item.date : new Date(item.date);
     const monthYear = `${itemDate.getFullYear()}-${itemDate.getMonth()}`;
 
-    // Check if we've moved to a new month
-    if (currentMonth !== monthYear) {
-      currentMonth = monthYear;
-      monthColorIndex = (monthColorIndex + 1) % 2;
-      isFirstInMonth = true;
-    } else {
-      isFirstInMonth = false;
+    // Add separator line between months (except before first row)
+    if (previousMonth !== null && previousMonth !== monthYear) {
+      row.style.borderTop = `2px solid ${dividerColor}`;
     }
 
-    // Apply alternating background color
-    const bgColor = monthColorIndex === 0 ? color1 : color2;
-    row.style.backgroundColor = bgColor;
-
-    // Add border and spacing to first row of each new month (except the very first row)
-    if (isFirstInMonth && tbody.children.length > 0) {
-      row.style.borderTop = `1px solid ${dividerColor}`;
-      row.style.paddingTop = '12px';
+    // Bold current month rows
+    if (monthYear === currentMonthYear) {
+      row.style.fontWeight = '600';
     }
 
+    previousMonth = monthYear;
     tbody.appendChild(row);
   });
 
@@ -4863,8 +4853,7 @@ body.dark-mode .inc-add-recurring-btn:hover {
 }
 
 .inc-table tbody tr:hover {
-  filter: brightness(0.92);
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+  background-color: rgba(52, 152, 219, 0.08);
 }
 
 .inc-table tbody tr.inc-editing {
