@@ -2493,6 +2493,7 @@ function init(containerId, cachedData) {
                   <div class="nw-field-group">
                     <label for="assetAmount" data-translate="amount_label">Amount</label>
                     <div class="nw-amount-input">
+                      <span class="nw-currency-symbol" id="assetCurrencySymbol"></span>
                       <input type="number" id="assetAmount" class="nw-form-input" inputmode="decimal">
                     </div>
                   </div>
@@ -3321,6 +3322,7 @@ function init(containerId, cachedData) {
     // Populate form fields
     document.getElementById('assetName').value = entry.name || '';
     document.getElementById('assetAmount').value = entry.amount || '';
+    document.getElementById('assetCurrencySymbol').textContent = getCurrencySymbol();
     document.getElementById('assetNotes').value = entry.notes || '';
     document.getElementById('assetCategory').value = entry.type || '';
     
@@ -6540,11 +6542,18 @@ body.dark-mode .nw-table th {
   min-width: 0; /* Prevents flex container from overflowing its grid area */
 }
 
-
+.nw-currency-symbol {
+  position: absolute;
+  left: 12px;
+  color: #666;
+  font-weight: 500;
+  pointer-events: none;
+  z-index: 1;
+}
 
 .nw-amount-input input[type="number"],
 .nw-amount-input .nw-form-input {
-  padding-left: 15px !important;
+  padding-left: 28px !important;
 }
 
 /* Hide spinner arrows on number inputs */
