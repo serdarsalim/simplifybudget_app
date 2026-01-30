@@ -1238,7 +1238,7 @@ var RecurringManager = (function() {
 
     popup.innerHTML = `
       <div class="rec-popup-header">
-        <h3 data-translate="add_fixed_payment">Add Fixed Payment</h3>
+        <h3 data-translate="add_fixed_payment">Add Fixed Payment</h3><span class="rec-help-icon" onclick="event.stopPropagation(); showRecurringHelp('fixedPayment')">?</span>
         <button class="rec-popup-close" type="button" aria-label="Close">×</button>
       </div>
       <div class="rec-popup-body">
@@ -1695,7 +1695,7 @@ var RecurringManager = (function() {
 
       popup.innerHTML = `
         <div class="rec-popup-header">
-          <h3 data-translate="edit_subscription">Edit Fixed Payment</h3>
+          <h3 data-translate="edit_subscription">Edit Fixed Payment</h3><span class="rec-help-icon" onclick="event.stopPropagation(); showRecurringHelp('fixedPayment')">?</span>
           <button class="rec-popup-close" type="button" aria-label="Close">×</button>
         </div>
         <div class="rec-popup-body">
@@ -3352,6 +3352,72 @@ const colorPalette = [
 // Expose globally
 window.RecurringManager = RecurringManager;
 
+/**
+ * Show help dialog for recurring/fixed payments
+ */
+function showRecurringHelp(type) {
+  const helpContent = {
+    fixedPayment: {
+      title: 'Fixed Payments',
+      html: `
+        <p>Track subscriptions, memberships, and bills that repeat on a schedule.</p>
+
+        <div class="help-section">
+          <h4>Automatic tracking</h4>
+          <p>Payments are automatically added to your budget each month — no manual entry needed. Focus your time on tracking irregular expenses instead.</p>
+        </div>
+
+        <div class="help-section">
+          <h4>Start Date</h4>
+          <p>Enter when the subscription actually started. This ensures accurate "next payment" dates. The dashboard shows this month's exact payment dates and amounts.</p>
+        </div>
+
+        <div class="help-section">
+          <h4>Account (optional)</h4>
+          <p>Select which card or account you pay from. These are pulled from your Liquid Assets in Net Worth — helpful for knowing which card gets charged.</p>
+        </div>
+
+        <div class="help-section">
+          <h4>Why no end date?</h4>
+          <p>Leave it empty for ongoing payments. They'll appear at the start of each month so you can see your committed expenses when budgeting.</p>
+        </div>
+
+        <div class="help-section">
+          <h4>Price changed?</h4>
+          <p>End the current payment and create a new one. This keeps your payment history accurate.</p>
+        </div>
+
+        <div class="help-section">
+          <h4>Canceling?</h4>
+          <p>Don't delete — just add an end date. Your history stays intact.</p>
+        </div>
+      `
+    }
+  };
+
+  const content = helpContent[type];
+  if (!content) return;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'help-dialog-overlay';
+  overlay.innerHTML = `
+    <div class="help-dialog">
+      <h3>${content.title}</h3>
+      <div class="help-content">${content.html}</div>
+      <button onclick="this.closest('.help-dialog-overlay').remove()">Got it</button>
+    </div>
+  `;
+
+  // Close on overlay click
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) {
+      overlay.remove();
+    }
+  });
+
+  document.body.appendChild(overlay);
+}
+
 </script>
 
 <style>
@@ -4790,6 +4856,29 @@ body.dark-mode .rec-calc-value {
   font-size: 18px;
   font-weight: 600;
   color: #2c3e50;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rec-help-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.1);
+  font-size: 11px;
+  font-weight: bold;
+  cursor: pointer;
+  color: #666;
+  transition: background 0.15s;
+}
+
+.rec-help-icon:hover {
+  background: rgba(0,0,0,0.2);
+  color: #333;
 }
 
 .rec-popup-close {
@@ -4999,6 +5088,16 @@ body.dark-mode .rec-popup-header {
 }
 
 body.dark-mode .rec-popup-header h3 {
+  color: rgba(255,255,255,0.9);
+}
+
+body.dark-mode .rec-help-icon {
+  background: rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.6);
+}
+
+body.dark-mode .rec-help-icon:hover {
+  background: rgba(255,255,255,0.25);
   color: rgba(255,255,255,0.9);
 }
 
