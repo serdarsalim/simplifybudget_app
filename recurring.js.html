@@ -389,24 +389,34 @@ var RecurringManager = (function() {
     
     let nextDate = new Date(startDate);
     const freq = frequency.toLowerCase();
+    const originalDay = startDate.getDate();
+    
+    const advanceMonthsKeepingDay = (date, months, day) => {
+      const target = new Date(date.getFullYear(), date.getMonth() + months, 1);
+      const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+      target.setDate(Math.min(day, lastDay));
+      return target;
+    };
+    
+    const advanceYearsKeepingDay = (date, years, day) => {
+      const target = new Date(date.getFullYear() + years, date.getMonth(), 1);
+      const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+      target.setDate(Math.min(day, lastDay));
+      return target;
+    };
     
     
     // Keep advancing the date until it's today or in the future
     while (nextDate < today) {
-      const originalDay = startDate.getDate();
-      
       if (freq.includes('monthly')) {
-        nextDate.setMonth(nextDate.getMonth() + 1);
-        nextDate.setDate(Math.min(originalDay, new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, 0).getDate()));
+        nextDate = advanceMonthsKeepingDay(nextDate, 1, originalDay);
       } else if (freq.includes('yearly') || freq.includes('annual')) {
-        nextDate.setFullYear(nextDate.getFullYear() + 1);
+        nextDate = advanceYearsKeepingDay(nextDate, 1, originalDay);
       } else if (freq.includes('quarterly')) {
-        nextDate.setMonth(nextDate.getMonth() + 3);
-        nextDate.setDate(Math.min(originalDay, new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, 0).getDate()));
+        nextDate = advanceMonthsKeepingDay(nextDate, 3, originalDay);
       } else {
         // Default to monthly
-        nextDate.setMonth(nextDate.getMonth() + 1);
-        nextDate.setDate(Math.min(originalDay, new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, 0).getDate()));
+        nextDate = advanceMonthsKeepingDay(nextDate, 1, originalDay);
       }
       
       // Safety check to prevent infinite loops
