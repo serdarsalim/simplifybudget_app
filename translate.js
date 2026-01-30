@@ -359,6 +359,7 @@ const TURKISH_TRANSLATIONS = {
   "failed_to_load_data": "❌ Veri yüklenemedi",
   "show_expired": "Süresi geçenleri göster",
   "fixed_payment": "Sabit Ödeme",
+  "add_fixed_payment": "Sabit Ödeme Ekle",
   "add_subscription": "Abonelik Ekle",
   "edit_subscription": "Abonelik Düzenle",
   "updated_just_now": "Az önce güncellendi",
@@ -712,6 +713,7 @@ const FRENCH_TRANSLATIONS = {
   "failed_to_load_data": "❌ Échec du chargement des données",
   "show_expired": "Afficher expirés",
   "fixed_payment": "Paiement fixe",
+  "add_fixed_payment": "Ajouter paiement fixe",
   "add_subscription": "Ajouter abonnement",
   "edit_subscription": "Modifier abonnement",
   "updated_just_now": "Mis à jour à l'instant",
@@ -1064,6 +1066,7 @@ const GERMAN_TRANSLATIONS = {
   "failed_to_load_data": "❌ Daten konnten nicht geladen werden",
   "show_expired": "Abgelaufene anzeigen",
   "fixed_payment": "Feste Zahlung",
+  "add_fixed_payment": "Feste Zahlung hinzufügen",
   "add_subscription": "Abonnement hinzufügen",
   "edit_subscription": "Abonnement bearbeiten",
   "updated_just_now": "Gerade aktualisiert",
@@ -1486,6 +1489,7 @@ const SPANISH_TRANSLATIONS = {
   "failed_to_load_data": "❌ Error al cargar datos",
   "show_expired": "Mostrar expirados",
   "fixed_payment": "Pago fijo",
+  "add_fixed_payment": "Añadir pago fijo",
   "add_subscription": "Añadir suscripción",
   "edit_subscription": "Editar suscripción",
   "updated_just_now": "Actualizado ahora",
@@ -1855,6 +1859,7 @@ const MALAY_TRANSLATIONS = {
   "failed_to_load_data": "❌ Gagal memuat data",
   "show_expired": "Tunjuk tamat tempoh",
   "fixed_payment": "Bayaran tetap",
+  "add_fixed_payment": "Tambah bayaran tetap",
   "add_subscription": "Tambah langganan",
   "edit_subscription": "Edit langganan",
   "updated_just_now": "Baru dikemas kini",
@@ -2375,6 +2380,7 @@ const PORTUGUESE_TRANSLATIONS = {
   "no_income_data_received": "Nenhum dado de renda recebido",
   
   // Subscription Management
+  "add_fixed_payment": "Adicionar Pagamento Fixo",
   "add_subscription": "Adicionar Assinatura",
   "edit_subscription": "Editar Assinatura",
   "fixed_payment": "Pagamento Fixo",
@@ -2827,6 +2833,7 @@ const JAPANESE_TRANSLATIONS = {
   "no_income_data_received": "収入データを受信していません",
   
   // Subscription Management
+  "add_fixed_payment": "固定支払いを追加",
   "add_subscription": "サブスクリプションを追加",
   "edit_subscription": "サブスクリプションを編集",
   "fixed_payment": "固定支払い",
@@ -3275,6 +3282,7 @@ const ENGLISH_TRANSLATIONS = {
   "failed_to_load_data": "Failed to load data: ",
   "show_expired": "Show expired",
   "fixed_payment": "Fixed Payment",
+  "add_fixed_payment": "Add Fixed Payment",
   "add_subscription": "Add Subscription",
   "edit_subscription": "Edit Subscription",
   "updated_just_now": "Updated just now",
