@@ -1656,6 +1656,24 @@ function updateCurrency() {
     } else {
       console.error('nextMonth button not found in DOM');
     }
+
+    // Handle Analytics button in monthly view
+    const analyticsBtn = document.getElementById('monthlyAnalytics');
+    if (analyticsBtn) {
+      analyticsBtn.removeEventListener('click', analyticsBtn._monthlyGridHandler);
+
+      analyticsBtn._monthlyGridHandler = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (typeof window.showFinancialDashboard === 'function') {
+          window.showFinancialDashboard();
+        } else {
+          console.warn('MonthlyGrid: showFinancialDashboard not available');
+        }
+      };
+
+      analyticsBtn.addEventListener('click', analyticsBtn._monthlyGridHandler);
+    }
     
 
     const refreshExpenses = document.getElementById('refreshExpenses');
@@ -1878,6 +1896,12 @@ if (window.CacheManager) {
     if (refreshExpenses && refreshExpenses._monthlyGridHandler) {
       refreshExpenses.removeEventListener('click', refreshExpenses._monthlyGridHandler);
       refreshExpenses._monthlyGridHandler = null;
+    }
+
+    const analyticsBtn = document.getElementById('monthlyAnalytics');
+    if (analyticsBtn && analyticsBtn._monthlyGridHandler) {
+      analyticsBtn.removeEventListener('click', analyticsBtn._monthlyGridHandler);
+      analyticsBtn._monthlyGridHandler = null;
     }
   }
   

@@ -960,33 +960,47 @@ body.dark-mode .toggle-btn:hover {
 }
 
 .analytics-btn {
-  background: rgba(0, 0, 0, 0.05);
+  background: transparent;
   color: var(--text-primary);
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  border: none;
   border-radius: 6px;
-  padding: 4px 8px;
+  padding: 6px 8px;
   margin: 0;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
 .analytics-btn:hover {
-  background: rgba(0, 0, 0, 0.1);
-  border-color: rgba(0, 0, 0, 0.15);
+  background: rgba(0, 0, 0, 0.08);
 }
 
 /* Dark mode */
 body.dark-mode .analytics-btn {
-  background: rgba(255, 255, 255, 0.05);
+  background: transparent;
   color: var(--dark-text-primary);
-  border-color: rgba(255, 255, 255, 0.1);
 }
 
 body.dark-mode .analytics-btn:hover {
   background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.analytics-btn:focus-visible {
+  outline: 2px solid rgba(0, 0, 0, 0.2);
+  outline-offset: 2px;
+}
+
+body.dark-mode .analytics-btn:focus-visible {
+  outline-color: rgba(255, 255, 255, 0.25);
+}
+
+.analytics-btn .material-icons {
+  font-size: 18px;
 }
 
 /* Hide on mobile */
