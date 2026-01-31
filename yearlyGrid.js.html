@@ -3704,15 +3704,18 @@ window.showFinancialDashboard = function() {
     savingsData.push(income - spending);
   }
 
-  // Get all categories from the year's transactions
+  // Get all categories from the year's transactions, sorted by total spend (desc)
   const transactions = YearlyGrid.getTransactions();
-  const allCategories = [...new Set(transactions
-    .filter(tx => 
+  const categoryTotals = {};
+  transactions
+    .filter(tx =>
       tx.date.getFullYear() === viewYear &&
       !tx.category.toLowerCase().includes("income")
     )
-    .map(tx => tx.category)
-  )].sort();
+    .forEach(tx => {
+      categoryTotals[tx.category] = (categoryTotals[tx.category] || 0) + tx.amount;
+    });
+  const allCategories = Object.keys(categoryTotals).sort((a, b) => (categoryTotals[b] || 0) - (categoryTotals[a] || 0));
   
   // Generate colors for categories
   const categoryColors = {};
@@ -3794,6 +3797,7 @@ window.showFinancialDashboard = function() {
           display: true,
           position: 'right',
           align: 'start',
+          reverse: true,
           labels: {
             boxWidth: 12,
             padding: 8,
@@ -3816,11 +3820,22 @@ window.showFinancialDashboard = function() {
   const prevBtn = popup.querySelector('.year-nav-btn.prev');
   const nextBtn = popup.querySelector('.year-nav-btn.next');
   const yearDisplay = popup.querySelector('.year-display');
+
+  function updateYearNavState() {
+    if (nextBtn) {
+      const isAtCurrentYear = viewYear >= currentYear;
+      nextBtn.disabled = isAtCurrentYear;
+      nextBtn.setAttribute('aria-disabled', isAtCurrentYear ? 'true' : 'false');
+      nextBtn.style.opacity = isAtCurrentYear ? '0.4' : '';
+      nextBtn.style.cursor = isAtCurrentYear ? 'not-allowed' : '';
+    }
+  }
   
   // Function to create chart for any year
   function createChartForYear(targetYear) {
     viewYear = targetYear;
     yearDisplay.textContent = viewYear;
+    updateYearNavState();
     
     // Destroy existing chart
     if (chartInstance) chartInstance.destroy();
@@ -3828,15 +3843,18 @@ window.showFinancialDashboard = function() {
     // Update monthly breakdown table
     populateMonthlyBreakdownTable(popup, viewYear);
 
-    // Recalculate categories for the target year
+    // Recalculate categories for the target year, sorted by total spend (desc)
     const transactions = YearlyGrid.getTransactions();
-    const allCategories = [...new Set(transactions
+    const categoryTotals = {};
+    transactions
       .filter(tx =>
         tx.date.getFullYear() === viewYear &&
         !tx.category.toLowerCase().includes("income")
       )
-      .map(tx => tx.category)
-    )].sort();
+      .forEach(tx => {
+        categoryTotals[tx.category] = (categoryTotals[tx.category] || 0) + tx.amount;
+      });
+    const allCategories = Object.keys(categoryTotals).sort((a, b) => (categoryTotals[b] || 0) - (categoryTotals[a] || 0));
 
     // Generate colors for categories
     const categoryColors = {};
@@ -3909,15 +3927,16 @@ window.showFinancialDashboard = function() {
             display: true,
             text: 'Monthly Spending by Category'
           },
-          legend: {
-            display: true,
-            position: 'right',
-            align: 'start',
-            labels: {
-              boxWidth: 12,
-              padding: 8,
-              font: {
-                size: 11
+        legend: {
+          display: true,
+          position: 'right',
+          align: 'start',
+          reverse: true,
+          labels: {
+            boxWidth: 12,
+            padding: 8,
+            font: {
+              size: 11
               }
             }
           },
@@ -3934,8 +3953,14 @@ window.showFinancialDashboard = function() {
   });
   
   nextBtn.addEventListener('click', () => {
+    if (viewYear >= currentYear) {
+      updateYearNavState();
+      return;
+    }
     createChartForYear(viewYear + 1);
   });
+
+  updateYearNavState();
   
   // Close handlers
   const closeBtn = popup.querySelector('.dashboard-close');
