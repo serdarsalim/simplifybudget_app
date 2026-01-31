@@ -3050,7 +3050,50 @@ function clearTransactionById(transactionId, skipRender) {
     getYearlyIncome: getYearlyIncome,
     getYearlySpent: getYearlySpent,
     formatCurrency: formatCurrency,
-    getTransactions: function() { return (window.MonthlyGrid?.getTransactions() || []); },
+    getTransactions: function() {
+      const monthlyTx = window.MonthlyGrid?.getTransactions?.() || [];
+      if (monthlyTx.length) return monthlyTx;
+
+      const unifiedCache = window.CacheManager?.get?.('expenses_with_timestamp');
+      const cachedExpenses = unifiedCache?.expenses || [];
+      if (!cachedExpenses.length) return [];
+
+      return cachedExpenses
+        .map((expense) => {
+          if (!expense || !expense.category || expense.amount === undefined || expense.amount === null) {
+            return null;
+          }
+
+          let expenseDate;
+          if (expense.date instanceof Date) {
+            expenseDate = expense.date;
+          } else if (expense.date) {
+            expenseDate = parseSpreadsheetDate(expense.date) || new Date(expense.date);
+          }
+
+          if (!expenseDate || isNaN(expenseDate.getTime())) {
+            return null;
+          }
+
+          const amount = parseFloat(expense.amount);
+          if (isNaN(amount)) return null;
+
+          const parsed = parseCategoryNameAndEmoji(String(expense.category).trim());
+          const cleanCategory = parsed.name || String(expense.category).trim();
+
+          return {
+            transactionId: expense.transactionId || expense.id || '',
+            date: expenseDate,
+            category: cleanCategory,
+            amount: amount,
+            description: expense.name || expense.description || '',
+            account: expense.account || 'Other',
+            notes: expense.notes || '',
+            label: expense.label || ''
+          };
+        })
+        .filter(Boolean);
+    },
     getCurrentYear: function() { return _currentYear; },
     notifyCategoryChange: function() {
       notifyYearlyGridOfCategoryChange();

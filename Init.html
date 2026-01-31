@@ -64,6 +64,22 @@
       nextMonthBudget.addEventListener('click', nextMonthBudget._dashboardHandler);
     }
 
+    // Analytics button for dashboard
+    const dashboardAnalytics = document.getElementById('dashboardAnalytics');
+    if (dashboardAnalytics) {
+      dashboardAnalytics.removeEventListener('click', dashboardAnalytics._dashboardHandler);
+      dashboardAnalytics._dashboardHandler = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (typeof window.showFinancialDashboard === 'function') {
+          window.showFinancialDashboard();
+        } else {
+          console.warn('Dashboard: showFinancialDashboard not available');
+        }
+      };
+      dashboardAnalytics.addEventListener('click', dashboardAnalytics._dashboardHandler);
+    }
+
     // Click-to-edit functionality for budget month/year display
     const monthYearDisplayBudget2 = document.getElementById('monthYearDisplayBudget');
     if (monthYearDisplayBudget2) {
