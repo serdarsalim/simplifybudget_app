@@ -3530,7 +3530,7 @@ window.showFinancialDashboard = function() {
   const currentDate = new Date();
   const currentMonth = currentDate.getMonth(); // 0-11
   const currentYear = currentDate.getFullYear();
-  let viewYear = YearlyGrid.getCurrentYear(); // Year being viewed in the grid
+  let viewYear = YearlyGrid?.getCurrentYear?.() ?? currentYear; // Year being viewed in the grid
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   
   // Determine if we should show projections (only for current year)
@@ -3825,91 +3825,49 @@ window.showFinancialDashboard = function() {
     // Destroy existing chart
     if (chartInstance) chartInstance.destroy();
     
-    // Determine if we should show projections (only for current year)
-    const showProjections = viewYear === currentYear;
-    
-    // Recalculate all data for the target year
-    const transactions = YearlyGrid.getTransactions();
-    
-    // Helper functions for specific year
-    function getMonthlyIncomeForYear(month) {
-      return transactions
-        .filter(tx => 
-          tx.date.getFullYear() === viewYear &&
-          tx.date.getMonth() === month &&
-          tx.category.toLowerCase().includes("income")
-        )
-        .reduce((sum, tx) => sum + tx.amount, 0);
-    }
-    
-    function getMonthlySpentForYear(month) {
-      return transactions
-        .filter(tx => 
-          tx.date.getFullYear() === viewYear &&
-          tx.date.getMonth() === month &&
-          !tx.category.toLowerCase().includes("income")
-        )
-        .reduce((sum, tx) => sum + tx.amount, 0);
-    }
-    
-    // Calculate actual data
-    const newActualIncomeData = [];
-    const newActualSpendingData = [];
-    
-    for (let month = 0; month <= 11; month++) {
-      if (!showProjections || month <= currentMonth) {
-        newActualIncomeData.push(getMonthlyIncomeForYear(month));
-        newActualSpendingData.push(getMonthlySpentForYear(month));
-      } else {
-        newActualIncomeData.push(null);
-        newActualSpendingData.push(null);
-      }
-    }
-    
-    // Calculate projected data
-    const newProjectedIncomeData = [];
-    const newProjectedSpendingData = [];
-    
-    if (showProjections) {
-      const elapsedMonths = currentMonth + 1;
-      const avgIncome = elapsedMonths > 0 ? newActualIncomeData.slice(0, elapsedMonths).reduce((sum, val) => sum + (val || 0), 0) / elapsedMonths : 0;
-      const avgSpending = elapsedMonths > 0 ? newActualSpendingData.slice(0, elapsedMonths).reduce((sum, val) => sum + (val || 0), 0) / elapsedMonths : 0;
-      
-      for (let month = 0; month <= 11; month++) {
-        if (month <= currentMonth) {
-          newProjectedIncomeData.push(null);
-          newProjectedSpendingData.push(null);
-        } else {
-          newProjectedIncomeData.push(avgIncome);
-          newProjectedSpendingData.push(avgSpending);
-        }
-      }
-    } else {
-      for (let month = 0; month <= 11; month++) {
-        newProjectedIncomeData.push(null);
-        newProjectedSpendingData.push(null);
-      }
-    }
-    
     // Update monthly breakdown table
     populateMonthlyBreakdownTable(popup, viewYear);
-    
-    // Calculate savings data
-    const newSavingsData = [];
-    for (let month = 0; month <= 11; month++) {
-      let income, spending;
-      
-      if (!showProjections) {
-        income = newActualIncomeData[month] || 0;
-        spending = newActualSpendingData[month] || 0;
-      } else {
-        income = month <= currentMonth ? (newActualIncomeData[month] || 0) : (newProjectedIncomeData[month] || 0);
-        spending = month <= currentMonth ? (newActualSpendingData[month] || 0) : (newProjectedSpendingData[month] || 0);
+
+    // Recalculate categories for the target year
+    const transactions = YearlyGrid.getTransactions();
+    const allCategories = [...new Set(transactions
+      .filter(tx =>
+        tx.date.getFullYear() === viewYear &&
+        !tx.category.toLowerCase().includes("income")
+      )
+      .map(tx => tx.category)
+    )].sort();
+
+    // Generate colors for categories
+    const categoryColors = {};
+    const colorPalette = [
+      '#FF6F61', '#6B5B95', '#88D8C0', '#F7CAC9', '#92A8D1',
+      '#F7DC6F', '#BB8FCE', '#85C1E9', '#F8C471', '#82E0AA',
+      '#F1948A', '#D2B4DE', '#AED6F1', '#F9E79F', '#A3E4D7',
+      '#FADBD8', '#D5A6BD', '#A9CCE3', '#FCF3CF', '#ABEBC6'
+    ];
+
+    allCategories.forEach((category, index) => {
+      categoryColors[category] = colorPalette[index % colorPalette.length];
+    });
+
+    // Create datasets for each category (spending only)
+    const datasets = allCategories.map(category => {
+      const categoryData = [];
+      for (let month = 0; month <= 11; month++) {
+        const monthlySpending = getMonthlySpendingByCategory(month, viewYear);
+        categoryData.push(monthlySpending[category] || 0);
       }
-      
-      newSavingsData.push(income - spending);
-    }
-    
+
+      return {
+        label: category,
+        data: categoryData,
+        backgroundColor: categoryColors[category],
+        borderColor: categoryColors[category],
+        borderWidth: 1
+      };
+    });
+
     // Create new chart
     const ctx = document.getElementById('financialChart').getContext('2d');
     chartInstance = new Chart(ctx, {
@@ -3917,22 +3875,7 @@ window.showFinancialDashboard = function() {
       plugins: [ChartDataLabels],
       data: {
         labels: monthNames,
-        datasets: [
-          {
-            label: 'Actual Spending',
-            data: newActualSpendingData.map(val => val || 0),
-            backgroundColor: '#FF6F61',
-            borderColor: '#FF6F61',
-            borderWidth: 1
-          },
-          {
-            label: 'Projected Spending',
-            data: newProjectedSpendingData.map(val => val || 0),
-            backgroundColor: 'rgba(255, 111, 97, 0.5)',
-            borderColor: '#FF6F61',
-            borderWidth: 1
-          }
-        ]
+        datasets: datasets
       },
       options: {
         responsive: true,
@@ -3940,7 +3883,8 @@ window.showFinancialDashboard = function() {
         layout: {
           padding: {
             top: 0,
-            bottom: 20
+            bottom: 20,
+            left: 20
           }
         },
         scales: {
@@ -3963,10 +3907,19 @@ window.showFinancialDashboard = function() {
         plugins: {
           title: {
             display: true,
-            text: 'Monthly Income vs Spending with Projections'
+            text: 'Monthly Spending by Category'
           },
           legend: {
-            display: false
+            display: true,
+            position: 'right',
+            align: 'start',
+            labels: {
+              boxWidth: 12,
+              padding: 8,
+              font: {
+                size: 11
+              }
+            }
           },
           datalabels: {
             display: false
@@ -3977,33 +3930,11 @@ window.showFinancialDashboard = function() {
   }
   
   prevBtn.addEventListener('click', () => {
-    // Find and click the actual grid's previous year button
-    const gridPrevBtn = document.getElementById('prevYearReports');
-    if (gridPrevBtn) {
-      gridPrevBtn.click();
-      
-      // Close and reopen the dashboard with new data
-      setTimeout(() => {
-        if (chartInstance) chartInstance.destroy();
-        popup.remove();
-        window.showFinancialDashboard();
-      }, 300); // Delay to let the grid update
-    }
+    createChartForYear(viewYear - 1);
   });
   
   nextBtn.addEventListener('click', () => {
-    // Find and click the actual grid's next year button
-    const gridNextBtn = document.getElementById('nextYearReports');
-    if (gridNextBtn) {
-      gridNextBtn.click();
-      
-      // Close and reopen the dashboard with new data
-      setTimeout(() => {
-        if (chartInstance) chartInstance.destroy();
-        popup.remove();
-        window.showFinancialDashboard();
-      }, 300); // Delay to let the grid update
-    }
+    createChartForYear(viewYear + 1);
   });
   
   // Close handlers
@@ -4078,9 +4009,9 @@ function getMonthlySpent(month) {
 }
 
 // Get spending by category for a specific month
-function getMonthlySpendingByCategory(month) {
+function getMonthlySpendingByCategory(month, year) {
   const transactions = YearlyGrid.getTransactions();
-  const currentYear = YearlyGrid.getCurrentYear();
+  const currentYear = (typeof year === 'number') ? year : YearlyGrid.getCurrentYear();
   const categorySpending = {};
   
   transactions
