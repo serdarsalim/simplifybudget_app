@@ -239,6 +239,46 @@
     }
   }
 
+  let _dashboardRefreshPending = false;
+  let _dashboardRefreshAwaitingRender = false;
+
+  function setDashboardRefreshLoading(isLoading) {
+    const refreshElement = document.getElementById('lastRefreshTimeBudget');
+    const refreshBtn = document.getElementById('refreshBudget');
+
+    if (isLoading) {
+      _dashboardRefreshPending = true;
+      _dashboardRefreshAwaitingRender = false;
+      if (refreshElement) {
+        refreshElement.textContent = 'Loading...';
+        refreshElement.style.color = '#f39c12';
+        refreshElement.style.fontWeight = 'bold';
+      }
+      if (refreshBtn) {
+        refreshBtn.classList.add('loading');
+      }
+      return;
+    }
+
+    _dashboardRefreshPending = false;
+    if (refreshElement) {
+      refreshElement.style.color = '';
+      refreshElement.style.fontWeight = '';
+    }
+    if (refreshBtn) {
+      refreshBtn.classList.remove('loading');
+    }
+  }
+
+  function completeDashboardRefreshIfPending() {
+    if (!_dashboardRefreshAwaitingRender) return;
+    _dashboardRefreshAwaitingRender = false;
+    if (_dashboardRefreshPending) {
+      setDashboardRefreshLoading(false);
+      updateDashboardLastRefreshTime();
+    }
+  }
+
   // Main SimBudget namespace
   var SimBudget = (function () {
     // Private variables
@@ -714,6 +754,7 @@ const Views = {
             // Re-render current view if it uses expense data
             const currentView = this.Views.getCurrent();
             if (currentView === 'budget') {
+              _dashboardRefreshAwaitingRender = true;
               this.loadBudgetData();
             } else if (currentView === 'expense') {
               // Check if we're in yearly view and refresh it
@@ -748,6 +789,7 @@ const Views = {
                 CategoriesManager.init();
               }
             } else if (currentView === 'budget') {
+              _dashboardRefreshAwaitingRender = true;
               this.loadBudgetData();
             } else if (currentView === 'recurring') {
               if (window.RecurringManager) {
@@ -772,6 +814,7 @@ const Views = {
             // Re-render budget view if current
             const currentView = this.Views.getCurrent();
             if (currentView === 'budget') {
+              _dashboardRefreshAwaitingRender = true;
               this.loadBudgetData();
             }
           }
@@ -820,6 +863,7 @@ const Views = {
             RecurringManager.updateDataSilently(result.recurring);
           }
         } else if (currentView === 'budget') {
+          _dashboardRefreshAwaitingRender = true;
           this.loadBudgetData();
         }
       }
@@ -845,6 +889,7 @@ const Views = {
             IncomeManager.updateDataSilently(result.income);
           }
         } else if (currentView === 'budget') {
+          _dashboardRefreshAwaitingRender = true;
           this.loadBudgetData();
         }
       }
@@ -1169,6 +1214,14 @@ handleInitializationFailure: function(error) {
       if (!result || !result.timestamps) return;
       
       const stale = this.findStaleData(result.timestamps);
+
+      const currentView = viewName || this.Views.getCurrent();
+      if (currentView === 'budget') {
+        const budgetDependencies = ['masterData', 'budget', 'categories', 'income', 'recurring'];
+        if (stale.some((type) => budgetDependencies.includes(type))) {
+          setDashboardRefreshLoading(true);
+        }
+      }
       
       // Store timestamps centrally
       if (window.CacheManager) {
