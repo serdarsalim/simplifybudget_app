@@ -1934,6 +1934,7 @@ if (window.CacheManager) {
     
     const modalCard = modal.querySelector('.modal-card');
     const addBtn = getElement('add-transaction-btn');
+    const closeBtn = getElement('close-transaction-btn');
     
     if (addBtn && (e.target === addBtn || addBtn.contains(e.target))) {
       e.preventDefault();
@@ -1941,6 +1942,14 @@ if (window.CacheManager) {
       addTransactionRow();
       return;
     }
+    
+    if (closeBtn && (e.target === closeBtn || closeBtn.contains(e.target))) {
+      e.preventDefault();
+      e.stopPropagation();
+      closeTransactionModal();
+      return;
+    }
+    
     
     if (modal.classList.contains('visible')) {
       if (e.target === modal || 
@@ -2179,6 +2188,9 @@ function getNextMonth(month, year) {
             <div class="modal-actions">
               <button id="add-transaction-btn" class="add-transaction-btn">
                 <i class="material-icons">add</i> <span data-translate="add_more">Add More</span>
+              </button>
+              <button id="close-transaction-btn" class="close-transaction-btn">
+                <span data-translate="close_button">Close</span>
               </button>
             </div>
           </div>
@@ -2610,7 +2622,8 @@ function createTransactionItem(tx) {
   
   // Use placeholders instead of default values for better UX
   const amountValue = tx.amount && tx.amount > 0 ? tx.amount : '';
-  const amountPlaceholder = _currencySymbol;
+  const isCompactAmount = window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
+  const amountPlaceholder = isCompactAmount ? (_currencySymbol || '') : '0';
   const descriptionValue = tx.description || '';
   const descriptionPlaceholder = 'Expense name';
   
@@ -2642,9 +2655,20 @@ function createTransactionItem(tx) {
     amountInput.setAttribute('readonly', 'readonly');
   }
   
+  const amountWrapper = document.createElement('div');
+  amountWrapper.className = 'amount-input-wrapper';
+  if (isCompactAmount) {
+    amountWrapper.classList.add('amount-compact');
+  }
+  const amountCurrency = document.createElement('span');
+  amountCurrency.className = 'amount-currency';
+  amountCurrency.textContent = _currencySymbol || '';
+  amountWrapper.appendChild(amountCurrency);
+  amountWrapper.appendChild(amountInput);
+
   // Add description and amount to the row
   row.appendChild(descriptionInput);
-  row.appendChild(amountInput);
+  row.appendChild(amountWrapper);
   
   // 3. Account dropdown for ALL transactions (including recurring)
   // Account dropdown - GET FROM CACHE FIRST, NO API CALLS
@@ -3059,6 +3083,7 @@ function closeTransactionModal() {
     console.error('closeTransactionModal: Modal element not found!');
   }
 }
+
 
 
   
@@ -4166,6 +4191,7 @@ body.dark-mode .amount-max { background-color: #823200 !important; }
   background-color: #ffffff;
 }
 
+
 .modal-title {
   margin: 0;
   font-size: 17px;
@@ -4493,6 +4519,58 @@ body.dark-mode .amount-max { background-color: #823200 !important; }
   text-align: left;
 }
 
+.amount-input-wrapper {
+  width: 100px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1.5px solid transparent;
+  border-radius: 8px;
+  background-color: #ffffff;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.amount-currency {
+  font-size: 14px;
+  font-weight: 600;
+  color: #9ca3af;
+}
+
+.amount-input-wrapper:hover {
+  border-color: #e0e0e0;
+}
+
+.amount-input-wrapper:focus-within {
+  border-color: #2c3e50;
+  box-shadow: 0 0 0 3px rgba(44, 62, 80, 0.08);
+}
+
+.amount-input-wrapper .transaction-amount {
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+@media (max-width: 768px) {
+  .transaction-description {
+    width: auto;
+    flex: 1;
+  }
+
+  .amount-input-wrapper {
+    width: 72px;
+    min-width: 72px;
+    padding: 10px 10px;
+    gap: 0;
+  }
+
+  .amount-currency {
+    display: none;
+  }
+}
+
 .transaction-description::placeholder,
 .transaction-amount::placeholder {
   color: #9ca3af;
@@ -4683,6 +4761,7 @@ body:has(.transaction-modal.visible) #mobileSidebarToggle {
 .modal-actions {
   display: flex;
   justify-content: center;
+  gap: 10px;
   padding-top: 12px;
 }
 
@@ -4714,6 +4793,33 @@ body:has(.transaction-modal.visible) #mobileSidebarToggle {
 }
 
 .add-transaction-btn:active {
+  transform: scale(0.98);
+}
+
+.close-transaction-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background-color: #ffffff;
+  color: #6b7280;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 13px;
+  font-family: 'Lato', sans-serif;
+  transition: all 0.15s ease;
+}
+
+.close-transaction-btn:hover {
+  border-color: #2c3e50;
+  color: #2c3e50;
+  background-color: rgba(44, 62, 80, 0.04);
+}
+
+.close-transaction-btn:active {
   transform: scale(0.98);
 }
 
@@ -5303,6 +5409,7 @@ body.dark-mode .modal-title {
   color: rgba(255, 255, 255, 0.9);
 }
 
+
 body.dark-mode .transaction-item {
   background-color: rgba(255, 255, 255, 0.04);
 }
@@ -5321,6 +5428,15 @@ body.dark-mode .transaction-account {
   background-color: rgba(255, 255, 255, 0.06);
   color: rgba(255, 255, 255, 0.87);
   border-color: transparent;
+}
+
+body.dark-mode .amount-input-wrapper {
+  background-color: rgba(255, 255, 255, 0.06);
+  border-color: transparent;
+}
+
+body.dark-mode .amount-currency {
+  color: rgba(255, 255, 255, 0.5);
 }
 
 body.dark-mode .transaction-description::placeholder,
@@ -5386,6 +5502,19 @@ body.dark-mode .add-transaction-btn:hover {
   color: #DDA15E;
   background-color: rgba(221, 161, 94, 0.08);
 }
+
+body.dark-mode .close-transaction-btn {
+  background-color: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+body.dark-mode .close-transaction-btn:hover {
+  border-color: #DDA15E;
+  color: #DDA15E;
+  background-color: rgba(221, 161, 94, 0.08);
+}
+
 
 /* Error states dark mode */
 body.dark-mode .grid-error {
