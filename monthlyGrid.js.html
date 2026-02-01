@@ -1927,6 +1927,7 @@ if (window.CacheManager) {
   
   function handleDocumentClick(e) {
     if (_isOpeningModal || _isClosingModal) return;
+    if (isMoveTransactionModalOpen()) return;
     
     const modal = getElement('transaction-modal');
     if (!modal) return;
@@ -1954,6 +1955,7 @@ if (window.CacheManager) {
   
   function handleTouchEnd(e) {
     if (_isOpeningModal || _isClosingModal) return;
+    if (isMoveTransactionModalOpen()) return;
     
     const modal = getElement('transaction-modal');
     if (!modal || !modal.classList.contains('visible')) return;
@@ -2985,6 +2987,10 @@ function setupTransactionItemEvents(item, tx) {
   
   function handleEscKey(e) {
     if (e.key === 'Escape') {
+      if (isMoveTransactionModalOpen()) {
+        closeMoveTransactionModal();
+        return;
+      }
       closeTransactionModal();
     }
   }
@@ -3230,7 +3236,16 @@ function refresh(forceServerRefresh) {
       <div class="modal-backdrop"></div>
       <div class="move-modal-card">
         <div class="move-modal-header">
-          <h4 class="move-modal-title">Move transactions</h4>
+          <h4 class="move-modal-title">
+            Move transactions
+            <button type="button" class="move-help-icon" aria-label="What does move transactions do?">?</button>
+          </h4>
+          <div class="move-help-panel" aria-hidden="true">
+            <p>Moves transactions to a new date and/or category.</p>
+            <p>Applies to all non-recurring transactions in this list.</p>
+            <p>To change recurring payments, use Fixed Payments.</p>
+            <button type="button" class="move-help-dismiss">Got it</button>
+          </div>
         </div>
         <div class="move-modal-body">
           <label class="move-modal-label" for="move-date">New date</label>
@@ -3247,6 +3262,18 @@ function refresh(forceServerRefresh) {
 
     document.body.appendChild(moveModal);
     return moveModal;
+  }
+
+  function isMoveTransactionModalOpen() {
+    const moveModal = document.querySelector('.move-transaction-modal');
+    return !!(moveModal && moveModal.classList.contains('visible'));
+  }
+
+  function closeMoveTransactionModal() {
+    const moveModal = document.querySelector('.move-transaction-modal');
+    if (moveModal) {
+      moveModal.classList.remove('visible');
+    }
   }
 
   function showMoveTransactionModal() {
@@ -3275,17 +3302,48 @@ function refresh(forceServerRefresh) {
       categorySelect.value = categoryId;
     }
 
-    const closeMoveModal = () => {
-      moveModal.classList.remove('visible');
-    };
+    const helpPanel = moveModal.querySelector('.move-help-panel');
+    const helpTrigger = moveModal.querySelector('.move-help-icon');
+    const helpDismiss = moveModal.querySelector('.move-help-dismiss');
+
+    if (helpPanel) {
+      helpPanel.classList.remove('visible');
+      helpPanel.setAttribute('aria-hidden', 'true');
+    }
+
+    if (helpTrigger && helpPanel) {
+      helpTrigger.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        helpPanel.classList.add('visible');
+        helpPanel.setAttribute('aria-hidden', 'false');
+      };
+    }
+
+    if (helpDismiss && helpPanel) {
+      helpDismiss.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        helpPanel.classList.remove('visible');
+        helpPanel.setAttribute('aria-hidden', 'true');
+      };
+    }
 
     const cancelBtn = moveModal.querySelector('.move-cancel');
     if (cancelBtn) {
-      cancelBtn.onclick = closeMoveModal;
+      cancelBtn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        closeMoveTransactionModal();
+      };
     }
     const backdrop = moveModal.querySelector('.modal-backdrop');
     if (backdrop) {
-      backdrop.onclick = closeMoveModal;
+      backdrop.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        closeMoveTransactionModal();
+      };
     }
 
     const saveBtn = moveModal.querySelector('.move-save');
@@ -3325,7 +3383,7 @@ function refresh(forceServerRefresh) {
           }
         });
 
-        closeMoveModal();
+        closeMoveTransactionModal();
         closeTransactionModal();
       };
     }
@@ -4153,6 +4211,64 @@ body.dark-mode .amount-max { background-color: #823200 !important; }
   font-weight: 600;
   font-family: 'Lato', sans-serif;
   color: #1a1a1a;
+}
+
+.move-help-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: 6px;
+  border-radius: 50%;
+  border: none;
+  background: #eeeeee;
+  color: #8b8b8b;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.move-help-panel {
+  display: none;
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
+  border: 1px solid #eef2f7;
+}
+
+.move-help-panel.visible {
+  display: block;
+}
+
+.move-help-panel p {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
+.move-help-panel p:last-of-type {
+  margin-bottom: 14px;
+}
+
+.move-help-dismiss {
+  width: 100%;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 10px;
+  background: #0b74ff;
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.move-help-dismiss:hover {
+  background: #0a66de;
 }
 
 .move-modal-body {
