@@ -1370,9 +1370,10 @@ function createNewBudgetSheet() {
     z-index: 10000;
   `;
   
+  const isDarkMode = document.body.classList.contains('dark-mode');
   const modalContent = document.createElement('div');
   modalContent.style.cssText = `
-    background: white;
+    background: ${isDarkMode ? '#2d2d2d' : 'white'};
     border-radius: 10px;
     padding: 30px;
     max-width: 500px;
@@ -1380,22 +1381,65 @@ function createNewBudgetSheet() {
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
   `;
   
+  const headingColor = isDarkMode ? 'rgba(255,255,255,0.95)' : '#333';
+  const inactiveColor = isDarkMode ? 'rgba(255,255,255,0.5)' : '#999';
+  const spinnerBorder = isDarkMode ? '#444' : '#e0e0e0';
+
   modalContent.innerHTML = `
-    <div style="font-size: 48px; margin-bottom: 20px;">⏳</div>
-    <h2 style="color: #333; margin-bottom: 15px; font-size: 24px;">Creating Your Budget Spreadsheet</h2>
-    <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-      We're creating the Budget Spreadsheet to your Google Drive.<br>
-      
-    </p>
-    <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #ffc107;">
-      
+    <div style="margin-bottom: 24px;">
+      <div class="setup-spinner" style="
+        width: 48px;
+        height: 48px;
+        border: 4px solid ${spinnerBorder};
+        border-top: 4px solid #4CAF50;
+        border-radius: 50%;
+        margin: 0 auto;
+        animation: spin 1s linear infinite;
+      "></div>
     </div>
-    <div style="margin-top: 20px;">
-      <div style="display: inline-block; padding: 10px 20px; background: #007bff; color: white; border-radius: 5px; font-size: 14px;">
-        Processing...
+    <style>
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+    </style>
+    <h2 style="color: ${headingColor}; margin-bottom: 24px; font-size: 20px; font-weight: 600;">Setting up your budget</h2>
+    <div id="setup-steps" style="text-align: left; max-width: 300px; margin: 0 auto;">
+      <div id="step-1" class="setup-step" style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; color: #4CAF50;">
+        <span class="step-icon" style="font-size: 18px;">●</span>
+        <span style="font-size: 15px;">Creating your budget in Google Drive...</span>
+      </div>
+      <div id="step-2" class="setup-step" style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; color: ${inactiveColor};">
+        <span class="step-icon" style="font-size: 18px;">○</span>
+        <span style="font-size: 15px;">Connecting the budget to the app...</span>
+      </div>
+      <div id="step-3" class="setup-step" style="display: flex; align-items: center; gap: 12px; color: ${inactiveColor};">
+        <span class="step-icon" style="font-size: 18px;">○</span>
+        <span style="font-size: 15px;">Loading your settings...</span>
       </div>
     </div>
   `;
+
+  // Animate through steps
+  setTimeout(function() {
+    const step1 = document.getElementById('step-1');
+    const step2 = document.getElementById('step-2');
+    if (step1 && step2) {
+      step1.querySelector('.step-icon').textContent = '✓';
+      step2.style.color = '#4CAF50';
+      step2.querySelector('.step-icon').textContent = '●';
+    }
+  }, 1500);
+
+  setTimeout(function() {
+    const step2 = document.getElementById('step-2');
+    const step3 = document.getElementById('step-3');
+    if (step2 && step3) {
+      step2.querySelector('.step-icon').textContent = '✓';
+      step3.style.color = '#4CAF50';
+      step3.querySelector('.step-icon').textContent = '●';
+    }
+  }, 3000);
   
   modalOverlay.appendChild(modalContent);
   document.body.appendChild(modalOverlay);
