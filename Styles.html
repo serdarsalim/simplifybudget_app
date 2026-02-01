@@ -18,7 +18,8 @@
   
   /* Dark mode colors */
   --dark-background: #121212;
-  --dark-surface: #1e1e1e;
+  --dark-surface: rgba(24, 47, 70, 0.85);
+  --dark-popup-bg: #1e1e1e;
   --dark-text-primary: rgba(255, 255, 255, 0.87);
   --dark-text-secondary: rgba(255, 255, 255, 0.6);
   --dark-border: rgba(255, 255, 255, 0.12);
@@ -1295,7 +1296,7 @@ body.dark-mode .last-refresh {
 
 /* Dark mode support for editor */
 body.dark-mode .month-year-editor-modal .modal-content {
-  background: var(--dark-surface);
+  background: var(--dark-popup-bg, #1e1e1e);
   color: var(--dark-text-primary);
 }
 
@@ -1431,10 +1432,20 @@ body.dark-mode .editor-cancel {
     background: var(--primary-light);
   }
 
-  body.dark-mode .help-dialog {
-    background: var(--dark-surface);
-    color: var(--dark-text-primary);
-  }
+body.dark-mode .help-dialog {
+  background: var(--dark-popup-bg, #1e1e1e);
+  color: var(--dark-text-primary);
+}
+
+/* Global dark-mode popup background */
+body.dark-mode .modal-content,
+body.dark-mode .help-dialog,
+body.dark-mode .nw-modal,
+body.dark-mode .nw-enhanced-modal,
+body.dark-mode .nw-notes-modal,
+body.dark-mode .nw-asset-modal .nw-modal-content {
+  background: var(--dark-popup-bg, #1e1e1e);
+}
 
   body.dark-mode .help-content p {
     color: var(--dark-text-secondary);

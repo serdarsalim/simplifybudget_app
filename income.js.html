@@ -3829,7 +3829,7 @@ select.inc-input {
 
 /* Dark mode for grid popup */
 body.dark-mode .inc-popup-grid {
-  background: #1e1e1e;
+  background: var(--dark-popup-bg, #1e1e1e);
 }
 
 body.dark-mode .inc-popup-header {
@@ -3904,7 +3904,7 @@ body.dark-mode .inc-recurring-fields {
 }
 
 body.dark-mode .inc-popup-footer {
-  background: #252525;
+  background: var(--dark-popup-bg, #1e1e1e);
   border-top-color: rgba(255,255,255,0.1);
 }
 
@@ -4227,12 +4227,12 @@ body.dark-mode .inc-btn-delete:hover {
 
 /* Dark mode for popups */
 body.dark-mode .inc-add-popup, body.dark-mode .rec-add-popup {
-  background: var(--dark-surface, #1e1e1e);
+  background: var(--dark-popup-bg, #1e1e1e);
   color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
 }
 
 body.dark-mode .inc-add-header, body.dark-mode .rec-add-header {
-  background-color: var(--dark-surface, #1e1e1e);
+  background-color: var(--dark-popup-bg, #1e1e1e);
   border-color: var(--dark-border, rgba(255, 255, 255, 0.12));
 }
 
@@ -4245,7 +4245,7 @@ body.dark-mode .inc-add-row label, body.dark-mode .rec-add-row label {
 }
 
 body.dark-mode .inc-add-input, body.dark-mode .rec-add-input {
-  background-color: var(--dark-surface, #1e1e1e);
+  background-color: var(--dark-popup-bg, #1e1e1e);
   color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
   border-color: var(--dark-border, rgba(255, 255, 255, 0.12));
 }
