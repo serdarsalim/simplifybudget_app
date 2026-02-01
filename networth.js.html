@@ -379,7 +379,7 @@ function init(containerId, cachedData) {
   
   function showLoadingState() {
     // Update the top bar indicator instead of showing overlay
-    const refreshElement = document.getElementById('lastNetWorthRefresh');
+    const refreshElement = document.getElementById('lastRefreshTimeNetWorth');
     const refreshBtn = document.getElementById('refreshNetWorth');
     
     if (refreshElement) {
@@ -399,7 +399,7 @@ function init(containerId, cachedData) {
    * Hide loading indicator
    */
   function hideLoadingIndicator() {
-    const refreshElement = document.getElementById('lastNetWorthRefresh');
+    const refreshElement = document.getElementById('lastRefreshTimeNetWorth');
     const refreshBtn = document.getElementById('refreshNetWorth');
     
     if (refreshBtn) {
@@ -414,7 +414,8 @@ function init(containerId, cachedData) {
         minute: '2-digit',
         hour12: true 
       });
-      refreshElement.textContent = `Last updated: ${timeString}`;
+      const updatedAtText = window.getTranslation ? window.getTranslation('updated_at', getLanguageFromSettings()) : 'Updated at';
+      refreshElement.textContent = `${updatedAtText} ${timeString}`;
       refreshElement.style.color = '';
       refreshElement.style.fontWeight = '';
     }
@@ -4193,6 +4194,8 @@ function init(containerId, cachedData) {
     checkAutoRollover();
     calculateSummary();
     renderNetWorthView();
+
+    hideLoadingIndicator();
   },
     
     // For debugging
@@ -4201,7 +4204,9 @@ function init(containerId, cachedData) {
     getCurrentYear: () => _currentYear,
     isAutoRolloverCompleted: () => _autoRolloverCompleted,
     resetAutoRollover: () => { _autoRolloverCompleted = false;  },
-    getAssetTypeColors: () => ASSET_TYPE_COLORS
+    getAssetTypeColors: () => ASSET_TYPE_COLORS,
+    showLoadingState: showLoadingState,
+    hideLoadingIndicator: hideLoadingIndicator
     
   };
 })();

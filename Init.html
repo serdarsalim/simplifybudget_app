@@ -1279,6 +1279,11 @@ handleInitializationFailure: function(error) {
           RecurringManager.showLoadingState();
         }
       }
+      if (currentView === 'netWorth' && stale.includes('netWorth')) {
+        if (window.NetWorthManager && typeof NetWorthManager.showLoadingState === 'function') {
+          NetWorthManager.showLoadingState();
+        }
+      }
 
       const staleToFetch = (currentView === 'income') ?
         stale.filter((type) => type !== 'income') :
@@ -2273,9 +2278,19 @@ if (refreshBudgetBtn) {
   const refreshNetWorthBtn = document.getElementById("refreshNetWorth");
   if (refreshNetWorthBtn) {
     refreshNetWorthBtn.addEventListener("click", () => {
+      if (window.NetWorthManager && typeof NetWorthManager.showLoadingState === 'function') {
+        NetWorthManager.showLoadingState();
+      }
       // Force refresh by invalidating cache
       CacheManager.invalidate("netWorth");
       this.loadViewData("netWorth", true);
+
+      // Failsafe: clear loading state if something stalls
+      setTimeout(() => {
+        if (window.NetWorthManager && typeof NetWorthManager.hideLoadingIndicator === 'function') {
+          NetWorthManager.hideLoadingIndicator();
+        }
+      }, 10000);
     });
   }
 },
