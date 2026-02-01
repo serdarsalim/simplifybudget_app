@@ -3248,6 +3248,7 @@ function refresh(forceServerRefresh) {
           </div>
         </div>
         <div class="move-modal-body">
+          <div class="move-transaction-list"></div>
           <label class="move-modal-label" for="move-date">New date</label>
           <input id="move-date" class="move-modal-input" type="date" />
           <label class="move-modal-label" for="move-category">New category</label>
@@ -3300,6 +3301,40 @@ function refresh(forceServerRefresh) {
         categorySelect.appendChild(optionEl);
       });
       categorySelect.value = categoryId;
+    }
+
+    const transactionList = moveModal.querySelector('.move-transaction-list');
+    if (transactionList) {
+      transactionList.innerHTML = '';
+      const transactionsList = getElement('transactions-list');
+      if (transactionsList) {
+        const items = transactionsList.querySelectorAll('.transaction-item');
+        items.forEach(item => {
+          const txId = item.getAttribute('data-id');
+          const tx = _transactions.find(t => String(t.transactionId) === String(txId));
+          if (!tx) return;
+
+          const name = (tx.description || '').trim() || 'Untitled transaction';
+          const isSpecialTransaction = tx.label &&
+            (tx.label.toLowerCase().includes('subscription') ||
+             tx.label.toLowerCase().includes('fixed payment'));
+
+          const row = document.createElement('label');
+          row.className = `move-transaction-row${isSpecialTransaction ? ' is-disabled' : ''}`;
+          row.innerHTML = `
+            <span class="move-transaction-name">${name}</span>
+            <span class="move-toggle">
+              <input type="checkbox" class="move-toggle-input" ${isSpecialTransaction ? 'disabled' : 'checked'} />
+              <span class="move-toggle-slider"></span>
+            </span>
+          `;
+          if (isSpecialTransaction) {
+            row.setAttribute('data-disabled', 'true');
+          }
+          row.setAttribute('data-id', txId);
+          transactionList.appendChild(row);
+        });
+      }
     }
 
     const helpPanel = moveModal.querySelector('.move-help-panel');
@@ -3357,6 +3392,16 @@ function refresh(forceServerRefresh) {
         const transactionsList = getElement('transactions-list');
         if (!transactionsList) return;
 
+        const selectedIds = new Set();
+        const listItems = moveModal.querySelectorAll('.move-transaction-row');
+        listItems.forEach(row => {
+          const checkbox = row.querySelector('.move-toggle-input');
+          const id = row.getAttribute('data-id');
+          if (checkbox && checkbox.checked && id) {
+            selectedIds.add(id);
+          }
+        });
+
         const items = transactionsList.querySelectorAll('.transaction-item');
         items.forEach(item => {
           const amountInput = item.querySelector('.transaction-amount');
@@ -3366,6 +3411,7 @@ function refresh(forceServerRefresh) {
           if (!(parseFloat(amountInput.value) > 0 && descriptionInput.value.trim())) return;
 
           const txId = item.getAttribute('data-id');
+          if (!selectedIds.has(txId)) return;
           const tx = _transactions.find(t => String(t.transactionId) === String(txId));
           if (!tx) return;
 
@@ -4276,6 +4322,86 @@ body.dark-mode .amount-max { background-color: #823200 !important; }
   flex-direction: column;
   gap: 8px;
   padding: 16px 18px 18px;
+}
+
+.move-transaction-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 0 8px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.move-transaction-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #f8f9fb;
+}
+
+.move-transaction-row.is-disabled {
+  opacity: 0.6;
+}
+
+.move-transaction-name {
+  font-size: 13px;
+  color: #1f2937;
+  font-family: 'Lato', sans-serif;
+}
+
+.move-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 44px;
+  height: 24px;
+}
+
+.move-toggle-input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.move-toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #d1d5db;
+  transition: 0.2s;
+  border-radius: 999px;
+}
+
+.move-toggle-slider::after {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  top: 3px;
+  background-color: white;
+  transition: 0.2s;
+  border-radius: 50%;
+}
+
+.move-toggle-input:checked + .move-toggle-slider {
+  background-color: #2c3e50;
+}
+
+.move-toggle-input:checked + .move-toggle-slider::after {
+  transform: translateX(20px);
+}
+
+.move-toggle-input:disabled + .move-toggle-slider {
+  background-color: #e5e7eb;
+  cursor: not-allowed;
 }
 
 .move-modal-label {
