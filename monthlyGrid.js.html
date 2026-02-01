@@ -2512,9 +2512,13 @@ function getNextMonth(month, year) {
     if (modalTitle) {
       modalTitle.innerHTML = `
         <div class="integrated-title">
-          <span class="title-category">${category.emoji ? `${category.emoji} ${translatedCategoryText}` : translatedCategoryText}</span>
+          <button type="button" class="move-transaction-trigger title-button" aria-label="Move transactions">
+            <span class="title-category">${category.emoji ? `${category.emoji} ${translatedCategoryText}` : translatedCategoryText}</span>
+          </button>
           <span class="title-divider">|</span>
-          <span class="title-date">${formattedDate}</span>
+          <button type="button" class="move-transaction-trigger title-button" aria-label="Move transactions">
+            <span class="title-date">${formattedDate}</span>
+          </button>
           ${total > 0 ? `<span class="title-divider">|</span><span class="title-total">Total: ${formatCurrency(total, 2)}</span>` : ''}
         </div>
       `;
@@ -2551,6 +2555,11 @@ function getNextMonth(month, year) {
     modal.setAttribute('data-day', day);
     modal.setAttribute('data-category', categoryId);
     
+    const moveTriggers = modal.querySelectorAll('.move-transaction-trigger');
+    moveTriggers.forEach(trigger => {
+      trigger.addEventListener('click', () => showMoveTransactionModal());
+    });
+
     document.addEventListener('keydown', handleEscKey);
     
     setTimeout(() => {
@@ -3202,6 +3211,126 @@ function refresh(forceServerRefresh) {
     setTimeout(() => {
       _isSettingExpenseData = false;
     }, 50);
+  }
+
+  function formatDateInputValue(dateObj) {
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  function ensureMoveModalExists() {
+    let moveModal = document.querySelector('.move-transaction-modal');
+    if (moveModal) return moveModal;
+
+    moveModal = document.createElement('div');
+    moveModal.className = 'move-transaction-modal';
+    moveModal.innerHTML = `
+      <div class="modal-backdrop"></div>
+      <div class="move-modal-card">
+        <div class="move-modal-header">
+          <h4 class="move-modal-title">Move transactions</h4>
+        </div>
+        <div class="move-modal-body">
+          <label class="move-modal-label" for="move-date">New date</label>
+          <input id="move-date" class="move-modal-input" type="date" />
+          <label class="move-modal-label" for="move-category">New category</label>
+          <select id="move-category" class="move-modal-select"></select>
+        </div>
+        <div class="inc-popup-footer move-modal-actions">
+          <button type="button" class="inc-btn-cancel move-cancel">Cancel</button>
+          <button type="button" class="inc-btn-save move-save">Move</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(moveModal);
+    return moveModal;
+  }
+
+  function showMoveTransactionModal() {
+    const modal = getElement('transaction-modal');
+    if (!modal) return;
+
+    const moveModal = ensureMoveModalExists();
+    const day = parseInt(modal.getAttribute('data-day'), 10);
+    const categoryId = modal.getAttribute('data-category');
+
+    const dateObj = new Date(_currentYear, _currentMonth, day);
+    const dateInput = moveModal.querySelector('#move-date');
+    if (dateInput) {
+      dateInput.value = formatDateInputValue(dateObj);
+    }
+
+    const categorySelect = moveModal.querySelector('#move-category');
+    if (categorySelect) {
+      categorySelect.innerHTML = '';
+      _categories.forEach(category => {
+        const optionEl = document.createElement('option');
+        optionEl.value = category.id;
+        optionEl.textContent = category.emoji ? `${category.emoji} ${category.name}` : category.name;
+        categorySelect.appendChild(optionEl);
+      });
+      categorySelect.value = categoryId;
+    }
+
+    const closeMoveModal = () => {
+      moveModal.classList.remove('visible');
+    };
+
+    const cancelBtn = moveModal.querySelector('.move-cancel');
+    if (cancelBtn) {
+      cancelBtn.onclick = closeMoveModal;
+    }
+    const backdrop = moveModal.querySelector('.modal-backdrop');
+    if (backdrop) {
+      backdrop.onclick = closeMoveModal;
+    }
+
+    const saveBtn = moveModal.querySelector('.move-save');
+    if (saveBtn) {
+      saveBtn.onclick = () => {
+        const newDateValue = dateInput ? dateInput.value : '';
+        const newCategoryId = categorySelect ? categorySelect.value : '';
+        if (!newDateValue || !newCategoryId) return;
+
+        const newDate = new Date(`${newDateValue}T00:00:00`);
+        const transactionsList = getElement('transactions-list');
+        if (!transactionsList) return;
+
+        const items = transactionsList.querySelectorAll('.transaction-item');
+        items.forEach(item => {
+          const amountInput = item.querySelector('.transaction-amount');
+          const descriptionInput = item.querySelector('.transaction-description');
+          if (!amountInput || !descriptionInput) return;
+
+          if (!(parseFloat(amountInput.value) > 0 && descriptionInput.value.trim())) return;
+
+          const txId = item.getAttribute('data-id');
+          const tx = _transactions.find(t => String(t.transactionId) === String(txId));
+          if (!tx) return;
+
+          const isSpecialTransaction = tx.label && 
+            (tx.label.toLowerCase().includes('subscription') || 
+             tx.label.toLowerCase().includes('fixed payment'));
+          if (isSpecialTransaction) return;
+
+          tx.date = newDate;
+          tx.category = newCategoryId;
+          item.setAttribute('data-modified', 'true');
+
+          if (item._updateTransactionQueue) {
+            item._updateTransactionQueue();
+          }
+        });
+
+        closeMoveModal();
+        closeTransactionModal();
+      };
+    }
+
+    setTimeout(() => moveModal.classList.add('visible'), 10);
   }
 
   /**
@@ -3941,6 +4070,27 @@ body.dark-mode .amount-max { background-color: #823200 !important; }
   color: #1a1a1a;
 }
 
+.move-transaction-trigger {
+  border: none;
+  background: transparent;
+  color: #1a1a1a;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 4px;
+  border-radius: 6px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.move-transaction-trigger:hover {
+  background-color: #f3f4f6;
+}
+
+.title-button {
+  font: inherit;
+}
+
 .modal-content {
   flex: 1;
   padding: 16px 24px 20px;
@@ -3966,6 +4116,107 @@ body.dark-mode .amount-max { background-color: #823200 !important; }
 
 .transaction-item:focus-within {
   background-color: #e8eaed;
+}
+
+.move-transaction-modal {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.move-transaction-modal.visible {
+  display: flex;
+}
+
+.move-modal-card {
+  position: relative;
+  width: 360px;
+  background-color: #ffffff;
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.move-modal-header {
+  padding: 16px 18px 10px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.move-modal-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: 'Lato', sans-serif;
+  color: #1a1a1a;
+}
+
+.move-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 18px 18px;
+}
+
+.move-modal-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  font-family: 'Lato', sans-serif;
+}
+
+.move-modal-input,
+.move-modal-select {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1.5px solid #e5e7eb;
+  font-size: 14px;
+  font-family: 'Lato', sans-serif;
+  background-color: #ffffff;
+}
+
+.move-modal-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px 24px;
+  background: #f8f9fa;
+  border-top: 1px solid #eee;
+  border-radius: 0 0 14px 14px;
+}
+
+.move-modal-actions .inc-btn-cancel,
+.move-modal-actions .inc-btn-save {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.move-modal-actions .inc-btn-cancel {
+  background: #ffffff;
+  border: 1px solid #ddd;
+  color: #666;
+}
+
+.move-modal-actions .inc-btn-cancel:hover {
+  background: #f5f5f5;
+}
+
+.move-modal-actions .inc-btn-save {
+  background: #2c3e50;
+  border: 1px solid #2c3e50;
+  color: #ffffff;
+}
+
+.move-modal-actions .inc-btn-save:hover {
+  background: #1a252f;
 }
 
 /* ==> DESKTOP LAYOUT: Description | Amount | Account (auto) | Delete */
