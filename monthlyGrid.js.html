@@ -5433,6 +5433,28 @@ body.dark-mode .loading-spinner {
   }
 }
 
+@media (min-width: 1681px) {
+  /* Prevent line breaks in wide screens */
+  .cell-content {
+    flex-direction: row !important;
+    gap: 6px;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+  }
+
+  .amount-row {
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+  }
+
+  .transaction-count {
+    display: inline-flex;
+    margin-left: 2px;
+  }
+}
+
 @media (min-width: 1400px) {
   .monthly-grid-container {
     max-width: 1300px;
@@ -5482,7 +5504,7 @@ body.dark-mode .loading-spinner {
   .monthly-grid-container {
     max-width: 1600px;
     padding: 0;
-    min-height:1100px;
+    min-height:0px;
   }
   
   .category-header {
