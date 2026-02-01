@@ -830,7 +830,9 @@ const Views = {
             // Re-render current view if it uses categories
             const currentView = this.Views.getCurrent();
             if (currentView === 'categories') {
-              if (window.CategoriesManager) {
+              if (window.CategoriesManager && typeof CategoriesManager.updateDataSilently === 'function') {
+                CategoriesManager.updateDataSilently(result.categories);
+              } else if (window.CategoriesManager && typeof CategoriesManager.init === 'function') {
                 CategoriesManager.init();
               }
             } else if (currentView === 'budget') {
@@ -1282,6 +1284,11 @@ handleInitializationFailure: function(error) {
       if (currentView === 'netWorth' && stale.includes('netWorth')) {
         if (window.NetWorthManager && typeof NetWorthManager.showLoadingState === 'function') {
           NetWorthManager.showLoadingState();
+        }
+      }
+      if (currentView === 'categories' && stale.includes('categories')) {
+        if (window.CategoriesManager && typeof CategoriesManager.showLoadingState === 'function') {
+          CategoriesManager.showLoadingState();
         }
       }
 
@@ -2013,9 +2020,9 @@ if (refreshIncomeBtn) {
   const refreshCategoriesBtn = document.getElementById("refreshCategories");
   if (refreshCategoriesBtn) {
     refreshCategoriesBtn.addEventListener("click", () => {
-      
-      // Add loading state to refresh button
-      refreshCategoriesBtn.classList.add('loading');
+      if (window.CategoriesManager && typeof CategoriesManager.showLoadingState === 'function') {
+        CategoriesManager.showLoadingState();
+      }
       
       // Force refresh by invalidating cache
       if (
@@ -2030,13 +2037,12 @@ if (refreshIncomeBtn) {
         Utils.showToast("Cannot refresh categories", "error");
       }
       
-      // Update last refresh time
-      updateCategoriesLastRefreshTime();
-      
-      // Remove loading state after a short delay
+      // Failsafe: clear loading state if something stalls
       setTimeout(() => {
-        refreshCategoriesBtn.classList.remove('loading');
-      }, 1000);
+        if (window.CategoriesManager && typeof CategoriesManager.hideLoadingIndicator === 'function') {
+          CategoriesManager.hideLoadingIndicator();
+        }
+      }, 10000);
     });
   }
 

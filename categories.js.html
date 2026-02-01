@@ -265,6 +265,7 @@ function checkTimestampAndLoad(cachedData) {
   const cachedTime = new Date(cachedData.timestamp).getTime();
 
   if (serverTime > cachedTime) {
+    showLoadingState();
     fetchFreshCategories();
   } else {
     useCachedCategories(cachedData);
@@ -284,16 +285,19 @@ function fetchFreshCategories() {
         renderCategories();
         _initialized = true;
 
-        // ✅ ADD: Hide spinner after successful load
+        hideLoadingIndicator();
+        updateLastRefreshDisplay();
 
       } else {
         console.error('CategoriesManager: Invalid server response:', result);
         showError(result ? result.error : 'Invalid response from server');
+        hideLoadingIndicator();
       }
     },
     function(error) {
       console.error('CategoriesManager: Server error:', error);
       showError('Error loading from server: ' + error);
+      hideLoadingIndicator();
     }
   );
 }
@@ -305,6 +309,60 @@ function useCachedCategories(cachedData) {
   _categories = cachedData.categories;
   renderCategories();
   _initialized = true;
+}
+
+/**
+ * Show loading state in top bar
+ */
+function showLoadingState() {
+  const refreshElement = document.getElementById('lastRefreshTimeCategories');
+  const refreshBtn = document.getElementById('refreshCategories');
+  
+  if (refreshElement) {
+    refreshElement.textContent = 'Loading...';
+    refreshElement.style.color = '#f39c12';
+    refreshElement.style.fontWeight = 'bold';
+  }
+  
+  if (refreshBtn) {
+    refreshBtn.classList.add('loading');
+  }
+}
+
+/**
+ * Hide loading state in top bar
+ */
+function hideLoadingIndicator() {
+  const refreshElement = document.getElementById('lastRefreshTimeCategories');
+  const refreshBtn = document.getElementById('refreshCategories');
+  
+  if (refreshBtn) {
+    refreshBtn.classList.remove('loading');
+  }
+  
+  if (refreshElement) {
+    refreshElement.style.color = '';
+    refreshElement.style.fontWeight = '';
+  }
+}
+
+/**
+ * Update last refresh time display
+ */
+function updateLastRefreshDisplay() {
+  const refreshElement = document.getElementById('lastRefreshTimeCategories');
+  if (refreshElement) {
+    const now = new Date();
+    const timeString = now.toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit',
+      hour12: true 
+    });
+    const updatedAtText = window.getTranslation ? window.getTranslation('updated_at', getLanguageFromSettings()) : 'Updated at';
+    refreshElement.textContent = `${updatedAtText} ${timeString}`;
+    refreshElement.style.color = '';
+    refreshElement.style.fontWeight = '';
+  }
 }
 
  
@@ -414,21 +472,12 @@ function refreshCategories() {
     return;
   }
   
-  // Clear existing data
-  _categories = [];
-  _initialized = false;
-  
   // Clear CacheManager cache to force fresh fetch
   if (window.CacheManager && typeof CacheManager.invalidate === 'function') {
     CacheManager.invalidate('categories_with_timestamp');
   }
   
-  // ✅ ADD: Show spinner ONLY for manual refresh
-  const container = getElement('categories-container');
-  if (container) {
-    container.innerHTML = '<div class="categories-loading"><div class="loading-spinner"></div><p>Refreshing categories...</p></div>';
-  }
-  
+  showLoadingState();
   fetchFreshCategories();
 }
   
@@ -1304,7 +1353,16 @@ function saveNameUpdate(categoryId, newName) {
     
     // Expose for debugging
     getCategories: function() { return _categories; },
-    isInitialized: function() { return _initialized; }
+    isInitialized: function() { return _initialized; },
+    updateDataSilently: function(entries) {
+      if (!entries || !Array.isArray(entries)) return;
+      _categories = entries;
+      renderCategories();
+      hideLoadingIndicator();
+      updateLastRefreshDisplay();
+    },
+    showLoadingState: showLoadingState,
+    hideLoadingIndicator: hideLoadingIndicator
   };
 })();
 
