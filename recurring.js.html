@@ -796,7 +796,7 @@ var RecurringManager = (function() {
    */
   function showLoadingState() {
     // Don't show overlay - just update the refresh indicator in top bar
-    const refreshElement = document.getElementById('lastRecurringRefresh');
+    const refreshElement = document.getElementById('lastRefreshTimeRecurring');
     const refreshBtn = document.getElementById('refreshRecurring');
     
     if (refreshElement) {
@@ -815,7 +815,7 @@ var RecurringManager = (function() {
    */
   function hideLoadingIndicator() {
     // Reset the refresh message and button
-    const refreshElement = document.getElementById('lastRecurringRefresh');
+    const refreshElement = document.getElementById('lastRefreshTimeRecurring');
     const refreshBtn = document.getElementById('refreshRecurring');
     
     if (refreshBtn) {
@@ -832,7 +832,7 @@ var RecurringManager = (function() {
    * Update last refresh time display
    */
   function updateLastRefreshDisplay() {
-    const refreshElement = document.getElementById('lastRecurringRefresh');
+    const refreshElement = document.getElementById('lastRefreshTimeRecurring');
     if (refreshElement) {
       const now = new Date();
       const timeString = now.toLocaleTimeString('en-US', { 
@@ -840,7 +840,8 @@ var RecurringManager = (function() {
         minute: '2-digit',
         hour12: true 
       });
-      refreshElement.textContent = `Last updated: ${timeString}`;
+      const updatedAtText = window.getTranslation ? window.getTranslation('updated_at', getLanguageFromSettings()) : 'Updated at';
+      refreshElement.textContent = `${updatedAtText} ${timeString}`;
       refreshElement.style.color = '';
       refreshElement.style.fontWeight = '';
     }
@@ -3384,10 +3385,14 @@ const colorPalette = [
     if (window.recurringChart) {
       initializeRecurringChart();
     }
+
+    hideLoadingIndicator();
+    updateLastRefreshDisplay();
   },
   
   // Expose loading state function
-  showLoadingState: showLoadingState
+  showLoadingState: showLoadingState,
+  hideLoadingIndicator: hideLoadingIndicator
 };
 })();
 

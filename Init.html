@@ -1274,6 +1274,11 @@ handleInitializationFailure: function(error) {
           setDashboardRefreshLoading(true);
         }
       }
+      if (currentView === 'recurring' && stale.includes('recurring')) {
+        if (window.RecurringManager && typeof RecurringManager.showLoadingState === 'function') {
+          RecurringManager.showLoadingState();
+        }
+      }
 
       const staleToFetch = (currentView === 'income') ?
         stale.filter((type) => type !== 'income') :
@@ -1933,14 +1938,14 @@ if (refreshRecurringBtn) {
       // Fallback: reload the view with forceRefresh=true
       this.loadViewData("recurring", true);  // true forces fresh fetch
     }
-    
-    // Update last refresh time
-    updateRecurringLastRefreshTime();
-    
-    // Remove loading state after a short delay
+
+    // Failsafe: clear loading state if something stalls
     setTimeout(() => {
       refreshRecurringBtn.classList.remove('loading');
-    }, 1000);
+      if (window.RecurringManager && typeof RecurringManager.hideLoadingIndicator === 'function') {
+        RecurringManager.hideLoadingIndicator();
+      }
+    }, 10000);
   });
 }
 
