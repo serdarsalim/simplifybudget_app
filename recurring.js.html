@@ -855,70 +855,11 @@ var RecurringManager = (function() {
     if (container) {
       // Check if this is a first-time user error (no spreadsheet ID)
       if (error && error.includes && error.includes('No spreadsheet ID found')) {
-        
-        // Show welcome message with Settings button
-        container.innerHTML = `
-          <div
-            class="grid-welcome"
-            style="
-              text-align: center;
-              padding: 80px 20px 40px;
-              max-width: 800px;
-              margin: 0 auto;
-            "
-          >
-            <h3 style="margin-bottom: 20px;">👋 Welcome to Simplify Budget!</h3>
-            
-            <p style="margin-bottom: 20px;">
-              Let's get you set up with your budget tracking.
-            </p>
-            
-            <div style="margin: 30px 0;">
-              <button 
-                onclick="if(window.SimBudget && SimBudget.Views) { SimBudget.Views.switchTo('settings'); }" 
-                style="
-                  background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
-                  color: white;
-                  border: none;
-                  padding: 15px 30px;
-                  font-size: 18px;
-                  border-radius: 8px;
-                  cursor: pointer;
-                  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-                  transition: transform 0.2s, box-shadow 0.2s;
-                  margin-bottom: 20px;
-                "
-                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 12px rgba(0,0,0,0.3)';"
-                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.2)';"
-              >
-                🚀 Open Settings to Get Started
-              </button>
-            </div>
-            
-            <p style="margin: 0 0 15px; font-size: 16px; color: #666;">
-              In Settings, choose one of these options:
-            </p>
-            
-            <ul style="text-align: left; max-width: 600px; margin: 0 auto 30px; line-height: 1.6;">
-              <li style="margin-bottom: 10px;">
-                <strong>New Spreadsheet</strong> – to create a fresh budget spreadsheet in your Google Drive (recommended for first-time users)
-              </li>
-              <li>
-                <strong>Select Existing</strong> – to choose a budget spreadsheet you've already created or been using (recommended if sharing with others)
-              </li>
-            </ul>
-            
-            <p style="margin-bottom: 30px;">
-              🔒 <strong>Privacy:</strong> Your data is saved on a spreadsheet on your Google Drive. You control who has access.
-            </p>
-            
-            <p style="margin-bottom: 0;">
-              📺 <a href="https://www.youtube.com/watch?v=Xu_jhx9h_-Q" target="_blank" rel="noopener">
-                Watch the YouTube tutorial: How to use the app
-              </a>
-            </p>
-          </div>
-        `;
+        if (typeof window.renderNoSpreadsheetWelcome === 'function') {
+          window.renderNoSpreadsheetWelcome(container);
+        } else {
+          container.innerHTML = '<div class="grid-welcome" style="text-align:center;padding:60px 20px;">No spreadsheet connected.</div>';
+        }
         return;
       }
       

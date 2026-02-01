@@ -1267,95 +1267,12 @@ function fetchFreshExpenseData(month, year) {
 function showErrorMessage(message) {
   // Check if this is a first-time user error (no spreadsheet ID)
   if (message && message.includes && message.includes('No spreadsheet ID found')) {
-    
-    // Auto-detect user's language
-    let detectedLang = 'en';
-    let langName = 'English';
-    
-    if (typeof detectBrowserLanguage === 'function') {
-      detectedLang = detectBrowserLanguage();
-      const langNames = {
-        'en': 'English',
-        'es': 'Español',
-        'fr': 'Français', 
-        'de': 'Deutsch',
-        'tr': 'Türkçe',
-        'ms': 'Bahasa Melayu'
-      };
-      langName = langNames[detectedLang] || 'English';
-    }
-    
-    // Show welcome message with language confirmation
     const container = getElement('yearly-grid-container');
     if (container) {
-      container.innerHTML = `
-        <div
-          class="grid-welcome"
-          style="
-            text-align: center;
-            padding: 80px 20px 40px;
-            max-width: 800px;
-            margin: 0 auto;
-          "
-        >
-          <h3 style="margin-bottom: 20px;">👋 Welcome to Simplify Budget!</h3>
-          
-          <p style="margin-bottom: 20px;">
-            Let's get you set up with your budget tracking.
-          </p>
-          
-          <!-- Language Detection Notice -->
-          <div style="margin-bottom: 25px; padding: 15px; background-color: #f0f8ff; border: 1px solid #007cba; border-radius: 8px;">
-            <p style="margin: 0 0 10px; font-weight: bold;">🌍 Language detected: ${langName}</p>
-            <p style="margin: 0; font-size: 14px; color: #666;">
-              You can change this anytime in Settings if needed.
-            </p>
-          </div>
-          
-          <p style="margin-bottom: 20px; padding: 15px; background-color: #e8f4fd; border-left: 4px solid #007cba; border-radius: 4px;">
-            🎉 <strong>Enjoy a free 30-day trial!</strong> 
-          </p>
-          
-          <p style="margin: 30px 0 15px;">
-            Please go to Settings and click either:
-          </p>
-          
-          <ul style="text-align: left; max-width: 600px; margin: 0 auto 30px; line-height: 1.6;">
-            <li style="margin-bottom: 10px;">
-              <strong>New Spreadsheet</strong> – to create a fresh budget spreadsheet in your Google Drive (recommended for first-time users)
-            </li>
-            <li>
-              <strong>Select Existing</strong> – to choose a budget spreadsheet you've already created or been using (recommeneed for sharing a budget)
-            </li>
-          </ul>
-          
-          <p style="margin-bottom: 30px;">
-            🔒 <strong>Privacy:</strong> Your data is saved on a spreadsheet on your Google Drive. You control who has access.
-          </p>
-          
-          <p style="margin-bottom: 0;">
-            📺 <a href="https://youtu.be/ziE2S8SgEo8?t=26" target="_blank" rel="noopener">
-              Watch the YouTube tutorial: How to use the app
-            </a>
-          </p>
-        </div>
-      `;
-      
-      // Auto-save the detected language to user settings
-      if (detectedLang !== 'en') {
-        // Set the detected language as default for new users
-        if (window.SimBudget && SimBudget.Settings) {
-          const autoSettings = {
-            language: detectedLang,
-            currencySymbol: '$',
-            dateFormat: 'MM/DD/YYYY',
-            darkMode: false,
-            showRemaining: true,
-            enableAlerts: true,
-            showDecimals: true
-          };
-          SimBudget.Settings.saveAll(autoSettings);
-        }
+      if (typeof window.renderNoSpreadsheetWelcome === 'function') {
+        window.renderNoSpreadsheetWelcome(container);
+      } else {
+        container.innerHTML = '<div class="grid-welcome" style="text-align:center;padding:60px 20px;">No spreadsheet connected.</div>';
       }
     }
     return;

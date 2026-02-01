@@ -493,52 +493,11 @@ function init(containerId, cachedData) {
     
     // Check if this is a first-time user (no spreadsheet connected)
     if (message && message.includes('No spreadsheet ID found')) {
-      // Show friendly welcome message instead of error
-      container.innerHTML = `
-        <div 
-          style="
-            text-align: center;
-            padding: 80px 20px 40px;
-            max-width: 800px;
-            margin: 0 auto;
-          "
-        >
-          <div style="margin-bottom: 20px;">
-            <i class="material-icons" style="font-size: 48px; color: #4CAF50;">trending_up</i>
-          </div>
-          <h3 style="margin-bottom: 20px;">👋 Welcome to Net Worth Tracking!</h3>
-          
-          <p style="margin-bottom: 20px;">
-            Track your assets and liabilities over time to see your financial progress.
-          </p>
-          
-          <p style="margin-bottom: 30px; font-size: 16px; color: #666;">
-            Connect your spreadsheet to get started with net worth tracking.
-          </p>
-          
-          <div style="margin: 30px 0;">
-            <button 
-              onclick="if(window.SimBudget && SimBudget.Views) { SimBudget.Views.switchTo('settings'); }" 
-              style="
-                background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
-                color: white;
-                border: none;
-                padding: 15px 30px;
-                font-size: 18px;
-                border-radius: 8px;
-                cursor: pointer;
-                box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-                transition: transform 0.2s, box-shadow 0.2s;
-                margin-bottom: 20px;
-              "
-              onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 12px rgba(0,0,0,0.3)';"
-              onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.2)';"
-            >
-              🚀 Open Settings to Get Started
-            </button>
-          </div>
-        </div>
-      `;
+      if (typeof window.renderNoSpreadsheetWelcome === 'function') {
+        window.renderNoSpreadsheetWelcome(container);
+      } else {
+        container.innerHTML = '<div class="grid-welcome" style="text-align:center;padding:60px 20px;">No spreadsheet connected.</div>';
+      }
     } else {
       // Show regular error state for other errors
       container.innerHTML = `

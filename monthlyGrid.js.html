@@ -1443,129 +1443,130 @@ function loadAllExpenseData() {
   }
   
 /**
+ * Render the unified welcome screen when no spreadsheet is connected.
+ * @param {HTMLElement|string} containerOrId
+ * @returns {boolean}
+ */
+function renderNoSpreadsheetWelcome(containerOrId) {
+  const container = typeof containerOrId === 'string'
+    ? getElement(containerOrId)
+    : containerOrId;
+  if (!container) return false;
+
+  // Auto-detect user's language
+  let detectedLang = 'en';
+
+  if (typeof detectBrowserLanguage === 'function') {
+    detectedLang = detectBrowserLanguage();
+  }
+
+  container.innerHTML = `
+    <div
+      class="grid-welcome"
+      style="
+        text-align: center;
+        padding: 80px 20px 40px;
+        max-width: 800px;
+        margin: 0 auto;
+      "
+    >
+      <h2 style="margin-bottom: 8px; font-weight: 600; font-size: 24px;">Welcome to Simplify Budget!</h2>
+      <p style="margin-bottom: 32px; color: #666; font-size: 16px;">Simple budgeting with data you own</p>
+
+      <div style="display: flex; justify-content: center; gap: 24px; flex-wrap: wrap; margin-bottom: 32px;">
+        <div style="text-align: center; min-width: 100px;">
+          <div style="font-size: 28px; margin-bottom: 8px;">📊</div>
+          <div style="font-size: 14px; color: #555;">Calendar based<br>Expense Tracking</div>
+        </div>
+        <div style="text-align: center; min-width: 100px;">
+          <div style="font-size: 28px; margin-bottom: 8px;">🔁</div>
+          <div style="font-size: 14px; color: #555;">Automated Fixed<br>Payments</div>
+        </div>
+        <div style="text-align: center; min-width: 100px;">
+          <div style="font-size: 28px; margin-bottom: 8px;">📈</div>
+          <div style="font-size: 14px; color: #555;">Net Worth<br>Tracking</div>
+        </div>
+      </div>
+
+      <div style="
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 20px 24px;
+        margin-bottom: 32px;
+        text-align: left;
+        max-width: 400px;
+        margin-left: auto;
+        margin-right: auto;
+      ">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+          <span style="font-size: 18px;">🔒</span>
+          <span style="font-weight: 600; color: #333;">Your data stays in YOUR Google Drive</span>
+        </div>
+        <ul style="margin: 0; padding-left: 28px; color: #555; font-size: 14px; line-height: 1.8;">
+          <li>We never see your financial data</li>
+          <li>No ads, no data selling, no third-party tracking</li>
+          <li>Access your spreadsheet anytime from Settings</li>
+        </ul>
+      </div>
+
+      <div style="margin: 32px 0;">
+        <button
+          onclick="createNewBudgetSheet()"
+          style="
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            border: none;
+            padding: 16px 32px;
+            font-size: 18px;
+            font-weight: 500;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+            transition: transform 0.2s, box-shadow 0.2s;
+          "
+          onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 16px rgba(76, 175, 80, 0.4)';"
+          onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(76, 175, 80, 0.3)';"
+        >
+          Set Up My Budget
+        </button>
+      </div>
+
+      <p style="margin-bottom: 0; font-size: 14px;">
+        📺 <a href="https://www.youtube.com/watch?v=Xu_jhx9h_-Q" target="_blank" rel="noopener" style="color: #1a73e8;">
+          Watch the tutorial: How to use the app
+        </a>
+      </p>
+    </div>
+  `;
+
+  // Auto-save the detected language to user settings
+  if (detectedLang !== 'en') {
+    // Set the detected language as default for new users
+    if (window.SimBudget && SimBudget.Settings) {
+      const autoSettings = {
+        language: detectedLang,
+        currencySymbol: '$',
+        dateFormat: 'MM/DD/YYYY',
+        darkMode: false,
+        showRemaining: true,
+        enableAlerts: true,
+        showDecimals: true
+      };
+      SimBudget.Settings.saveAll(autoSettings);
+    }
+  }
+
+  return true;
+}
+
+/**
  * Show error message
  */
 function showErrorMessage(message) {
   // Check if this is a first-time user error (no spreadsheet ID)
   if (message && message.includes && message.includes('No spreadsheet ID found')) {
     console.log('First-time user detected in MonthlyGrid - showing welcome message');
-    
-    // Auto-detect user's language
-    let detectedLang = 'en';
-    let langName = 'English';
-    
-    if (typeof detectBrowserLanguage === 'function') {
-      detectedLang = detectBrowserLanguage();
-      const langNames = {
-        'en': 'English',
-        'es': 'Español',
-        'fr': 'Français', 
-        'de': 'Deutsch',
-        'tr': 'Türkçe',
-        'ms': 'Bahasa Melayu'
-      };
-      langName = langNames[detectedLang] || 'English';
-    }
-    
-    // Show welcome message with language confirmation
-    const container = getElement('monthly-grid-container');
-    if (container) {
-      container.innerHTML = `
-        <div
-          class="grid-welcome"
-          style="
-            text-align: center;
-            padding: 80px 20px 40px;
-            max-width: 800px;
-            margin: 0 auto;
-          "
-        >
-          <h2 style="margin-bottom: 8px; font-weight: 600; font-size: 24px;">Welcome to Simplify Budget!</h2>
-          <p style="margin-bottom: 32px; color: #666; font-size: 16px;">Simple budgeting with data you own</p>
-
-          <div style="display: flex; justify-content: center; gap: 24px; flex-wrap: wrap; margin-bottom: 32px;">
-            <div style="text-align: center; min-width: 100px;">
-              <div style="font-size: 28px; margin-bottom: 8px;">📊</div>
-              <div style="font-size: 14px; color: #555;">Calendar based<br>Expense Tracking</div>
-            </div>
-            <div style="text-align: center; min-width: 100px;">
-              <div style="font-size: 28px; margin-bottom: 8px;">🔁</div>
-              <div style="font-size: 14px; color: #555;">Automated Fixed<br>Payments</div>
-            </div>
-            <div style="text-align: center; min-width: 100px;">
-              <div style="font-size: 28px; margin-bottom: 8px;">📈</div>
-              <div style="font-size: 14px; color: #555;">Net Worth<br>Tracking</div>
-            </div>
-          </div>
-
-          <div style="
-            background: #f8f9fa;
-            border-radius: 12px;
-            padding: 20px 24px;
-            margin-bottom: 32px;
-            text-align: left;
-            max-width: 400px;
-            margin-left: auto;
-            margin-right: auto;
-          ">
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
-              <span style="font-size: 18px;">🔒</span>
-              <span style="font-weight: 600; color: #333;">Your data stays in YOUR Google Drive</span>
-            </div>
-            <ul style="margin: 0; padding-left: 28px; color: #555; font-size: 14px; line-height: 1.8;">
-              <li>We never see your financial data</li>
-              <li>No ads, no data selling, no third-party tracking</li>
-              <li>Access your spreadsheet anytime from Settings</li>
-            </ul>
-          </div>
-
-          <div style="margin: 32px 0;">
-            <button
-              onclick="createNewBudgetSheet()"
-              style="
-                background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
-                color: white;
-                border: none;
-                padding: 16px 32px;
-                font-size: 18px;
-                font-weight: 500;
-                border-radius: 8px;
-                cursor: pointer;
-                box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
-                transition: transform 0.2s, box-shadow 0.2s;
-              "
-              onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 16px rgba(76, 175, 80, 0.4)';"
-              onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(76, 175, 80, 0.3)';"
-            >
-              Set Up My Budget
-            </button>
-          </div>
-
-          <p style="margin-bottom: 0; font-size: 14px;">
-            📺 <a href="https://www.youtube.com/watch?v=Xu_jhx9h_-Q" target="_blank" rel="noopener" style="color: #1a73e8;">
-              Watch the tutorial: How to use the app
-            </a>
-          </p>
-        </div>
-      `;
-      
-      // Auto-save the detected language to user settings
-      if (detectedLang !== 'en') {
-        // Set the detected language as default for new users
-        if (window.SimBudget && SimBudget.Settings) {
-          const autoSettings = {
-            language: detectedLang,
-            currencySymbol: '$',
-            dateFormat: 'MM/DD/YYYY',
-            darkMode: false,
-            showRemaining: true,
-            enableAlerts: true,
-            showDecimals: true
-          };
-          SimBudget.Settings.saveAll(autoSettings);
-        }
-      }
-    }
+    renderNoSpreadsheetWelcome('monthly-grid-container');
     return;
   }
     
@@ -3370,7 +3371,12 @@ function refresh(forceServerRefresh) {
   /**
    * Show month/year editor for quick navigation
    */
-  showMonthYearEditor: showMonthYearEditor
+  showMonthYearEditor: showMonthYearEditor,
+
+  /**
+   * Unified welcome screen when no spreadsheet is connected
+   */
+  renderNoSpreadsheetWelcome: renderNoSpreadsheetWelcome
 
 
   };
@@ -3380,6 +3386,7 @@ function refresh(forceServerRefresh) {
     // Expose globally  
   window.MonthlyGrid = MonthlyGrid;
   window.notifyMonthlyGridOfCategoryChange = MonthlyGrid.notifyCategoryChange;
+  window.renderNoSpreadsheetWelcome = MonthlyGrid.renderNoSpreadsheetWelcome;
   window._addingInactiveCategories = false;
 
 
