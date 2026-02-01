@@ -762,7 +762,7 @@ async function calculateSavingRateAsync() {
    */
   function showLoadingState() {
     // Update the top bar indicator 
-    const refreshElement = document.getElementById('lastIncomeRefresh');
+    const refreshElement = document.getElementById('lastRefreshTimeIncome');
     const refreshBtn = document.getElementById('refreshIncome');
     
     if (refreshElement) {
@@ -3459,9 +3459,8 @@ function saveEditedRecurringIncome(originalItem, overlay) {
           // Update table without showing loading
           updateIncomeTable();
           
-          // Update any totals/metrics if they exist
-          const metrics = calculateIncomeMetrics();
-          updateMetricsDisplay(metrics);
+          // Update summary cards after silent refresh
+          updateSummaryCards();
         }
       };
 })();

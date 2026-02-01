@@ -239,6 +239,51 @@
     }
   }
 
+  // Update income last refresh time
+  function updateIncomeLastRefreshTime() {
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit',
+      hour12: true 
+    });
+    
+    const refreshElement = document.getElementById('lastRefreshTimeIncome');
+    if (refreshElement) {
+      const updatedAtText = window.getTranslation ? window.getTranslation('updated_at', getLanguageFromSettings()) : 'Updated at';
+      refreshElement.textContent = `${updatedAtText} ${timeStr}`;
+    }
+  }
+
+  let _incomeRefreshInProgress = false;
+
+  function setIncomeRefreshLoading(isLoading) {
+    const refreshElement = document.getElementById('lastRefreshTimeIncome');
+    const refreshBtn = document.getElementById('refreshIncome');
+
+    if (isLoading) {
+      _incomeRefreshInProgress = true;
+      if (refreshElement) {
+        refreshElement.textContent = 'Loading...';
+        refreshElement.style.color = '#f39c12';
+        refreshElement.style.fontWeight = 'bold';
+      }
+      if (refreshBtn) {
+        refreshBtn.classList.add('loading');
+      }
+      return;
+    }
+
+    _incomeRefreshInProgress = false;
+    if (refreshElement) {
+      refreshElement.style.color = '';
+      refreshElement.style.fontWeight = '';
+    }
+    if (refreshBtn) {
+      refreshBtn.classList.remove('loading');
+    }
+  }
+
   let _dashboardRefreshPending = false;
   let _dashboardRefreshAwaitingRender = false;
 
@@ -888,6 +933,10 @@ const Views = {
             // Update data silently without loading overlay
             IncomeManager.updateDataSilently(result.income);
           }
+          if (_incomeRefreshInProgress) {
+            setIncomeRefreshLoading(false);
+            updateIncomeLastRefreshTime();
+          }
         } else if (currentView === 'budget') {
           _dashboardRefreshAwaitingRender = true;
           this.loadBudgetData();
@@ -896,6 +945,9 @@ const Views = {
     },
     (error) => {
       console.error('Failed to fetch income:', error);
+      if (_incomeRefreshInProgress) {
+        setIncomeRefreshLoading(false);
+      }
     }
   );
 },
@@ -1222,6 +1274,10 @@ handleInitializationFailure: function(error) {
           setDashboardRefreshLoading(true);
         }
       }
+
+      const staleToFetch = (currentView === 'income') ?
+        stale.filter((type) => type !== 'income') :
+        stale;
       
       // Store timestamps centrally
       if (window.CacheManager) {
@@ -1229,7 +1285,7 @@ handleInitializationFailure: function(error) {
       }
       
       // Just load ALL stale data immediately!
-      stale.forEach(dataType => {
+      staleToFetch.forEach(dataType => {
         this.fetchFreshData(dataType);
       });
     },
@@ -1888,48 +1944,39 @@ if (refreshRecurringBtn) {
   });
 }
 
-// Update income last refresh time
-function updateIncomeLastRefreshTime() {
-  const now = new Date();
-  const timeStr = now.toLocaleTimeString('en-US', { 
-    hour: 'numeric', 
-    minute: '2-digit',
-    hour12: true 
-  });
-  
-  const refreshElement = document.getElementById('lastRefreshTimeIncome');
-  if (refreshElement) {
-    const updatedAtText = window.getTranslation ? window.getTranslation('updated_at', getLanguageFromSettings()) : 'Updated at';
-    refreshElement.textContent = `${updatedAtText} ${timeStr}`;
-  }
-}
-
 // Refresh income button
 const refreshIncomeBtn = document.getElementById("refreshIncome");
 if (refreshIncomeBtn) {
   refreshIncomeBtn.addEventListener("click", () => {
     
-    // Add loading state to refresh button
-    refreshIncomeBtn.classList.add('loading');
+    setIncomeRefreshLoading(true);
     
-    // Use IncomeManager's refresh method directly instead of loadViewData
-    if (window.IncomeManager && typeof IncomeManager.refresh === 'function') {
+    if (window.CacheManager && typeof CacheManager.fetchFreshIncomeData === 'function') {
+      CacheManager.fetchFreshIncomeData()
+        .then((freshData) => {
+          if (window.IncomeManager && typeof IncomeManager.updateDataSilently === 'function') {
+            IncomeManager.updateDataSilently(freshData);
+          } else if (window.IncomeManager && typeof IncomeManager.init === 'function') {
+            IncomeManager.init('incomeContent', freshData);
+          }
+          setIncomeRefreshLoading(false);
+          updateIncomeLastRefreshTime();
+        })
+        .catch((error) => {
+          console.error('Income refresh failed:', error);
+          setIncomeRefreshLoading(false);
+          if (window.Utils && typeof Utils.showToast === 'function') {
+            Utils.showToast('Error refreshing income', 'error');
+          }
+        });
+    } else if (window.IncomeManager && typeof IncomeManager.refresh === 'function') {
       IncomeManager.refresh();
     } else {
-      // Fallback if refresh not available
       if (window.CacheManager) {
         CacheManager.invalidate("income");
       }
       this.loadViewData("income", true);
     }
-    
-    // Update last refresh time
-    updateIncomeLastRefreshTime();
-    
-    // Remove loading state after a short delay
-    setTimeout(() => {
-      refreshIncomeBtn.classList.remove('loading');
-    }, 1000);
   });
 }
 
@@ -3178,17 +3225,69 @@ loadIncomeData: function() {
     return;
   }
 
-  // Check cache first
+  if (!window.IncomeManager || typeof IncomeManager.init !== 'function') {
+    console.error("IncomeManager component not found");
+    _loadingView = null;
+    return;
+  }
+
   const cachedData = CacheManager.get('income');
-  
-  if (cachedData && Array.isArray(cachedData) && cachedData.length > 0) {
-    if (window.IncomeManager && typeof IncomeManager.init === 'function') {
-      IncomeManager.init('incomeContent', cachedData);
+  const cachedTimestamp = CacheManager.getIncomeWithTimestamp ?
+    (CacheManager.getIncomeWithTimestamp()?.timestamp || null) :
+    (CacheManager.getTimestamp ? CacheManager.getTimestamp('income') : null);
+
+  const applyIncomeData = (data) => {
+    if (IncomeManager.isInitialized && IncomeManager.isInitialized() && typeof IncomeManager.updateDataSilently === 'function') {
+      IncomeManager.updateDataSilently(data);
+    } else {
+      IncomeManager.init('incomeContent', Array.isArray(data) ? data : null);
     }
-  } else {
-    if (window.IncomeManager && typeof IncomeManager.init === 'function') {
-      IncomeManager.init('incomeContent', null);
+  };
+
+  const fetchFreshIncome = (serverTimestamp = null) => {
+    setIncomeRefreshLoading(true);
+    if (window.CacheManager && typeof CacheManager.fetchFreshIncomeData === 'function') {
+      CacheManager.fetchFreshIncomeData()
+        .then((freshData) => {
+          if (serverTimestamp && window.CacheManager && typeof CacheManager.setIncomeWithTimestamp === 'function') {
+            CacheManager.setIncomeWithTimestamp(freshData, serverTimestamp);
+          }
+          applyIncomeData(freshData);
+          setIncomeRefreshLoading(false);
+          updateIncomeLastRefreshTime();
+        })
+        .catch((error) => {
+          console.error('Init: Income fetch failed:', error);
+          setIncomeRefreshLoading(false);
+          applyIncomeData(cachedData);
+        });
+    } else {
+      applyIncomeData(cachedData);
+      setIncomeRefreshLoading(false);
     }
+  };
+
+  // Render immediately from cache if available
+  if (Array.isArray(cachedData) && cachedData.length > 0) {
+    applyIncomeData(cachedData);
+  }
+
+  // Then check timestamps to decide if a fresh pull is needed
+  if (window.API && typeof API.getAllTimestamps === 'function') {
+    API.getAllTimestamps(
+      (result) => {
+        const serverTimestamp = result?.timestamps?.income || null;
+        const isStale = serverTimestamp && (!cachedTimestamp || new Date(serverTimestamp) > new Date(cachedTimestamp));
+        if (isStale) {
+          fetchFreshIncome(serverTimestamp);
+        } else if (serverTimestamp && Array.isArray(cachedData) && window.CacheManager && typeof CacheManager.setIncomeWithTimestamp === 'function') {
+          CacheManager.setIncomeWithTimestamp(cachedData, serverTimestamp);
+        }
+      },
+      (error) => {
+        console.warn('Init: Failed to get timestamps for income:', error);
+      }
+    );
   }
   
   _loadingView = null;
