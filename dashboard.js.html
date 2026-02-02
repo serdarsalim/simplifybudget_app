@@ -840,8 +840,8 @@ const emojiPlugin = {
       // Calculate the percentage of this segment
       const percentage = chartData[index].value / totalBudget;
       
-      // Only draw emoji if segment is large enough (at least 8% of total)
-      if (percentage >= 0.08) {
+      // Only draw emoji if segment is large enough (at least 4% of total)
+      if (percentage >= 0.04) {
         // Get segment center and radius
         const centerX = element.x;
         const centerY = element.y;
@@ -858,9 +858,9 @@ const emojiPlugin = {
         const x = centerX + Math.cos(midAngle) * midRadius;
         const y = centerY + Math.sin(midAngle) * midRadius;
         
-        // Set the font size proportional to the segment size - 20% SMALLER
+        // Set the font size proportional to the segment size - smaller for denser labeling
         const arcSize = radius * (endAngle - startAngle);
-        const fontSize = Math.min(Math.max(arcSize * 0.4, 12.8), 32); // Reduced by 20%
+        const fontSize = Math.min(Math.max(arcSize * 0.32, 10), 26);
         
         // Draw the emoji with better font support
         ctx.font = `${fontSize}px Arial, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji"`;
