@@ -2453,11 +2453,8 @@ function getNextMonth(month, year) {
           }
           
           cell.innerHTML = `<div class="cell-content ${colorClass}${hasRecurring ? ' recurring-cell' : ''}">
-          <div class="amount-row">
-            <span class="amount">${formatCurrency(amount)}</span>
-            ${hasRecurring ? `<i class="material-icons recurring-icon">repeat</i>` : ''}
-          </div>
-          ${dayTransactions.length > 1 ? `<span class="transaction-count">${dayTransactions.length}</span>` : ''}
+          <span class="amount">${formatCurrency(amount)}</span>
+          ${dayTransactions.length > 1 ? `<span class="cell-meta"><span class="transaction-count">${dayTransactions.length}</span></span>` : ''}
         </div>`;
         }
         
@@ -3905,6 +3902,7 @@ function refresh(forceServerRefresh) {
   align-items: center;
   justify-content: center;
   gap: 1px;
+  position: relative;
   padding: 3px 2px;
   color: black;
   font-weight: 500;
@@ -3912,6 +3910,16 @@ function refresh(forceServerRefresh) {
   height: 100%;
   box-sizing: border-box;
   border-radius: 6px;
+}
+
+.cell-meta {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 /* Desktop: center amount; right-align count + recurring icon */
@@ -3929,18 +3937,8 @@ function refresh(forceServerRefresh) {
     white-space: nowrap;
   }
 
-  .cell-content .transaction-count {
-    position: absolute;
+  .cell-meta {
     right: 4px;
-  }
-
-  .cell-content .recurring-icon {
-    position: absolute;
-    right: 4px;
-  }
-
-  .cell-content .transaction-count + .recurring-icon {
-    right: 20px;
   }
 }
 
