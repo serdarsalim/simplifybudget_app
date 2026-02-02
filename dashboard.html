@@ -1211,6 +1211,12 @@ body.dark-mode .subscription-list-card {
 
   #budgetView .budget-table {
     border-collapse: collapse !important;
+    overflow: visible !important;
+  }
+
+  /* Clip overflow at container level instead */
+  .budget-table-container {
+    overflow: hidden !important;
   }
 
   #budgetView .dashboard-card {
@@ -1230,7 +1236,7 @@ body.dark-mode .subscription-list-card {
   .budget-table td {
     padding: 7px 5px !important;
     vertical-align: middle !important;
-    border-bottom: 1px solid #e8e8e8 !important;
+    border-bottom: none !important;
     font-size: 12px !important;
     line-height: 1.4 !important;
   }
@@ -1247,7 +1253,65 @@ body.dark-mode .subscription-list-card {
     overflow: hidden !important;
     text-overflow: ellipsis !important;
   }
-  
+
+  /* Mobile inset divider - border on all data cells */
+  .budget-table tbody td.category-name::after {
+    display: none !important;
+  }
+
+  .budget-table tbody td.category-name,
+  .budget-table tbody td.budget-value,
+  .budget-table tbody td.actual-value,
+  .budget-table tbody td.progress-cell {
+    border-bottom: 1px solid #e8e8e8 !important;
+  }
+
+  /* Cover emoji portion with white overlay */
+  .budget-table tbody td.category-name {
+    position: relative !important;
+  }
+
+  .budget-table tbody td.category-name::before {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    width: 28px;
+    height: 2px;
+    background-color: white;
+    z-index: 1;
+  }
+
+  .budget-table tbody tr:last-child td.category-name,
+  .budget-table tbody tr:last-child td.budget-value,
+  .budget-table tbody tr:last-child td.actual-value,
+  .budget-table tbody tr:last-child td.progress-cell {
+    border-bottom: none !important;
+  }
+
+  .budget-table tbody tr:last-child td.category-name::before {
+    display: none !important;
+  }
+
+  /* Dark mode mobile borders */
+  body.dark-mode .budget-table tbody td.category-name,
+  body.dark-mode .budget-table tbody td.budget-value,
+  body.dark-mode .budget-table tbody td.actual-value,
+  body.dark-mode .budget-table tbody td.progress-cell {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  }
+
+  body.dark-mode .budget-table tbody td.category-name::before {
+    background-color: #182f46 !important;
+  }
+
+  body.dark-mode .budget-table tbody tr:last-child td.category-name,
+  body.dark-mode .budget-table tbody tr:last-child td.budget-value,
+  body.dark-mode .budget-table tbody tr:last-child td.actual-value,
+  body.dark-mode .budget-table tbody tr:last-child td.progress-cell {
+    border-bottom: none !important;
+  }
+
   /* Progress cell specific styling - FIXED */
   .progress-cell {
     text-align: center !important;
