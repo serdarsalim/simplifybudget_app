@@ -110,13 +110,13 @@
               <div class="month-banner-inner">
                 <div class="month-selector">
                   <button id="prevMonthNetWorth" class="month-nav-btn" data-translate-aria-label="previous_month">
-                    <i class="material-icons">chevron_left</i>
+                    <i class="material-icons month-tri left">play_arrow</i>
                   </button>
                   <div id="monthYearDisplayNetWorth" class="month-year-display editable" data-translate-title="click_edit_month_year">
                     <!-- Will be populated by JS -->
                   </div>
                   <button id="nextMonthNetWorth" class="month-nav-btn" data-translate-aria-label="next_month">
-                    <i class="material-icons">chevron_right</i>
+                    <i class="material-icons month-tri">play_arrow</i>
                   </button>
                 </div>
                 <div id="netWorthBannerSummary" class="networth-banner-summary hidden">
@@ -206,19 +206,25 @@
               <!-- Unified Month/Year Banner -->
               <div class="month-banner">
                 <div class="month-banner-inner">
-                  <button id="viewToggle" class="toggle-btn" data-view="monthly" data-translate="monthly">Monthly</button>
+                  <button id="viewToggle" class="toggle-btn" data-view="monthly" aria-label="Toggle monthly/yearly view">
+                    <span class="toggle-badge">
+                      <span class="toggle-badge-option" data-mode="monthly">M</span>
+                      <span class="toggle-badge-sep">/</span>
+                      <span class="toggle-badge-option" data-mode="yearly">Y</span>
+                    </span>
+                  </button>
                   <button id="monthlyAnalytics" class="analytics-btn" data-translate-title="analytics" aria-label="Analytics">
                     <i class="material-icons">insights</i>
                   </button>
                   <div class="month-selector">
                     <button id="prevMonth" class="month-nav-btn" data-translate-aria-label="previous_month">
-                      <i class="material-icons">chevron_left</i>
+                      <i class="material-icons month-tri left">play_arrow</i>
                     </button>
                     <div id="monthYearDisplay" class="month-year-display editable" data-translate-title="click_edit_month_year">
                       <!-- Will be populated by JS -->
                     </div>
                     <button id="nextMonth" class="month-nav-btn" data-translate-aria-label="next_month">
-                      <i class="material-icons">chevron_right</i>
+                      <i class="material-icons month-tri">play_arrow</i>
                     </button>
                   </div>
                   <div class="refresh-info">
@@ -255,19 +261,25 @@
               <!-- Unified Year Banner -->
               <div class="month-banner">
                 <div class="month-banner-inner">
-                  <button id="viewToggleReports" class="toggle-btn" data-view="yearly" data-translate="yearly">Yearly</button>
+                  <button id="viewToggleReports" class="toggle-btn" data-view="yearly" aria-label="Toggle monthly/yearly view">
+                    <span class="toggle-badge">
+                      <span class="toggle-badge-option" data-mode="monthly">M</span>
+                      <span class="toggle-badge-sep">/</span>
+                      <span class="toggle-badge-option" data-mode="yearly">Y</span>
+                    </span>
+                  </button>
                   <button id="yearlyAnalytics" class="analytics-btn" data-translate-title="analytics" aria-label="Analytics">
                     <i class="material-icons">insights</i>
                   </button>
                   <div class="month-selector">
                     <button id="prevYearReports" class="month-nav-btn" data-translate-aria-label="previous_year">
-                      <i class="material-icons">chevron_left</i>
+                      <i class="material-icons month-tri left">play_arrow</i>
                     </button>
                     <div id="yearDisplayReports" class="month-year-display editable" data-translate-title="click_edit_year">
                       <!-- Will be populated by JS -->
                     </div>
                     <button id="nextYearReports" class="month-nav-btn" data-translate-aria-label="next_year">
-                      <i class="material-icons">chevron_right</i>
+                      <i class="material-icons month-tri">play_arrow</i>
                     </button>
                   </div>
                   <div class="refresh-info">

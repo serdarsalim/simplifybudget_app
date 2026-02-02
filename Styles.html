@@ -855,9 +855,13 @@ button {
   }
   
   .month-year-display {
-    font-size: 13px !important;
+    font-size: 15px !important;
     min-width: 90px !important;
     padding: 2px 6px !important;
+  }
+
+  .last-refresh {
+    display: none;
   }
 }
 
@@ -899,17 +903,17 @@ button {
 .month-selector {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   flex: 0 0 auto;
 }
 
 .month-nav-btn {
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: transparent;
+  border: none;
   color: var(--text-primary);
   cursor: pointer;
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   border-radius: 6px;
   display: flex;
   align-items: center;
@@ -918,9 +922,22 @@ button {
   font-size: 16px;
 }
 
+.month-nav-btn i {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.month-nav-btn .month-tri {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.month-nav-btn .month-tri.left {
+  transform: rotate(180deg);
+}
+
 .month-nav-btn:hover {
-  background: rgba(255, 255, 255, 0.95);
-  border-color: rgba(0, 0, 0, 0.15);
+  background: transparent;
   transform: translateY(-1px);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
@@ -936,9 +953,9 @@ button {
   border: none !important;
   color: var(--text-primary);
   cursor: pointer;
-  font-size: 12px;
+  font-size: 12px !important;
   font-weight: 600;
-  padding: 6px 12px;
+  padding: 4px 8px;
   border-radius: 6px !important;
   transition: all 0.2s ease !important;
 }
@@ -958,6 +975,35 @@ body.dark-mode .toggle-btn {
 
 body.dark-mode .toggle-btn:hover {
   background: transparent !important;
+}
+
+.toggle-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  font-size: 12px;
+}
+
+.toggle-badge-option {
+  opacity: 0.45;
+  transition: opacity 0.2s ease, color 0.2s ease;
+}
+
+.toggle-badge-sep {
+  opacity: 0.3;
+}
+
+.toggle-btn[data-view="monthly"] .toggle-badge-option[data-mode="monthly"],
+.toggle-btn[data-view="yearly"] .toggle-badge-option[data-mode="yearly"] {
+  opacity: 1;
+  color: var(--text-primary);
+}
+
+body.dark-mode .toggle-btn[data-view="monthly"] .toggle-badge-option[data-mode="monthly"],
+body.dark-mode .toggle-btn[data-view="yearly"] .toggle-badge-option[data-mode="yearly"] {
+  color: var(--dark-text-primary);
 }
 
 .analytics-btn {
@@ -1013,12 +1059,12 @@ body.dark-mode .analytics-btn:focus-visible {
 
 
 .month-year-display {
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 600;
   color: var(--text-primary);
-  min-width: 120px;
+  min-width: 110px;
   text-align: center;
-  padding: 4px 8px;
+  padding: 4px 6px;
   border-radius: 4px;
   transition: all 0.2s ease;
   cursor: pointer;
@@ -1128,29 +1174,6 @@ body.dark-mode .month-year-display:hover {
 
 body.dark-mode .last-refresh {
   color: var(--dark-text-secondary);
-}
-
-/* Mobile responsive adjustments */
-@media (max-width: 768px) {
-  .month-banner-inner {
-    gap: 12px;
-    padding: 0 8px;
-  }
-  
-  .last-refresh {
-    display: none;
-  }
-  
-  .month-year-display {
-    min-width: 100px;
-    font-size: 14px;
-  }
-  
-  .month-nav-btn,
-  .btn.refresh-btn {
-    width: 26px !important;
-    height: 26px !important;
-  }
 }
 
 /* Add this to your Styles.css file */
