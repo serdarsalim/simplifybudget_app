@@ -128,9 +128,9 @@
         </div>
       </div>
 
-      <!-- Spending Breakdown -->
+      <!-- Expense Breakdown -->
       <div class="dashboard-card donut-chart-card">
-        <h3 class="donut-chart-header" data-translate="expense_breakdown">Spending Breakdown</h3>
+        <h3 class="donut-chart-header" data-translate="expense_breakdown">Expense Breakdown</h3>
         <div class="donut-chart-container">
           <canvas id="expense-donut-chart"></canvas>
         </div>
@@ -200,19 +200,25 @@ body, .dashboard-container {
 /* DESKTOP IMPROVEMENT: Increased padding for 2-column layout */
 @media screen and (min-width: 1200px) {
   .dashboard-container {
-    padding: 40px 300px 200px 300px !important;
+    padding: 40px 200px 200px 200px !important;
   }
 }
 
 @media screen and (min-width: 1440px) {
   .dashboard-container {
-    padding: 40px 300px 200px 300px !important;
+    padding: 40px 200px 200px 200px !important;
   }
 }
 
 @media screen and (min-width: 1600px) {
   .dashboard-container {
     padding: 40px 200px 200px 200px !important;
+  }
+}
+
+@media screen and (min-width: 1600px) {
+  #budgetView:not(.show-expense-chart) .dashboard-container {
+    padding: 40px 300px 200px 300px !important;
   }
 }
 
@@ -475,13 +481,23 @@ body.dark-mode .chart-container .chart-label {
    DONUT CHART 
    ====================== */
 .donut-chart-card {
-  display: none;
   padding: 0;
   overflow: hidden;
 }
 
 #budgetView.show-expense-chart .donut-chart-card {
   display: block;
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* When chart is toggled off, keep layout space but hide content */
+#budgetView:not(.show-expense-chart) .donut-chart-card {
+  display: block;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .donut-chart-container {
@@ -493,16 +509,17 @@ body.dark-mode .chart-container .chart-label {
 }
 
 .donut-chart-header {
-  background-color: #fff;
-  padding: 12px 16px;
+  background: linear-gradient(135deg, #9d6bff 0%, #8f84ac 100%);
+  color: #ffffff;
+  padding: 14px 30px;
   margin: 0;
-  border-bottom: 1px solid #eee;
-  font-weight: 500;
-  color: #2c3e50;
-  border-radius: 0px;
-  font-size: 14px;
+  text-align: left;
+  font-size: 15px;
   font-family: 'Lato', sans-serif;
   font-weight: 700;
+  border-bottom: none;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 4px 12px rgba(88, 71, 178, 0.15);
 }
 
 /* ======================
@@ -1090,7 +1107,7 @@ body.dark-mode .subscription-list-card {
     display: flex !important;
     flex-direction: column !important;
     gap: 20px !important;
-    padding: 10px 12px 200px 12px !important;
+    padding: 10px 6px 200px 6px !important;
     align-items: center !important;
     width: 100% !important;
     max-width: 100% !important;

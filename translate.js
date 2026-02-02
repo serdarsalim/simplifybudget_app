@@ -238,7 +238,7 @@ const TURKISH_TRANSLATIONS = {
   "budgeted": "Hedef",
   "actual": "Gerçek",
   "progress": "İlerleme",
-  "expense_breakdown": "Aylık Gider Dağılımı",
+  "expense_breakdown": "Gider Dağılımı",
   "subscriptions": "Abonelikler",
   "name": "İsim",
   "next_due": "Sonraki Vade",
@@ -286,7 +286,7 @@ const TURKISH_TRANSLATIONS = {
   "Loading": "Yükleniyor",
   "Spending on": "Harcamalar",
   "Loading expenses": "Giderler yükleniyor",
-  "Monthly Expense Breakdown": "Aylık Gider Dağılımı",
+  "Monthly Expense Breakdown": "Gider Dağılımı",
   "No expenses found": "Gider bulunamadı",
   "Failed to Load Data": "Veri yüklenemedi",
   "Retry": "Tekrar Dene",
@@ -592,7 +592,7 @@ const FRENCH_TRANSLATIONS = {
   "budgeted": "Budgété",
   "actual": "Réel",
   "progress": "Progression",
-  "expense_breakdown": "Répartition des dépenses mensuelles",
+  "expense_breakdown": "Répartition des dépenses",
   "subscriptions": "Abonnements",
   "name": "Nom",
   "next_due": "Prochaine échéance",
@@ -640,7 +640,7 @@ const FRENCH_TRANSLATIONS = {
   "Loading": "Chargement",
   "Spending on": "Dépenses pour",
   "Loading expenses": "Chargement des dépenses",
-  "Monthly Expense Breakdown": "Répartition mensuelle des dépenses",
+  "Monthly Expense Breakdown": "Répartition des dépenses",
   "No expenses found": "Aucune dépense trouvée",
   "Failed to Load Data": "Échec du chargement des données",
   "Retry": "Réessayer",
@@ -939,7 +939,7 @@ const GERMAN_TRANSLATIONS = {
   "budgeted": "Budgetiert",
   "actual": "Tatsächlich",
   "progress": "Fortschritt",
-  "expense_breakdown": "Monatliche Ausgabenaufstellung",
+  "expense_breakdown": "Ausgabenaufstellung",
   "subscriptions": "Abonnements",
   "name": "Name",
   "next_due": "Nächste Fälligkeit",
@@ -987,7 +987,7 @@ const GERMAN_TRANSLATIONS = {
   "Loading": "Lädt",
   "Spending on": "Ausgaben für",
   "Loading expenses": "Lade Ausgaben",
-  "Monthly Expense Breakdown": "Monatliche Ausgabenaufstellung",
+  "Monthly Expense Breakdown": "Ausgabenaufstellung",
   "No expenses found": "Keine Ausgaben gefunden",
   "Failed to Load Data": "Daten konnten nicht geladen werden",
   "Retry": "Erneut versuchen",
@@ -1351,7 +1351,7 @@ const SPANISH_TRANSLATIONS = {
   "progress": "Progreso",
   
   // Expense breakdown
-  "expense_breakdown": "Desglose mensual de gastos",
+  "expense_breakdown": "Desglose de gastos",
   
   // Subscriptions section
   "subscriptions": "Suscripciones",
@@ -1414,7 +1414,7 @@ const SPANISH_TRANSLATIONS = {
   "Loading": "Cargando",
   "Spending on": "Gastos del",
   "Loading expenses": "Cargando gastos",
-  "Monthly Expense Breakdown": "Desglose Mensual de Gastos",
+  "Monthly Expense Breakdown": "Desglose de gastos",
   "No expenses found": "No se encontraron gastos",
   "Failed to Load Data": "Error al cargar datos",
   "Retry": "Reintentar",
@@ -1737,7 +1737,7 @@ const MALAY_TRANSLATIONS = {
   "budgeted": "Dibajetkan",
   "actual": "Sebenar",
   "progress": "Kemajuan",
-  "expense_breakdown": "Perincian perbelanjaan bulanan",
+  "expense_breakdown": "Perincian perbelanjaan",
   "subscriptions": "Langganan",
   "name": "Nama",
   "next_due": "Tarikh seterusnya",
@@ -1785,7 +1785,7 @@ const MALAY_TRANSLATIONS = {
   "Loading": "Memuatkan",
   "Spending on": "Perbelanjaan untuk",
   "Loading expenses": "Memuatkan perbelanjaan",
-  "Monthly Expense Breakdown": "Perincian perbelanjaan bulanan",
+  "Monthly Expense Breakdown": "Perincian perbelanjaan",
   "No expenses found": "Tiada perbelanjaan ditemui",
   "Failed to Load Data": "Gagal memuat data",
   "Retry": "Cuba semula",
@@ -2173,7 +2173,7 @@ const PORTUGUESE_TRANSLATIONS = {
   "progress": "Progresso",
   
   // Expense breakdown
-  "expense_breakdown": "Divisão de Despesas Mensais",
+  "expense_breakdown": "Divisão de Despesas",
   
   // Subscriptions section
   "subscriptions": "Assinaturas",
@@ -2229,7 +2229,7 @@ const PORTUGUESE_TRANSLATIONS = {
   "Loading": "Carregando",
   "Spending on": "Gastando em",
   "Loading expenses": "Carregando despesas",
-  "Monthly Expense Breakdown": "Divisão de Despesas Mensais",
+  "Monthly Expense Breakdown": "Divisão de Despesas",
   "No expenses found": "Nenhuma despesa encontrada",
   "Failed to Load Data": "Falha ao Carregar Dados",
   "Retry": "Tentar Novamente",
@@ -2625,7 +2625,7 @@ const JAPANESE_TRANSLATIONS = {
   "progress": "進捗",
   
   // Expense breakdown
-  "expense_breakdown": "月次支出内訳",
+  "expense_breakdown": "支出内訳",
   
   // Subscriptions section
   "subscriptions": "サブスクリプション",
@@ -2682,7 +2682,7 @@ const JAPANESE_TRANSLATIONS = {
   "Loading": "読み込み中",
   "Spending on": "支出日",
   "Loading expenses": "支出を読み込み中",
-  "Monthly Expense Breakdown": "月次支出内訳",
+  "Monthly Expense Breakdown": "支出内訳",
   "No expenses found": "支出が見つかりません",
   "Failed to Load Data": "データの読み込みに失敗",
   "Retry": "再試行",
@@ -3035,7 +3035,7 @@ const ENGLISH_TRANSLATIONS = {
   "progress": "Progress",
 
   // Expense breakdown
-  "expense_breakdown": "Monthly Expense Breakdown",
+  "expense_breakdown": "Expense Breakdown",
 
   // Subscriptions section
   "subscriptions": "Subscriptions",
@@ -3101,7 +3101,7 @@ const ENGLISH_TRANSLATIONS = {
   "Loading": "Loading",
   "Spending on": "Spending on",
   "Loading expenses": "Loading expenses",
-  "Monthly Expense Breakdown": "Monthly Expense Breakdown",
+  "Monthly Expense Breakdown": "Expense Breakdown",
   "No expenses found": "No expenses found",
   "Failed to Load Data": "Failed to Load Data",
   "Retry": "Retry",
