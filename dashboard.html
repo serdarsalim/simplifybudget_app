@@ -44,7 +44,7 @@
   
   <div id="budgetContent" class="view-content">
     <div class="dashboard-container">
-      <!-- First Column: Financial Summary & Chart -->
+      <!-- First Column: Financial Summary (legacy, hidden) -->
       <div class="col-left">
         <!-- Old summary card - now hidden since moved to budget card -->
         <div class="dashboard-card budget-summary-card" style="display: none;">
@@ -61,14 +61,6 @@
               <div id="left-to-spend-label-old" class="value-label" data-translate="left_to_spend">Left to Spend</div>
               <div id="left-to-spend-value-old" class="value-amount">€0</div>
             </div>
-          </div>
-        </div>
-        
-        <!-- Bottom: Monthly Expense Donut Chart -->
-        <div class="dashboard-card donut-chart-card">
-          <h3 class="donut-chart-header" data-translate="expense_breakdown">Monthly Expense Breakdown</h3>
-          <div class="donut-chart-container">
-            <canvas id="expense-donut-chart"></canvas>
           </div>
         </div>
       </div>
@@ -135,6 +127,14 @@
           </div>
         </div>
       </div>
+
+      <!-- Spending Breakdown -->
+      <div class="dashboard-card donut-chart-card">
+        <h3 class="donut-chart-header" data-translate="expense_breakdown">Spending Breakdown</h3>
+        <div class="donut-chart-container">
+          <canvas id="expense-donut-chart"></canvas>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -192,6 +192,11 @@ body, .dashboard-container {
   align-items: start !important;
 }
 
+/* 3-column layout when expense chart is enabled */
+#budgetView.show-expense-chart .dashboard-container {
+  grid-template-columns: minmax(300px, 1fr) minmax(450px, 1.6fr) minmax(320px, 1fr) !important;
+}
+
 /* DESKTOP IMPROVEMENT: Increased padding for 2-column layout */
 @media screen and (min-width: 1200px) {
   .dashboard-container {
@@ -236,6 +241,21 @@ body, .dashboard-container {
   min-width: 0;
   align-self: start !important;
   height: fit-content !important;
+}
+
+/* Chart placement when enabled (desktop) */
+#budgetView.show-expense-chart .donut-chart-card {
+  grid-column: 1 / 2 !important;
+  grid-row: 1 !important;
+  align-self: start !important;
+}
+
+#budgetView.show-expense-chart .budget-data-card {
+  grid-column: 2 / 3 !important;
+}
+
+#budgetView.show-expense-chart .col-right {
+  grid-column: 3 / 4 !important;
 }
 
 
@@ -458,6 +478,10 @@ body.dark-mode .chart-container .chart-label {
   display: none;
   padding: 0;
   overflow: hidden;
+}
+
+#budgetView.show-expense-chart .donut-chart-card {
+  display: block;
 }
 
 .donut-chart-container {
@@ -880,7 +904,7 @@ body.dark-mode .progress-bar-placeholder {
 .subscription-table td {
   padding: 6px 6px;
   text-align: left;
-  border-bottom: 1px solid #e8e8e8;
+  border-bottom: 1px solid #e8e8e899;
   font-size: 12px;
   color: rgba(44, 62, 80, 0.7);
 }
@@ -1026,6 +1050,7 @@ body.dark-mode .subscription-list-card {
     grid-column: 1 / 2 !important;
     grid-row: 4 !important;
   }
+
 }
 
 /* Small screens - 1 column */
@@ -1049,24 +1074,34 @@ body.dark-mode .subscription-list-card {
 
 /* Mobile layout fixes - scoped to dashboard only */
 @media (max-width: 768px) {
+  #budgetView {
+    overflow-x: hidden !important;
+  }
+
   #budgetView .view-content,
-  .dashboard-container,
   .dashboard-content {
-    display: grid !important;
-    grid-template-areas:
-      "income"
-      "budget"
-      "subscription-text"
-      "subscription-summary"
-      "subscription-list"
-      "chart" !important;
-    grid-gap: 20px !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+  }
+
+  .dashboard-container {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 20px !important;
+    padding: 10px 12px 200px 12px !important;
+    align-items: center !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
   }
 
   #budgetView .view-content {
     padding: 10px 10px 200px 10px !important;
     flex: 1;
     overflow-y: auto;
+    overflow-x: hidden !important;
     background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
     min-height: 100vh;
   }
@@ -1076,34 +1111,17 @@ body.dark-mode .subscription-list-card {
     background-attachment: fixed;
   }
 
-  #budgetView .income-spent-box,
-  #budgetView .budget-summary-card,
-  #budgetView [class*="income"],
-  #budgetView [class*="budget-summary"] {
-    grid-area: income !important;
-  }
-
   #budgetView .dashboard-card.budget-data-card,
   #budgetView [class*="budget-data"] {
-    grid-area: budget !important;
+    order: 1 !important;
   }
 
-  #budgetView .subscription-header,
-  #budgetView .subscription-text,
-  #budgetView [class*="subscription-t"] {
-    grid-area: subscription-text !important;
-  }
-
-  #budgetView .subscription-summary,
-  #budgetView [class*="subscription-summary"] {
-    grid-area: subscription-summary !important;
-  }
-
+  #budgetView .subscription-list-card,
   #budgetView .subscription-list-container,
   #budgetView .dashboard-card.subscription-card,
   #budgetView [class*="subscription-l"],
   #budgetView [class*="subscription-table"] {
-    grid-area: subscription-list !important;
+    order: 2 !important;
   }
 
   #budgetView .donut-chart-header,
@@ -1111,13 +1129,28 @@ body.dark-mode .subscription-list-card {
   #budgetView .chart-container,
   #budgetView .pie-chart-container,
   #budgetView .donut-chart-container {
-    grid-area: chart !important;
+    order: 3 !important;
+  }
+
+  #budgetView .col-left,
+  #budgetView .col-right {
+    display: contents !important;
+  }
+
+  #budgetView .dashboard-container > * {
+    min-width: 0 !important;
   }
 
   #budgetView .donut-chart-card,
   #budgetView .subscription-list-card {
     display: flex !important;
     flex-direction: column !important;
+  }
+
+  #budgetView .dashboard-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
   }
 
   #budgetView .budget-table {

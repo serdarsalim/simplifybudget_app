@@ -349,6 +349,7 @@ const Settings = {
     startingDay: "1",
     language: "en",
     showDecimals: true,
+    showExpenseChart: true,
     netWorthDefaultChart: "allocation",
   },
 
@@ -1456,6 +1457,7 @@ applySettingsFromData: function(settingsData) {
       enableAlerts: settingsData?.enableAlerts !== false,
       startingDay: settingsData?.startingDay || "1",
       showDecimals: settingsData?.showDecimals !== false,
+      showExpenseChart: settingsData?.showExpenseChart !== false,
       netWorthDefaultChart: settingsData?.netWorthDefaultChart || 'allocation'
     };
 
@@ -1473,6 +1475,12 @@ applySettingsFromData: function(settingsData) {
         console.warn(`Error setting ${id}:`, elementError);
       }
     });
+
+    // Apply dashboard expense chart visibility/layout
+    const budgetView = document.getElementById('budgetView');
+    if (budgetView) {
+      budgetView.classList.toggle('show-expense-chart', elements.showExpenseChart);
+    }
     
   } catch (error) {
     console.error('Error applying settings:', error);

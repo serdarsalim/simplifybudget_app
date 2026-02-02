@@ -73,7 +73,8 @@ function changeLanguage(langCode) {
     showRemaining: document.getElementById('showRemaining').checked || false,
     enableAlerts: document.getElementById('enableAlerts').checked || false,
     language: langCode,  // ← Use the new language
-    showDecimals: document.getElementById('showDecimals').checked || false
+    showDecimals: document.getElementById('showDecimals').checked || false,
+    showExpenseChart: document.getElementById('showExpenseChart')?.checked !== false
   };
   
   // Save to server
@@ -104,7 +105,7 @@ function initEventListeners() {
   }, 500);
   
   // Set up form controls with autosave (excluding currency selector)
-  document.querySelectorAll('#dateFormat, #showDecimals, #showRemaining, #enableAlerts, #showCategoryTotals, #showCurrencySymbolGrid, #netWorthDefaultChart, #defaultAccountSelector')
+  document.querySelectorAll('#dateFormat, #showDecimals, #showExpenseChart, #showRemaining, #enableAlerts, #showCategoryTotals, #showCurrencySymbolGrid, #netWorthDefaultChart, #defaultAccountSelector')
     .forEach(element => {
       element.addEventListener('change', debounceAutoSave);
     });
@@ -565,6 +566,7 @@ function applyDefaultsWithAutoLanguage() {
     showRemaining: true,
     enableAlerts: true,
     showDecimals: true,
+    showExpenseChart: true,
     language: 'en',
     displayCurrency: '$',
     exchangeRate: 1,
@@ -645,6 +647,12 @@ function applySettingsToForm(settings) {
     showDecimalsCheckbox.checked = settings.showDecimals !== undefined ? 
       settings.showDecimals : true;
   }
+
+  const showExpenseChartCheckbox = document.getElementById('showExpenseChart');
+  if (showExpenseChartCheckbox) {
+    showExpenseChartCheckbox.checked = settings.showExpenseChart !== undefined ?
+      settings.showExpenseChart : true;
+  }
   
   const languageSelector = document.getElementById('languageSelector');
   if (languageSelector) {
@@ -709,6 +717,7 @@ function applySettingsToForm(settings) {
       const enableAlertsEl = document.getElementById('enableAlerts');
       const languageEl = document.getElementById('languageSelector');
       const showDecimalsEl = document.getElementById('showDecimals');
+      const showExpenseChartEl = document.getElementById('showExpenseChart');
       const displayCurrencyEl = document.getElementById('displayCurrencySelector');
       const exchangeRateEl = document.getElementById('exchangeRateInput');
       const showCategoryTotalsEl = document.getElementById('showCategoryTotals');
@@ -725,6 +734,7 @@ function applySettingsToForm(settings) {
         enableAlerts: enableAlertsEl ? enableAlertsEl.checked : false,
         language: languageEl ? languageEl.value : 'en',
         showDecimals: showDecimalsEl ? showDecimalsEl.checked : false,
+        showExpenseChart: showExpenseChartEl ? showExpenseChartEl.checked : true,
         displayCurrency: displayCurrencyEl ? displayCurrencyEl.value : (currencyEl ? currencyEl.value : '$'),
         exchangeRate: exchangeRateEl ? parseFloat(exchangeRateEl.value) || 1 : 1,
         showCategoryTotals: showCategoryTotalsEl ? showCategoryTotalsEl.checked : true,
@@ -798,6 +808,11 @@ function applySettingsToForm(settings) {
         document.getElementById('languageSelector').value = defaults.language || 'en';
         document.getElementById('showDecimals').checked = defaults.showDecimals !== undefined ? 
           defaults.showDecimals : true;
+        const showExpenseChartEl = document.getElementById('showExpenseChart');
+        if (showExpenseChartEl) {
+          showExpenseChartEl.checked = defaults.showExpenseChart !== undefined ?
+            defaults.showExpenseChart : true;
+        }
         const netWorthChartSelect = document.getElementById('netWorthDefaultChart');
         if (netWorthChartSelect) {
           netWorthChartSelect.value = defaults.netWorthDefaultChart || 'allocation';
