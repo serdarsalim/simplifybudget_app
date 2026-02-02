@@ -3670,7 +3670,7 @@ function refresh(forceServerRefresh) {
   max-width: 1200px;
   margin: 0 auto;
   background-color: #ffffff;
-  border-radius: 0px;
+  border-radius: 6px;
   border: 1px solid rgba(0, 0, 0, 0.08);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
 }
@@ -3913,6 +3913,36 @@ function refresh(forceServerRefresh) {
   height: 100%;
   box-sizing: border-box;
   border-radius: 6px;
+}
+
+/* Desktop: center amount; right-align count + recurring icon */
+@media (min-width: 769px) {
+  .cell-content {
+    position: relative;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: nowrap;
+  }
+
+  .cell-content .amount {
+    margin: 0 auto;
+    white-space: nowrap;
+  }
+
+  .cell-content .transaction-count {
+    position: absolute;
+    right: 4px;
+  }
+
+  .cell-content .recurring-icon {
+    position: absolute;
+    right: 4px;
+  }
+
+  .cell-content .transaction-count + .recurring-icon {
+    right: 20px;
+  }
 }
 
 /* Color coding */
