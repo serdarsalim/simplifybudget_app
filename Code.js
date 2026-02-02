@@ -963,8 +963,8 @@ function disconnectBudgetSheet() {
 const TRIAL_TRACKING_SHEET = PropertiesService.getScriptProperties().getProperty('TRIAL_TRACKING_SHEET');
 
 
-// Secret encryption key - NEVER expose this to client-side code
-const ENCRYPTION_KEY = "SB2024!xK9#mP$vQ@7nR&zT%3wL^8fG";
+// Secret encryption key
+const ENCRYPTION_KEY = PropertiesService.getScriptProperties().getProperty('ENCRYPTION_KEY');
 
 /**
  * Simple XOR encryption/decryption
