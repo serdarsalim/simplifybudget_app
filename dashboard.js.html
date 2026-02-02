@@ -478,7 +478,8 @@ if (subscriptionBody) {
         <td class="indicator-column">${indicatorContent}</td>
         <td>${subscription.name || ''}</td>
         <td class="amount-column">${Utils.formatCurrency(subscription.amount)}</td>
-        <td>${subscription.nextDate || ''}</td>
+        <td class="date-column">${subscription.nextDate || ''}</td>
+        <td class="end-spacer"></td>
       `;
       subscriptionBody.appendChild(row);
     });

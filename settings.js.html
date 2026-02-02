@@ -429,6 +429,7 @@ function updateExchangeRateVisibility() {
   const displayCurrency = document.getElementById('displayCurrencySelector');
   const exchangeRateRow = document.getElementById('exchangeRateRow');
   const exchangeRateLabel = document.getElementById('exchangeRateLabel');
+  const exchangeRatePrefix = document.getElementById('exchangeRatePrefix');
 
   if (!baseCurrency || !displayCurrency || !exchangeRateRow) return;
 
@@ -444,11 +445,17 @@ function updateExchangeRateVisibility() {
   if (baseSymbol === displaySymbol) {
     // Same currency - hide exchange rate
     exchangeRateRow.style.display = 'none';
+    if (exchangeRatePrefix) {
+      exchangeRatePrefix.textContent = '';
+    }
   } else {
     // Different currencies - show exchange rate
     exchangeRateRow.style.display = '';
     if (exchangeRateLabel) {
       exchangeRateLabel.textContent = `1 ${baseCode} =`;
+    }
+    if (exchangeRatePrefix) {
+      exchangeRatePrefix.textContent = displaySymbol;
     }
     // Add helper text showing display currency
     const input = document.getElementById('exchangeRateInput');

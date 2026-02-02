@@ -951,6 +951,10 @@ body.dark-mode .progress-bar-placeholder {
 /* ======================
    SUBSCRIPTION TABLE
    ====================== */
+.subscription-list-container {
+  overflow: hidden;
+}
+
 .subscription-table {
   width: 100%;
   border-collapse: collapse;
@@ -963,6 +967,23 @@ body.dark-mode .progress-bar-placeholder {
   border-bottom: 1px solid #e8e8e899;
   font-size: 12px;
   color: rgba(44, 62, 80, 0.7);
+}
+
+/* No border on chevron column and end spacer */
+.subscription-table tbody td.indicator-column,
+.subscription-table tbody td.end-spacer {
+  border-bottom: none;
+}
+
+/* Date column - no right padding */
+.subscription-table tbody td.date-column {
+  padding-right: 0;
+}
+
+/* End spacer - same width as indicator column */
+.subscription-table tbody td.end-spacer {
+  width: 20px;
+  padding: 0;
 }
 
 .subscription-table th {
@@ -983,8 +1004,13 @@ body.dark-mode .progress-bar-placeholder {
 /* Dark mode subscription table */
 body.dark-mode .subscription-table th,
 body.dark-mode .subscription-table td {
-  border-bottom: 1px solid rgba(36, 63, 90, 0.3) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
   color: rgba(255, 255, 255, 0.7) !important;
+}
+
+body.dark-mode .subscription-table tbody td.indicator-column,
+body.dark-mode .subscription-table tbody td.end-spacer {
+  border-bottom: none !important;
 }
 
 body.dark-mode .subscription-table th {

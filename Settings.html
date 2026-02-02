@@ -122,7 +122,10 @@
             <span class="setting-label" id="exchangeRateLabel">Exchange Rate</span>
           </div>
           <div class="setting-control">
-            <input type="number" id="exchangeRateInput" class="modern-input" placeholder="1.00" step="0.01" min="0.01">
+            <div class="input-with-prefix">
+              <span id="exchangeRatePrefix" class="input-prefix"></span>
+              <input type="number" id="exchangeRateInput" class="modern-input" placeholder="1.00" step="0.01" min="0.01">
+            </div>
           </div>
         </div>
 
@@ -602,6 +605,13 @@ body.dark-mode .connection-status.connected {
   min-width: 120px;
 }
 
+/* Currency selectors match language dropdown width */
+#currencySelector,
+#displayCurrencySelector {
+  min-width: 120px;
+  max-width: 180px;
+}
+
 .modern-select:focus {
   outline: none;
   box-shadow: 0 0 0 2px var(--s-accent);
@@ -621,6 +631,19 @@ body.dark-mode .modern-select {
   border: none;
   border-radius: 8px;
   width: 80px;
+  text-align: right;
+}
+
+.input-with-prefix {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.input-prefix {
+  font-size: 13px;
+  color: var(--s-text-secondary);
+  min-width: 24px;
   text-align: right;
 }
 
@@ -893,6 +916,13 @@ body.dark-mode .dialog-btn-cancel:hover {
 
   .modern-select {
     width: 100%;
+  }
+
+  /* Narrower currency selects on mobile */
+  #currencySelector,
+  #displayCurrencySelector {
+    width: 160px;
+    max-width: 70%;
   }
 }
 
