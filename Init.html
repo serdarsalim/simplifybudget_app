@@ -2385,6 +2385,13 @@ checkExistingConnection: function () {
         if (showDecimalsCheckbox) {
           showDecimalsCheckbox.checked = settings.showDecimals;
         }
+
+        // Toggle dashboard expense chart visibility immediately
+        const budgetView = document.getElementById("budgetView");
+        if (budgetView) {
+          const showChart = settings.showExpenseChart !== false;
+          budgetView.classList.toggle("show-expense-chart", showChart);
+        }
       },
 
       /**
