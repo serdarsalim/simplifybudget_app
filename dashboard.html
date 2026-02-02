@@ -588,6 +588,7 @@ body.dark-mode .budget-alert.info {
   width: 100%;
   border-collapse: collapse;
   margin-top: 0;
+  overflow: hidden;
 }
 
 /* IMPROVED: Reduced gap between Category and Budgeted by 30% */
@@ -595,10 +596,30 @@ body.dark-mode .budget-alert.info {
 .budget-table td {
   padding: 4px 4px !important; /* Reduced horizontal padding from 6px to 4px (33% reduction) */
   text-align: left;
-  border-bottom: 1px solid #e8e8e8;
+  border-bottom: none;
   font-size: 14px !important;
   position: relative;
   vertical-align: middle;
+}
+
+/* Inset divider - line starts after emoji, spans full row */
+.budget-table tbody td.category-name {
+  overflow: visible;
+}
+
+.budget-table tbody td.category-name::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 32px;
+  width: 1000px;
+  height: 1px;
+  background-color: #e8e8e8;
+  pointer-events: none;
+}
+
+.budget-table tbody tr:last-child td.category-name::after {
+  display: none;
 }
 
 /* Fix current month savings row border - add height when no progress bar */
@@ -637,7 +658,12 @@ body.dark-mode .budget-table th {
 
 body.dark-mode .budget-table th,
 body.dark-mode .budget-table td {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-bottom: none !important;
+}
+
+/* Dark mode inset divider */
+body.dark-mode .budget-table tbody td.category-name::after {
+  background-color: rgba(255, 255, 255, 0.1) !important;
 }
 
 .category-name {
@@ -665,7 +691,20 @@ body.dark-mode .budget-table td {
   font-weight: 600 !important;
   color: #047857 !important;
   background-color: transparent !important;
-  border-bottom: 1px solid #e8e8e8 !important;
+}
+
+/* Inset top border for savings row - starts after emoji */
+.budget-table tbody tr:last-child td.category-name::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: auto;
+  left: 32px;
+  width: 1000px;
+  height: 1px;
+  background-color: #e8e8e8;
+  pointer-events: none;
+  display: block;
 }
 
 .budget-table tbody tr:last-child .category-name {
