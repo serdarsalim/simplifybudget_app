@@ -252,7 +252,10 @@ function processNextItem() {
       const leftToSpendLabel = document.getElementById('left-to-spend-label');
       
       if (data.summary.displayType === 'leftToSpend') {
-        if (leftToSpendLabel) leftToSpendLabel.textContent = Utils.translateCategory('left_to_spend') || 'Left to Spend';
+        if (leftToSpendLabel) {
+          const label = Utils.translateCategory('left_to_spend');
+          leftToSpendLabel.textContent = (label && label !== 'left_to_spend') ? label : 'Left to Spend';
+        }
         leftToSpendElement.textContent = Utils.formatCurrency(data.summary.leftToSpend || 0);
       } else if (data.summary.displayType === 'saved') {
         if (leftToSpendLabel) leftToSpendLabel.textContent = Utils.translateCategory('saved') || 'Saved';
@@ -262,7 +265,10 @@ function processNextItem() {
         leftToSpendElement.textContent = Utils.formatCurrency(data.summary.overspent || 0);
       } else {
         // Fallback to original behavior
-        if (leftToSpendLabel) leftToSpendLabel.textContent = Utils.translateCategory('left_to_spend') || 'Left to Spend';
+        if (leftToSpendLabel) {
+          const label = Utils.translateCategory('left_to_spend');
+          leftToSpendLabel.textContent = (label && label !== 'left_to_spend') ? label : 'Left to Spend';
+        }
         leftToSpendElement.textContent = Utils.formatCurrency(data.summary.leftToSpend || 0);
       }
     }
