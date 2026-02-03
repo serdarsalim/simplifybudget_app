@@ -710,7 +710,94 @@ function init(containerId, cachedData) {
       valueElement.textContent = '';
     }
   }
-  
+
+  // Update summary display without full re-render
+  function updateSummaryDisplay() {
+    // Update category totals and changes in the DOM
+    Object.keys(ASSET_CATEGORIES).forEach(categoryKey => {
+      const total = calculateCategoryTotal(categoryKey);
+      const change = calculateCategoryChange(categoryKey);
+      const formattedTotal = formatCurrency(total);
+
+      // Find the table for this category, then go up to section to find badge
+      const table = document.querySelector(`table.nw-table[data-category="${categoryKey}"]`);
+      if (table) {
+        const section = table.closest('.nw-section');
+        if (section) {
+          // Update total
+          const badgeTotal = section.querySelector('.nw-badge-total');
+          if (badgeTotal) {
+            badgeTotal.textContent = formattedTotal;
+          }
+
+          // Update change indicator
+          const badgeChange = section.querySelector('.nw-badge-change');
+          if (badgeChange && change !== 0) {
+            const arrow = change > 0 ? '▲' : '▼';
+            badgeChange.textContent = `${formatCurrency(Math.abs(change))} ${arrow}`;
+            badgeChange.classList.remove('nw-change-positive', 'nw-change-negative');
+            // For debts, increasing is bad (red), decreasing is good (green)
+            // For assets, increasing is good (green), decreasing is bad (red)
+            const category = ASSET_CATEGORIES[categoryKey];
+            const isDebt = category && category.isDebt;
+            const isPositiveChange = isDebt ? change < 0 : change > 0;
+            badgeChange.classList.add(isPositiveChange ? 'nw-change-positive' : 'nw-change-negative');
+          } else if (badgeChange && change === 0) {
+            badgeChange.textContent = '';
+          }
+        }
+      }
+    });
+
+    // Update the main net worth banner value
+    if (_netWorthData.summary) {
+      const totalNetWorth = _netWorthData.summary.totalNetWorth;
+      const valueElement = document.getElementById('netWorthBannerValue');
+      if (valueElement) {
+        valueElement.textContent = formatCurrency(totalNetWorth);
+      }
+
+      // Update the chart header summary (Net Worth, Debts, Change)
+      const chartSummary = document.querySelector('.nw-chart-summary');
+      if (chartSummary) {
+        // Update Net Worth in chart header
+        const totalElement = chartSummary.querySelector('.nw-summary-total');
+        if (totalElement) {
+          const label = totalElement.querySelector('[data-translate="net_worth"]');
+          const labelText = label ? label.outerHTML : '<span data-translate="net_worth">Net Worth</span>';
+          totalElement.innerHTML = `${labelText}: ${formatCurrency(totalNetWorth)}`;
+        }
+
+        // Update Debts in chart header - find element with debts translate attribute
+        const debtsLabel = chartSummary.querySelector('[data-translate="debts"]');
+        if (debtsLabel) {
+          const debtsElement = debtsLabel.closest('.nw-summary-item');
+          if (debtsElement) {
+            debtsElement.innerHTML = `<span data-translate="debts">Debts</span>: ${formatCurrency(_netWorthData.summary.totalDebts)}`;
+          }
+        }
+
+        // Update Change indicator - find the element inside summary-line that's not the total
+        const change = _netWorthData.summary.change;
+        const summaryLine = chartSummary.querySelector('.nw-summary-line');
+        if (summaryLine) {
+          let changeElement = summaryLine.querySelector('.nw-summary-item:not(.nw-summary-total)');
+          if (changeElement) {
+            if (change !== 0) {
+              const arrow = change > 0 ? '▲' : '▼';
+              const changeClass = change > 0 ? 'nw-change-positive' : 'nw-change-negative';
+              changeElement.className = `nw-summary-item ${changeClass}`;
+              changeElement.textContent = `${formatCurrency(Math.abs(change))} ${arrow}`;
+            } else {
+              changeElement.textContent = '';
+              changeElement.className = 'nw-summary-item';
+            }
+          }
+        }
+      }
+    }
+  }
+
   function calculateCategoryTotal(categoryKey) {
     const currentMonthData = getCurrentMonthEntries();
     const categoryEntries = currentMonthData.filter(entry => entry.asset === categoryKey);
@@ -1498,7 +1585,12 @@ function init(containerId, cachedData) {
             </div>
 
             <div class="nw-timespan-controls ${_chartMode === 'performance' ? '' : 'hidden'}" id="performanceYearControls">
-              ${availableYears.map(year =>
+              ${availableYears.length > 3 ? `<button class="nw-timespan-btn nw-more-years-btn" id="moreYearsBtn" title="Show earlier years">...</button>` : ''}
+              ${availableYears.length > 3 ?
+                availableYears.slice(0, -3).map(year =>
+                  `<button class="nw-timespan-btn nw-older-year ${_selectedYear === year ? 'active' : ''}" data-year="${year}" style="display: none;">${year}</button>`
+                ).join('') : ''}
+              ${availableYears.slice(-3).map(year =>
                 `<button class="nw-timespan-btn ${_selectedYear === year ? 'active' : ''}" data-year="${year}">${year}</button>`
               ).join('')}
             </div>
@@ -2608,8 +2700,11 @@ function init(containerId, cachedData) {
     
     if (categoryChange !== 0) {
       const arrow = categoryChange > 0 ? '▲' : '▼';
-      const changeClass = categoryChange > 0 ? 'nw-change-positive' : 'nw-change-negative';
-      
+      // For debts, increasing is bad (red), decreasing is good (green)
+      // For assets, increasing is good (green), decreasing is bad (red)
+      const isPositiveChange = category.isDebt ? categoryChange < 0 : categoryChange > 0;
+      const changeClass = isPositiveChange ? 'nw-change-positive' : 'nw-change-negative';
+
       // Combined badge with total and change
       totalsDisplay = `
         <div class="nw-total-container">
@@ -2750,9 +2845,13 @@ function init(containerId, cachedData) {
     const formattedAmount = formatCurrency(currentAmount);
     
     // Format change with color and arrow
+    // For debts: increase is bad (red), decrease is good (green)
+    // For assets: increase is good (green), decrease is bad (red)
     let changeDisplay = '';
     if (previousEntry && change !== 0) {
-      const changeClass = change > 0 ? 'nw-positive-change' : 'nw-negative-change';
+      const isDebt = category && category.isDebt;
+      const isPositiveChange = isDebt ? change < 0 : change > 0;
+      const changeClass = isPositiveChange ? 'nw-positive-change' : 'nw-negative-change';
       const arrow = change > 0 ? '▲' : '▼';
       changeDisplay = `<span class="${changeClass}">${formatCurrency(Math.abs(change))} ${arrow}</span>`;
     } else if (!previousEntry) {
@@ -2844,7 +2943,7 @@ function init(containerId, cachedData) {
     });
 
     // Performance year controls
-    document.querySelectorAll('#performanceYearControls .nw-timespan-btn').forEach(btn => {
+    document.querySelectorAll('#performanceYearControls .nw-timespan-btn[data-year]').forEach(btn => {
       btn.addEventListener('click', function() {
         const year = parseInt(this.getAttribute('data-year'), 10);
         if (year && year !== _selectedYear) {
@@ -2861,6 +2960,27 @@ function init(containerId, cachedData) {
         }
       });
     });
+
+    // More years toggle button - use event delegation for robustness
+    const performanceYearControls = document.getElementById('performanceYearControls');
+    if (performanceYearControls) {
+      performanceYearControls.addEventListener('click', function(e) {
+        const moreBtn = e.target.closest('.nw-more-years-btn');
+        if (moreBtn) {
+          e.stopPropagation();
+          const olderYears = this.querySelectorAll('.nw-older-year');
+          const isExpanded = moreBtn.classList.contains('expanded');
+
+          olderYears.forEach(btn => {
+            btn.style.display = isExpanded ? 'none' : '';
+          });
+
+          moreBtn.classList.toggle('expanded');
+          moreBtn.textContent = isExpanded ? '...' : '‹';
+          moreBtn.title = isExpanded ? 'Show earlier years' : 'Hide earlier years';
+        }
+      });
+    }
     
     document.querySelectorAll('.nw-add-btn').forEach(btn => {
       btn.addEventListener('click', function() {
@@ -2896,6 +3016,10 @@ function init(containerId, cachedData) {
     
     document.querySelectorAll('.nw-editable').forEach(el => {
       el.addEventListener('click', function() {
+        // Don't re-init if already editing
+        if (this.hasAttribute('contenteditable') && this.getAttribute('contenteditable') === 'true') {
+          return;
+        }
         makeFieldEditable(this);
       });
     });
@@ -2958,81 +3082,219 @@ function init(containerId, cachedData) {
     }
     
     const originalContent = element.innerHTML;
-    
+
     if (isNumericField) {
-      element.innerHTML = `
-        <div class="nw-edit-wrapper">
-          <span class="nw-edit-currency">${getCurrencySymbol()}</span>
-          <input type="number" class="nw-edit-input" value="${currentValue}" min="0" inputmode="decimal">
-        </div>
-      `;
-    } else {
-      element.innerHTML = `
-        <div class="nw-edit-wrapper">
-          <input type="text" class="nw-edit-input nw-text-input" value="${currentValue}" placeholder="Enter ${field}">
-        </div>
-      `;
-    }
-    
-    const input = element.querySelector('input');
-    input.focus();
-    input.select();
-    
-    input.addEventListener('blur', function() {
-      let newValue = this.value.trim();
-      
-      if (isNumericField) {
-        newValue = parseFloat(newValue);
+      // Use contenteditable for better editing experience (select portions, etc.)
+      const currencySymbol = getCurrencySymbol();
+      element.innerHTML = `<span class="nw-edit-currency-inline">${currencySymbol}</span>${currentValue}`;
+      element.setAttribute('contenteditable', 'true');
+      element.classList.add('nw-editing');
+      element.setAttribute('inputmode', 'decimal');
+      element.focus();
+
+      // Select only the number part (after currency symbol)
+      const text = element.textContent;
+      const match = text.match(/[\d.,]/);
+      if (match) {
+        const numberStart = text.indexOf(match[0]);
+        const range = document.createRange();
+        const textNode = element.lastChild; // The number is in the last text node
+        if (textNode && textNode.nodeType === 3) {
+          range.setStart(textNode, 0);
+          range.setEnd(textNode, textNode.length);
+          const selection = window.getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
+      }
+
+      // Prevent cursor from going before currency symbol
+      const handleKeydown = function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          element.blur();
+          return;
+        }
+
+        const selection = window.getSelection();
+        if (!selection.rangeCount) return;
+
+        const range = selection.getRangeAt(0);
+        const currencySpan = element.querySelector('.nw-edit-currency-inline');
+        const currencyLength = currencySpan ? currencySpan.textContent.length : 0;
+
+        // Check if cursor is at the start of the text node (right after currency)
+        const textNode = element.lastChild;
+        if (textNode && textNode.nodeType === 3) {
+          const isAtStart = range.startContainer === textNode && range.startOffset === 0;
+
+          // Prevent backspace from going into currency symbol
+          if (e.key === 'Backspace' && isAtStart && range.collapsed) {
+            e.preventDefault();
+          }
+
+          // Prevent left arrow from going before number
+          if (e.key === 'ArrowLeft' && isAtStart && range.collapsed) {
+            e.preventDefault();
+          }
+        }
+
+        // Prevent deleting the currency span
+        if (e.key === 'Backspace' || e.key === 'Delete') {
+          const currencySpan = element.querySelector('.nw-edit-currency-inline');
+          if (currencySpan && selection.containsNode(currencySpan, true)) {
+            e.preventDefault();
+          }
+        }
+      };
+
+      const handleBlur = function() {
+        element.removeAttribute('contenteditable');
+        element.classList.remove('nw-editing');
+        element.removeEventListener('keydown', handleKeydown);
+        element.removeEventListener('blur', handleBlur);
+        element.removeEventListener('mouseup', handleMouseup);
+
+        // Extract the numeric value
+        const text = element.textContent;
+        const rawValue = text.replace(/[^0-9.-]+/g, '');
+        let newValue = parseFloat(rawValue);
+
         // Allow 0 values, only reject negative or NaN
         if (isNaN(newValue) || newValue < 0) {
           element.innerHTML = originalContent;
           return;
         }
-      } else {
+
+        // Skip save if value unchanged
+        if (newValue === currentValue) {
+          element.innerHTML = formatCurrency(newValue);
+          return;
+        }
+
+        entry.amount = newValue;
+        element.innerHTML = formatCurrency(newValue);
+
+        // Show saving indicator
+        element.classList.add('nw-saving');
+
+        // Update the row's change cell optimistically
+        const row = element.closest('tr');
+        if (row) {
+          const changeCell = row.querySelector('.nw-change-cell');
+          if (changeCell) {
+            // Get previous month value for this entry
+            const previousMonthEntries = getPreviousMonthEntries();
+            const previousEntry = previousMonthEntries.find(e =>
+              e.asset === entry.asset && e.name === entry.name
+            );
+            const previousAmount = previousEntry ? (parseFloat(previousEntry.amount) || 0) : 0;
+            const change = newValue - previousAmount;
+
+            if (change !== 0) {
+              const category = ASSET_CATEGORIES[entry.asset];
+              const isDebt = category && category.isDebt;
+              const isPositiveChange = isDebt ? change < 0 : change > 0;
+              const changeClass = isPositiveChange ? 'nw-positive-change' : 'nw-negative-change';
+              const arrow = change > 0 ? '▲' : '▼';
+              changeCell.innerHTML = `<span class="${changeClass}">${formatCurrency(Math.abs(change))} ${arrow}</span>`;
+            } else if (!previousEntry) {
+              changeCell.innerHTML = '<span class="nw-new-entry">New</span>';
+            } else {
+              changeCell.innerHTML = '';
+            }
+          }
+        }
+
+        // Save and update summary without full re-render
+        saveNetWorthEntries([entry]);
+        calculateSummary();
+
+        // Update summary display without full re-render
+        updateSummaryDisplay();
+
+        // Update the actual Chart.js chart with new data
+        initializeChart();
+
+        // Show saved indicator after a short delay (simulating save completion)
+        setTimeout(() => {
+          element.classList.remove('nw-saving');
+          element.classList.add('nw-saved');
+          setTimeout(() => element.classList.remove('nw-saved'), 1000);
+        }, 500);
+      };
+
+      const handleMouseup = function() {
+        const selection = window.getSelection();
+        if (!selection.rangeCount) return;
+
+        const range = selection.getRangeAt(0);
+        const currencySpan = element.querySelector('.nw-edit-currency-inline');
+
+        // If selection includes currency span, adjust it
+        if (currencySpan && selection.containsNode(currencySpan, true)) {
+          const textNode = element.lastChild;
+          if (textNode && textNode.nodeType === 3) {
+            range.setStart(textNode, 0);
+            selection.removeAllRanges();
+            selection.addRange(range);
+          }
+        }
+      };
+
+      element.addEventListener('keydown', handleKeydown);
+      element.addEventListener('blur', handleBlur);
+      element.addEventListener('mouseup', handleMouseup);
+
+    } else {
+      // Text fields - use regular input
+      element.innerHTML = `
+        <div class="nw-edit-wrapper">
+          <input type="text" class="nw-edit-input nw-text-input" value="${currentValue}" placeholder="Enter ${field}">
+        </div>
+      `;
+
+      const input = element.querySelector('input');
+      input.focus();
+      input.select();
+
+      input.addEventListener('blur', function() {
+        let newValue = this.value.trim();
+
         if (!newValue && (field === 'type' || field === 'name')) {
           alert(`${field.charAt(0).toUpperCase() + field.slice(1)} cannot be empty`);
           element.innerHTML = originalContent;
           return;
         }
-      }
-      
-      switch(field) {
-        case 'type':
-          entry.type = newValue;
-          break;
-        case 'name':
-          entry.name = newValue;
-          break;
-        case 'amount':
-          entry.amount = newValue;
-          break;
-      }
-      
-      if (isNumericField) {
-        element.innerHTML = formatCurrency(newValue);
-      } else {
+
+        switch(field) {
+          case 'type':
+            entry.type = newValue;
+            break;
+          case 'name':
+            entry.name = newValue;
+            break;
+        }
+
         element.innerHTML = newValue;
-      }
-      
-      saveNetWorthEntries([entry]);
-      
-     if (field === 'amount' || field === 'type') {
-  // Re-assign colors if type changed
-  if (field === 'type') {
-    assignColorsToAssetTypes();
-  }
-  calculateSummary();
-  renderNetWorthView(); // This will recalculate and show changes
-} else {
-  showSaveIndicator(element);
-}
-    });
-    
-    input.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') {
-        this.blur();
-      }
-    });
+
+        saveNetWorthEntries([entry]);
+
+        if (field === 'type') {
+          assignColorsToAssetTypes();
+          calculateSummary();
+          renderNetWorthView();
+        } else {
+          showSaveIndicator(element);
+        }
+      });
+
+      input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+          this.blur();
+        }
+      });
+    }
   }
   
   function showAddAssetModal(categoryKey) {
@@ -4559,6 +4821,15 @@ body.dark-mode #netWorthView .networth-banner-summary {
   color: white;
 }
 
+.nw-more-years-btn {
+  padding: 6px 8px;
+  min-width: 32px;
+}
+
+.nw-more-years-btn.expanded {
+  background-color: #e0e0e0;
+}
+
 .nw-chart-wrapper {
   padding: 20px;
   height: 400px;
@@ -4967,6 +5238,80 @@ body.dark-mode #netWorthView .networth-banner-summary {
   font-family: 'Lato', sans-serif;
   font-weight: 700;
   color: #666;
+}
+
+/* Inline currency for contenteditable amount fields */
+.nw-edit-currency-inline {
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+  color: #666;
+  user-select: none;
+  pointer-events: none;
+}
+
+.nw-editable.nw-editing {
+  background-color: rgba(0, 0, 0, 0.04);
+  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.3);
+  outline: none;
+  min-width: 60px;
+}
+
+body.dark-mode .nw-edit-currency-inline {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+body.dark-mode .nw-editable.nw-editing {
+  background-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 0 2px rgba(74, 163, 223, 0.4);
+}
+
+/* Saving indicator - spinner */
+.nw-editable.nw-saving {
+  position: relative;
+}
+
+.nw-editable.nw-saving::after {
+  content: '';
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 12px;
+  height: 12px;
+  border: 2px solid #1976d2;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: nw-spin 1s linear infinite;
+}
+
+@keyframes nw-spin {
+  0% { transform: translateY(-50%) rotate(0deg); }
+  100% { transform: translateY(-50%) rotate(360deg); }
+}
+
+/* Saved indicator - brief green flash */
+.nw-editable.nw-saved {
+  background-color: rgba(76, 175, 80, 0.15) !important;
+  transition: background-color 0.3s ease;
+}
+
+/* Error indicator */
+.nw-editable.nw-error {
+  background-color: rgba(244, 67, 54, 0.15) !important;
+  transition: background-color 0.3s ease;
+}
+
+body.dark-mode .nw-editable.nw-saving::after {
+  border-color: #4aa3df;
+  border-top-color: transparent;
+}
+
+body.dark-mode .nw-editable.nw-saved {
+  background-color: rgba(76, 175, 80, 0.25) !important;
+}
+
+body.dark-mode .nw-editable.nw-error {
+  background-color: rgba(244, 67, 54, 0.25) !important;
 }
 
 .nw-edit-input {
@@ -5970,6 +6315,10 @@ body.dark-mode .nw-timespan-btn.active {
   background-color: #DDA15E;
   border-color: #DDA15E;
   color: #1e1e1e;
+}
+
+body.dark-mode .nw-more-years-btn.expanded {
+  background-color: rgba(255, 255, 255, 0.1);
 }
 
 body.dark-mode .nw-table th {
