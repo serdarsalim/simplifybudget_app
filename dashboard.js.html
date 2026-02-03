@@ -1,179 +1,250 @@
 <script>
 
 
-// Add this SaveQueue implementation at the beginning of BudgetDashboardJS.html
-// This creates a queue system to handle sequential save operations
+// BatchSaveManager - Collects budget changes and saves them in one API call
+// Optimistic UI updates happen immediately, server sync is batched
 
 /**
- * SaveQueue - Manages sequential saving of budget values
- * Prevents race conditions when multiple values are changed quickly
+ * BatchSaveManager - Batches multiple budget edits into a single API call
+ * - Collects changes as user edits fields
+ * - Waits for user to stop editing (2.5s debounce)
+ * - Sends all changes in one API call
+ * - Retries on failure (up to 3 times)
+ * - Reverts UI only on final failure
  */
-const SaveQueue = (function() {
-  // Private variables
-  let _queue = [];
-  let _isProcessing = false;
-  let _isReordering = false;
+const BatchSaveManager = (function() {
+  // Private state
+  let _pendingChanges = {};  // { categoryName: { value, originalValue, element } }
+  let _saveTimeout = null;
+  let _isSaving = false;
+  let _retryCount = 0;
+  const MAX_RETRIES = 3;
+  const DEBOUNCE_MS = 2500;  // Wait 2.5s after last edit before saving
 
-  
-// Replace the category finding logic with this:
+  /**
+   * Build the budget data object with all pending changes
+   */
+  function buildBudgetData() {
+    let budgetData = window.CacheManager.getBudgetData();
 
-function processNextItem() {
-  if (_queue.length === 0) {
-    _isProcessing = false;
-    return;
-  }
-  
-  _isProcessing = true;
-  const nextItem = _queue.shift();
-  
-  // Get current budget data from cache
-  let budgetData = window.CacheManager.getBudgetData();
-  
-  // Initialize if needed - NO categories array needed!
-  if (!budgetData || !budgetData.budgets) {
-    budgetData = {
-      budgets: {},
-      version: 1
-    };
-  }
-  
-  const monthKey = `${_currentYear}-${String(_currentMonth + 1).padStart(2, '0')}`;
-  
-  if (!budgetData.budgets[monthKey]) {
-    budgetData.budgets[monthKey] = {};
-  }
-  
-  // HANDLE SAVINGS SPECIALLY, EVERYTHING ELSE BY INDEX
-  if (nextItem.categoryName === 'Savings 💵') {
-    if (nextItem.value > 0) {
-      budgetData.budgets[monthKey]['savings'] = nextItem.value;
-    } else {
-      delete budgetData.budgets[monthKey]['savings'];
+    if (!budgetData || !budgetData.budgets) {
+      budgetData = { budgets: {}, version: 1 };
     }
-  } else {
-    // Get current categories to find the category
+
+    const monthKey = `${_currentYear}-${String(_currentMonth + 1).padStart(2, '0')}`;
+
+    if (!budgetData.budgets[monthKey]) {
+      budgetData.budgets[monthKey] = {};
+    }
+
     const currentCategories = window.CacheManager.getCategoriesWithTimestamp();
-    if (!currentCategories || !currentCategories.categories) {
-      console.error('No categories available');
-      if (nextItem.onError) nextItem.onError('No categories available');
-      setTimeout(processNextItem, 50);
-      return;
-    }
-    
-    // Find the category by name (no sorting needed!)
-    const category = currentCategories.categories.find(c => 
-      (c.fullName === nextItem.categoryName || c.name === nextItem.categoryName) 
-    );
-    
-    if (!category) {
-      console.error('Category not found:', nextItem.categoryName);
-      if (nextItem.onError) {
-        nextItem.onError('Category not found: ' + nextItem.categoryName);
+
+    // Apply all pending changes
+    Object.keys(_pendingChanges).forEach(categoryName => {
+      const change = _pendingChanges[categoryName];
+
+      if (categoryName === 'Savings 💵') {
+        if (change.value > 0) {
+          budgetData.budgets[monthKey]['savings'] = change.value;
+        } else {
+          delete budgetData.budgets[monthKey]['savings'];
+        }
+      } else {
+        if (currentCategories && currentCategories.categories) {
+          const category = currentCategories.categories.find(c =>
+            c.fullName === categoryName || c.name === categoryName
+          );
+
+          if (category && typeof category.order === 'number' && category.order >= 0) {
+            if (change.value > 0) {
+              budgetData.budgets[monthKey][category.order.toString()] = change.value;
+            } else {
+              delete budgetData.budgets[monthKey][category.order.toString()];
+            }
+          }
+        }
       }
-      setTimeout(processNextItem, 50);
-      return;
-    }
-    
-    // Use the category's 'order' property as the index
-    const categoryIndex = category.order;
-    
-    // Validate that we have a valid order
-    if (typeof categoryIndex !== 'number' || categoryIndex < 0) {
-      console.error('Category has invalid order:', category);
-      if (nextItem.onError) {
-        nextItem.onError('Invalid category order for: ' + nextItem.categoryName);
-      }
-      setTimeout(processNextItem, 50);
-      return;
-    }
-    
-    // Save or delete the budget value
-    if (nextItem.value > 0) {
-      budgetData.budgets[monthKey][categoryIndex.toString()] = nextItem.value;
-    } else {
-      delete budgetData.budgets[monthKey][categoryIndex.toString()];
-    }
+    });
+
+    return budgetData;
   }
-  
-  // Save the budget JSON
-  API.saveBudgetData(
-    budgetData,
-    (result) => {
-      // Update cache
-      window.CacheManager.setBudgetData(budgetData);
-      
-      // Refresh dashboard to update progress bars and totals
-      if (typeof SimBudget !== 'undefined' && SimBudget.loadBudgetData) {
-        SimBudget.loadBudgetData();
-      }
-      
-      // Success callback
-      try {
-        if (nextItem.onSuccess) {
-          nextItem.onSuccess(result);
-        }
-      } finally {
-        setTimeout(processNextItem, 50);
-      }
-    },
-    (error) => {
-      // Error callback
-      try {
-        if (nextItem.onError) {
-          nextItem.onError(error);
-        }
-      } finally {
-        setTimeout(processNextItem, 50);
-      }
+
+  /**
+   * Execute the batch save to server
+   */
+  function executeSave() {
+    if (Object.keys(_pendingChanges).length === 0) {
+      _isSaving = false;
+      return;
     }
-  );
-}
-  
 
+    _isSaving = true;
+    const budgetData = buildBudgetData();
+    const changesToSave = { ..._pendingChanges };  // Snapshot of what we're saving
 
+    API.saveBudgetData(
+      budgetData,
+      (result) => {
+        // Success - update cache and clear pending
+        window.CacheManager.setBudgetData(budgetData);
 
-  // Public methods
+        // Mark saved fields with brief success indicator
+        Object.values(changesToSave).forEach(change => {
+          if (change.element) {
+            change.element.classList.remove('saving');
+            change.element.classList.add('saved');
+            setTimeout(() => change.element.classList.remove('saved'), 1000);
+          }
+        });
+
+        // Clear saved changes from pending (but keep any new ones added during save)
+        Object.keys(changesToSave).forEach(key => {
+          if (_pendingChanges[key] && _pendingChanges[key].value === changesToSave[key].value) {
+            delete _pendingChanges[key];
+          }
+        });
+
+        _retryCount = 0;
+        _isSaving = false;
+
+        // If more changes came in during save, schedule another save
+        if (Object.keys(_pendingChanges).length > 0) {
+          scheduleSave();
+        }
+      },
+      (error) => {
+        _retryCount++;
+
+        if (_retryCount < MAX_RETRIES) {
+          // Silent retry after 1 second
+          console.log(`Budget save failed, retrying (${_retryCount}/${MAX_RETRIES})...`);
+          setTimeout(executeSave, 1000);
+        } else {
+          // Final failure - revert UI and show error
+          console.error('Budget save failed after retries:', error);
+
+          Object.values(changesToSave).forEach(change => {
+            if (change.element) {
+              change.element.classList.remove('saving');
+              change.element.classList.add('error');
+              // Revert to original value
+              change.element.textContent = Utils.formatCurrency(change.originalValue);
+              change.element.dataset.value = change.originalValue;
+
+              // Also revert the progress bar
+              if (typeof SimBudget.updateProgressBar === 'function') {
+                SimBudget.updateProgressBar(change.categoryName, change.originalValue);
+              }
+
+              setTimeout(() => change.element.classList.remove('error'), 2000);
+            }
+          });
+
+          // Update the info message with reverted values
+          if (typeof SimBudget.updateInfoMessage === 'function') {
+            SimBudget.updateInfoMessage(true);
+          }
+
+          Utils.showToast('Couldn\'t save budget changes. Please try again.', 'error');
+
+          // Clear failed changes
+          Object.keys(changesToSave).forEach(key => delete _pendingChanges[key]);
+          _retryCount = 0;
+          _isSaving = false;
+        }
+      }
+    );
+  }
+
+  /**
+   * Schedule a save after debounce period
+   */
+  function scheduleSave() {
+    if (_saveTimeout) {
+      clearTimeout(_saveTimeout);
+    }
+
+    _saveTimeout = setTimeout(() => {
+      _saveTimeout = null;
+      executeSave();
+    }, DEBOUNCE_MS);
+  }
+
+  // Public API
   return {
     /**
-     * Add a save operation to the queue
-     * @param {string} categoryName - Name of the budget category
-     * @param {number} value - New budget value
-     * @param {Function} onSuccess - Success callback
-     * @param {Function} onError - Error callback
+     * Add a budget change to the batch
+     * @param {string} categoryName - Category being changed
+     * @param {number} newValue - New budget value
+     * @param {number} originalValue - Original value (for revert on failure)
+     * @param {HTMLElement} element - The DOM element (for visual feedback)
      */
-    add: function(categoryName, value, onSuccess, onError) {
-      // Add to the queue
-      _queue.push({
-        categoryName: categoryName,
-        value: value,
-        onSuccess: onSuccess,
-        onError: onError,
-        timestamp: Date.now()
-      });
-      
-      // Start processing if not already processing
-      if (!_isProcessing) {
-        processNextItem();
+    addChange: function(categoryName, newValue, originalValue, element) {
+      // Store the change (overwrites previous change to same category)
+      _pendingChanges[categoryName] = {
+        value: newValue,
+        originalValue: _pendingChanges[categoryName]?.originalValue ?? originalValue,
+        element: element,
+        categoryName: categoryName
+      };
+
+      // Mark element as pending save
+      if (element) {
+        element.classList.add('saving');
       }
+
+      // Schedule the batch save
+      scheduleSave();
     },
-    
+
     /**
-     * Cancel pending operations for a category
-     * @param {string} categoryName - Name of the budget category to cancel
+     * Cancel pending change for a category (e.g., on Escape)
      */
-    cancelCategory: function(categoryName) {
-      _queue = _queue.filter(item => item.categoryName !== categoryName);
+    cancelChange: function(categoryName) {
+      delete _pendingChanges[categoryName];
     },
-    
+
     /**
-     * Check if there are pending saves
-     * @return {boolean} True if queue is not empty
+     * Check if there are unsaved changes
      */
-    hasPendingSaves: function() {
-      return _queue.length > 0;
+    hasPendingChanges: function() {
+      return Object.keys(_pendingChanges).length > 0 || _isSaving;
+    },
+
+    /**
+     * Force immediate save (e.g., before page unload)
+     */
+    flush: function() {
+      if (_saveTimeout) {
+        clearTimeout(_saveTimeout);
+        _saveTimeout = null;
+      }
+      if (Object.keys(_pendingChanges).length > 0 && !_isSaving) {
+        executeSave();
+      }
     }
   };
 })();
+
+// Flush pending saves before page unload
+window.addEventListener('beforeunload', function(e) {
+  if (BatchSaveManager.hasPendingChanges()) {
+    BatchSaveManager.flush();
+  }
+});
+
+// Legacy alias for any code still referencing SaveQueue
+const SaveQueue = {
+  add: function(categoryName, value, onSuccess, onError) {
+    BatchSaveManager.addChange(categoryName, value, value, null);
+  },
+  cancelCategory: function(categoryName) {
+    BatchSaveManager.cancelChange(categoryName);
+  },
+  hasPendingSaves: function() {
+    return BatchSaveManager.hasPendingChanges();
+  }
+};
 
 
 /**
@@ -531,13 +602,14 @@ setTimeout(function() {
  * @param {number} newBudgetValue - The new budget value
  */
 SimBudget.updateProgressBar = function(categoryName, newBudgetValue) {
-  // Find the row for this category
+  // Find the row by matching data-category attribute on budget-value cell
   const rows = document.querySelectorAll('.budget-table tr');
   rows.forEach(row => {
-    const categoryCell = row.querySelector('.category-name');
-    if (categoryCell && categoryCell.textContent === categoryName) {
+    const budgetCell = row.querySelector('.budget-value');
+    if (budgetCell && budgetCell.dataset.category === categoryName) {
       // Get the actual value
-      const actualValue = parseFloat(row.querySelector('.actual-value').textContent.replace(/[^0-9.-]+/g, ''));
+      const actualCell = row.querySelector('.actual-value');
+      const actualValue = actualCell ? parseFloat(actualCell.textContent.replace(/[^0-9.-]+/g, '')) || 0 : 0;
       
       // Calculate new percentage
       const newPercentage = newBudgetValue > 0 ? (actualValue / newBudgetValue) * 100 : (actualValue > 0 ? 100 : 0);
@@ -585,190 +657,169 @@ SimBudget.updateProgressBar = function(categoryName, newBudgetValue) {
   }
 };
  
-// Update SimBudget.makeEditableBudgetValues to use the SaveQueue
+// Simplified budget editing with BatchSaveManager
+// - UI updates immediately on input (optimistic)
+// - Save queued on blur
+// - BatchSaveManager batches all changes and sends one API call
 SimBudget.makeEditableBudgetValues = function() {
-  // This function will contain the same code that currently makes budget values editable
   document.querySelectorAll('.budget-value').forEach(cell => {
     cell.setAttribute('contenteditable', 'true');
     cell.setAttribute('title', 'Click to edit budget amount');
     cell.setAttribute('inputmode', 'decimal');
     cell.classList.add('editable');
-    
-    // Get the category name from data attribute
+
     const categoryName = cell.dataset.category;
     const originalValue = parseFloat(cell.dataset.value);
-    
-    // Variables for auto-save debounce
-    let saveTimeout = null;
-    let isSaving = false;
-    let currentEditValue = null;
-    
+    let lastCommittedValue = originalValue;
+
     // Handle key presses
     cell.addEventListener('keydown', function(e) {
-      // Prevent Enter from creating a new line - just blur the field instead
       if (e.key === 'Enter') {
         e.preventDefault();
-        this.blur(); 
+        this.blur();
       }
-      
-      // Cancel on Escape key press
+
       if (e.key === 'Escape') {
         e.preventDefault();
-        // Reset to the original formatted value
-        this.textContent = Utils.formatCurrency(originalValue);
+        // Revert to last committed value
+        this.textContent = Utils.formatCurrency(lastCommittedValue);
+        this.dataset.value = lastCommittedValue;
+        SimBudget.updateProgressBar(categoryName, lastCommittedValue);
+        BatchSaveManager.cancelChange(categoryName);
         this.blur();
-        
-        // Cancel any pending save
-        if (saveTimeout) {
-          clearTimeout(saveTimeout);
-          saveTimeout = null;
-        }
-        
-        // Cancel any pending save in the queue
-        SaveQueue.cancelCategory(categoryName);
       }
     });
-    
-    // Validate input and handle auto-save
+
+    // Update UI immediately on input (optimistic)
     cell.addEventListener('input', function(e) {
-  // Cancel any pending save
-  if (saveTimeout) {
-    clearTimeout(saveTimeout);
-  }
-  
-  // Clean the value to show just numbers
-  const rawValue = this.textContent.replace(/[^0-9.-]+/g, '');
-  const numValue = parseFloat(rawValue);
-  
-  if (isNaN(numValue)) {
-    // Invalid input, will be corrected on blur
-    return;
-  }
+      const rawValue = this.textContent.replace(/[^0-9.-]+/g, '');
+      const numValue = parseFloat(rawValue);
 
-  // Apply the styling to indicate editing is in progress
-  this.classList.add('editing');
-  
-  // Store the current edit value
-  currentEditValue = numValue;
+      if (isNaN(numValue)) return;
 
-  // Update progress bar immediately with the new value
-  SimBudget.updateProgressBar(categoryName, numValue);
-  
+      this.classList.add('editing');
 
-      
-      // Schedule auto-save after 1 second of no typing
-      saveTimeout = setTimeout(() => {
-        // Get the final numeric value after timeout
-        const cleanValue = this.textContent.replace(/[^0-9.-]+/g, '');
-        const finalValue = parseFloat(cleanValue);
-        
-        // Don't save if invalid number
-        if (isNaN(finalValue)) {
-          this.classList.remove('editing');
-          return;
-        }
-        
-        // Don't save if the value hasn't changed significantly (within small rounding error)
-        const currentDisplayedValue = parseFloat(this.dataset.value);
-            if (Math.abs(finalValue - currentDisplayedValue) < 0.001) {
-            this.classList.remove('editing');
-            return;
-    }
-        
-        // Indicate saving
-        isSaving = true;
-        this.classList.add('saving');
-        
-        // Format with currency symbol for display
-        this.textContent = Utils.formatCurrency(finalValue);
-        
-        // KEY CHANGE: Use the SaveQueue instead of directly calling API
-        SaveQueue.add(
-          categoryName,
-          finalValue,
-          (result) => {
-            // Update was successful
-            isSaving = false;
-            cell.classList.remove('editing', 'saving');
-            cell.classList.add('saved');
-             cell.dataset.value = finalValue;
-             if (window.CacheManager) {
-                // Invalidate dashboard cache so it recalculates
-                  window.CacheManager.invalidate('dashboardData');
-                }
-              // Update our local data with the final value
-            let budgetChanged = false;
-            SimBudget._currentBudgetData.categories.forEach(cat => {
-              if (cat.name === categoryName) {
-                // Only mark changed if there's a significant difference
-                if (Math.abs(cat.budgeted - finalValue) > 0.001) {
-                  budgetChanged = true;
-                  cat.budgeted = finalValue;
-                }
-              }
-            });
-            
-            // Update cached data too
-            if (window._dataCache && window._dataCache.budget && window._dataCache.budget.budget) {
-              window._dataCache.budget.budget.categories.forEach(cat => {
-                if (cat.name === categoryName) {
-                  cat.budgeted = finalValue;
-                }
-              });
-            }
-            
-            // Always update the info message based on local calculations
-            SimBudget.updateInfoMessage(true); // Force update
-            
-            // Rerender the chart to reflect the changes
-            SimBudget.renderExpenseChart(SimBudget._currentBudgetData.categories);
-            
-            // Show a subtle success indicator
-            setTimeout(() => {
-              cell.classList.remove('saved');
-            }, 1500);
-          },
-          (error) => {
-            // Update failed
-            isSaving = false;
-            cell.classList.remove('editing', 'saving');
-            cell.classList.add('error');
-            
-            // Revert to original value
-            cell.textContent = Utils.formatCurrency(originalValue);
-            
-            // Show error toast
-            Utils.showToast('Error updating budget: ' + error, 'error');
-            
-            // Remove error indicator after a delay
-            setTimeout(() => {
-              cell.classList.remove('error');
-            }, 1500);
+      // Update progress bar and chart immediately
+      SimBudget.updateProgressBar(categoryName, numValue);
+
+      // Update in-memory data immediately
+      if (SimBudget._currentBudgetData && SimBudget._currentBudgetData.categories) {
+        SimBudget._currentBudgetData.categories.forEach(cat => {
+          if (cat.name === categoryName) {
+            cat.budgeted = numValue;
           }
-        );
-      }, 1000); // Wait 1 second after typing stops
-    });
-    
-    // Format value on blur
-    cell.addEventListener('blur', function() {
-      // Get numeric value
-      const value = parseFloat(this.textContent.replace(/[^0-9.-]+/g, ''));
-      if (!isNaN(value)) {
-        // Format with currency symbol
-        this.textContent = Utils.formatCurrency(value);
-      } else {
-        // If not a valid number, revert to original
-        this.textContent = Utils.formatCurrency(originalValue);
+        });
+      }
+
+      // Update info message immediately
+      if (typeof SimBudget.updateInfoMessage === 'function') {
+        SimBudget.updateInfoMessage(true);
       }
     });
-    
-    // Select all text when focused
+
+    // Commit value on blur - add to batch
+    cell.addEventListener('blur', function() {
+      const rawValue = this.textContent.replace(/[^0-9.-]+/g, '');
+      const numValue = parseFloat(rawValue);
+
+      this.classList.remove('editing');
+
+      if (isNaN(numValue)) {
+        // Invalid - revert
+        this.textContent = Utils.formatCurrency(lastCommittedValue);
+        return;
+      }
+
+      // Format display
+      this.textContent = Utils.formatCurrency(numValue);
+      this.dataset.value = numValue;
+
+      // Skip if unchanged
+      if (Math.abs(numValue - lastCommittedValue) < 0.001) {
+        return;
+      }
+
+      // Add to batch save (will be sent after 2.5s of no edits)
+      BatchSaveManager.addChange(categoryName, numValue, lastCommittedValue, this);
+
+      // Update last committed value for this session
+      lastCommittedValue = numValue;
+
+      // Update cached data
+      if (window._dataCache && window._dataCache.budget && window._dataCache.budget.budget) {
+        window._dataCache.budget.budget.categories.forEach(cat => {
+          if (cat.name === categoryName) {
+            cat.budgeted = numValue;
+          }
+        });
+      }
+
+      if (window.CacheManager) {
+        window.CacheManager.invalidate('dashboardData');
+      }
+    });
+
+    // On focus: select only the number part (after currency symbol)
     cell.addEventListener('focus', function() {
-      const range = document.createRange();
-      range.selectNodeContents(this);
+      const text = this.textContent;
+      // Find where the number starts (skip currency symbol and spaces)
+      const match = text.match(/[\d.,]/);
+      if (match) {
+        const numberStart = text.indexOf(match[0]);
+        const range = document.createRange();
+        const textNode = this.firstChild;
+        if (textNode) {
+          range.setStart(textNode, numberStart);
+          range.setEnd(textNode, text.length);
+          const selection = window.getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
+      }
+    });
+
+    // Prevent cursor from going before currency symbol
+    cell.addEventListener('keydown', function(e) {
+      // Already handled Enter and Escape above, but those handlers return early
+      // This handles arrow keys and backspace at the start
       const selection = window.getSelection();
-      selection.removeAllRanges();
-      selection.addRange(range);
+      if (!selection.rangeCount) return;
+
+      const range = selection.getRangeAt(0);
+      const text = this.textContent;
+      const match = text.match(/[\d.,]/);
+      const numberStart = match ? text.indexOf(match[0]) : 0;
+
+      // Prevent backspace from deleting currency symbol
+      if (e.key === 'Backspace' && range.startOffset <= numberStart && range.collapsed) {
+        e.preventDefault();
+      }
+
+      // Prevent left arrow from going before currency symbol
+      if (e.key === 'ArrowLeft' && range.startOffset <= numberStart && range.collapsed) {
+        e.preventDefault();
+      }
+    });
+
+    // Prevent selecting/deleting currency symbol
+    cell.addEventListener('mouseup', function() {
+      const selection = window.getSelection();
+      if (!selection.rangeCount) return;
+
+      const range = selection.getRangeAt(0);
+      const text = this.textContent;
+      const match = text.match(/[\d.,]/);
+      const numberStart = match ? text.indexOf(match[0]) : 0;
+
+      // If selection starts before number, move it to number start
+      if (range.startOffset < numberStart) {
+        const textNode = this.firstChild;
+        if (textNode) {
+          range.setStart(textNode, numberStart);
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
+      }
     });
   });
 };
