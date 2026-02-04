@@ -4305,8 +4305,11 @@ function init(containerId, cachedData) {
       const hasValidTarget = isDebt
         ? (nextGoal.target !== null && nextGoal.target !== undefined && nextGoal.target !== '' && !isNaN(nextGoal.target))
         : (nextGoal.target > 0);
+      const hasStart = !!nextGoal.start;
+      const hasEnd = !!nextGoal.end;
+      const hasAllFields = hasValidTarget && hasStart && hasEnd;
 
-      if (hasValidTarget) {
+      if (hasAllFields) {
         if (index >= 0) {
           goals[index] = nextGoal;
         } else {
