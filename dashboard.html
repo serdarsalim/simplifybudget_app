@@ -131,12 +131,15 @@
       <div class="dashboard-left-stack">
         <!-- Savings Card -->
         <div class="dashboard-card savings-card">
-          <div class="savings-header">
+        <div class="savings-header">
+          <div class="savings-title">
             <h3 data-translate="savings">Savings</h3>
-            <button class="savings-settings-btn" id="savingsSettingsBtn" title="Add savings goal">
-              <i class="material-icons">add</i>
-            </button>
+            <button class="savings-help-btn" id="savingsHelpBtn" title="How savings works">?</button>
           </div>
+          <button class="savings-settings-btn" id="savingsSettingsBtn" title="Add savings goal">
+            <i class="material-icons">add</i>
+          </button>
+        </div>
 
         <div class="savings-monthly">
           <div class="savings-row">
@@ -197,12 +200,12 @@
   <div class="savings-modal-backdrop"></div>
   <div class="savings-modal-content">
     <div class="savings-modal-header">
-      <h3>Savings Goals</h3>
+      <h3>Long-term Saving Goal</h3>
       <button class="savings-modal-close" id="savingsModalClose">×</button>
     </div>
     <div class="savings-modal-body">
       <div class="savings-form-section">
-        <label class="savings-form-label">Long-term Goal (Optional)</label>
+        <label class="savings-form-label">Goal name</label>
         <div class="savings-form-row">
           <input type="text" id="savingsGoalNameInput" class="savings-input" placeholder="e.g., Vacation, Emergency Fund">
         </div>
@@ -212,12 +215,16 @@
             <input type="number" id="savingsGoalTargetInput" class="savings-input" placeholder="0">
           </div>
           <div>
-            <label class="savings-form-sublabel">Target Date</label>
-            <input type="month" id="savingsGoalDeadlineInput" class="savings-input">
+            <label class="savings-form-sublabel">Start Month</label>
+            <input type="month" id="savingsGoalStartInput" class="savings-input">
           </div>
         </div>
         <div class="savings-form-row">
-          <label class="savings-form-sublabel">Amount Saved So Far</label>
+          <label class="savings-form-sublabel">End Month</label>
+          <input type="month" id="savingsGoalEndInput" class="savings-input">
+        </div>
+        <div class="savings-form-row">
+          <label class="savings-form-sublabel">Starting Amount</label>
           <input type="number" id="savingsGoalSavedInput" class="savings-input" placeholder="0">
         </div>
       </div>
@@ -677,11 +684,113 @@ body.dark-mode .chart-container .chart-label {
   border-radius: 8px 8px 0 0;
 }
 
+.savings-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .savings-header h3 {
   margin: 0;
   font-size: 15px;
   font-family: 'Lato', sans-serif;
   font-weight: 700;
+}
+
+.savings-help-btn {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255,255,255,0.2);
+  color: #fff;
+  font-size: 10px !important;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.2s ease;
+}
+
+.savings-help-btn:hover {
+  background: rgba(255,255,255,0.35);
+}
+
+/* ======================
+   HELP DIALOG (Dashboard)
+   ====================== */
+.help-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10000;
+  backdrop-filter: blur(4px);
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.help-dialog {
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 24px;
+  max-width: 440px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.help-dialog-large {
+  max-width: 520px;
+}
+
+.help-dialog h3 {
+  margin: 0 0 16px;
+  font-size: 20px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.help-content p {
+  margin: 0 0 12px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #6b7280;
+}
+
+.help-content p:last-child {
+  margin-bottom: 0;
+}
+
+.help-note {
+  font-size: 12px !important;
+  color: #6b7280;
+  opacity: 0.8;
+}
+
+.help-dialog > button {
+  width: 100%;
+  padding: 12px;
+  margin-top: 20px;
+  border: none;
+  border-radius: 10px;
+  background: #2563eb;
+  color: white;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.help-dialog > button:hover {
+  background: #1d4ed8;
 }
 
 .savings-settings-btn {
@@ -2158,7 +2267,8 @@ function navigateToSubscriptions() {
 
     document.getElementById('savingsGoalNameInput').value = goals?.longtermName || '';
     document.getElementById('savingsGoalTargetInput').value = goals?.longtermTarget || '';
-    document.getElementById('savingsGoalDeadlineInput').value = goals?.longtermDeadline || '';
+    document.getElementById('savingsGoalStartInput').value = goals?.longtermStart || '';
+    document.getElementById('savingsGoalEndInput').value = goals?.longtermEnd || '';
     document.getElementById('savingsGoalSavedInput').value = goals?.longtermSaved || '';
 
     modal.style.display = 'flex';
@@ -2173,7 +2283,8 @@ function navigateToSubscriptions() {
     const goals = {
       longtermName: document.getElementById('savingsGoalNameInput').value.trim(),
       longtermTarget: parseFloat(document.getElementById('savingsGoalTargetInput').value) || 0,
-      longtermDeadline: document.getElementById('savingsGoalDeadlineInput').value,
+      longtermStart: document.getElementById('savingsGoalStartInput').value,
+      longtermEnd: document.getElementById('savingsGoalEndInput').value,
       longtermSaved: parseFloat(document.getElementById('savingsGoalSavedInput').value) || 0
     };
 
@@ -2191,7 +2302,8 @@ function navigateToSubscriptions() {
     const goals = {
       longtermName: '',
       longtermTarget: 0,
-      longtermDeadline: '',
+      longtermStart: '',
+      longtermEnd: '',
       longtermSaved: 0
     };
 

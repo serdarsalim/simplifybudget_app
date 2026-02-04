@@ -577,6 +577,15 @@ setTimeout(function() {
   if (window._eventManager && typeof _eventManager.attach === 'function') {
     _eventManager.attach();
   }
+
+  const savingsHelpBtn = document.getElementById('savingsHelpBtn');
+  if (savingsHelpBtn) {
+    savingsHelpBtn.onclick = function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      showSavingsHelp();
+    };
+  }
 };
 
 
@@ -1357,6 +1366,21 @@ function updateSavingsCard(data) {
   const longtermSection = document.getElementById('savingsLongtermSection');
 
   if (savingsGoals && savingsGoals.longtermName && savingsGoals.longtermTarget > 0) {
+    const viewMonth = window._currentMonth !== undefined ? window._currentMonth : new Date().getMonth();
+    const viewYear = window._currentYear !== undefined ? window._currentYear : new Date().getFullYear();
+    const viewDate = new Date(viewYear, viewMonth, 1);
+
+    const startValue = savingsGoals.longtermStart || '';
+    const endValue = savingsGoals.longtermEnd || '';
+    const startDate = startValue ? new Date(startValue + '-01') : null;
+    const endDate = endValue ? new Date(endValue + '-01') : null;
+
+    const inRange = startDate && endDate && viewDate >= startDate && viewDate <= endDate;
+    if (!inRange) {
+      if (longtermSection) longtermSection.style.display = 'none';
+      return;
+    }
+
     if (longtermSection) longtermSection.style.display = 'block';
 
     const goalName = document.getElementById('savingsGoalName');
@@ -1377,8 +1401,8 @@ function updateSavingsCard(data) {
     if (goalPercent) goalPercent.textContent = ltPercent + '%';
     if (goalProgress) goalProgress.style.width = Math.min(100, ltPercent) + '%';
 
-    if (goalDeadline && savingsGoals.longtermDeadline) {
-      goalDeadline.textContent = savingsGoals.longtermDeadline;
+    if (goalDeadline && savingsGoals.longtermEnd) {
+      goalDeadline.textContent = savingsGoals.longtermEnd;
     } else if (goalDeadline) {
       goalDeadline.textContent = '';
     }
@@ -1627,6 +1651,36 @@ window.getSavingsGoals = getSavingsGoals;
 window.saveSavingsGoals = saveSavingsGoals;
 window.updateSavingsCard = updateSavingsCard;
 window.makeSavingsGoalEditable = makeSavingsGoalEditable;
+
+/**
+ * Show savings help dialog
+ */
+function showSavingsHelp() {
+  const overlay = document.createElement('div');
+  overlay.className = 'help-dialog-overlay';
+  overlay.innerHTML = `
+    <div class="help-dialog help-dialog-large">
+      <h3>How Monthly Savings Work</h3>
+      <div class="help-content">
+        <p>Your savings goal is part of your monthly budget. You allocate income across expense categories and set a savings goal for the month.</p>
+        <p>At the end of the month, your actual savings is calculated from total income minus expenses. That's how we determine how much you actually saved.</p>
+        <p>This budgeting method is treating all money left from income by the end of month a saving instead of a rollover money that can be spent next month.</p>
+        <p class="help-note">Editing the savings goal only changes your budget plan, it doesn’t move any money.</p>
+      </div>
+      <button onclick="this.closest('.help-dialog-overlay').remove()">Got it</button>
+    </div>
+  `;
+
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) {
+      overlay.remove();
+    }
+  });
+
+  document.body.appendChild(overlay);
+}
+
+window.showSavingsHelp = showSavingsHelp;
 
 })();
 
