@@ -1361,66 +1361,92 @@ function updateSavingsCard(data) {
     }
   }
 
-  // Long-term goal (from saved settings)
+  // Long-term goals (from saved settings)
   const savingsGoals = getSavingsGoals();
   const longtermSection = document.getElementById('savingsLongtermSection');
+  const longtermList = document.getElementById('savingsLongtermList');
+  const goals = Array.isArray(savingsGoals?.goals) ? savingsGoals.goals : [];
 
-  if (savingsGoals && savingsGoals.longtermTarget > 0) {
-    const viewMonth = window._currentMonth !== undefined ? window._currentMonth : new Date().getMonth();
-    const viewYear = window._currentYear !== undefined ? window._currentYear : new Date().getFullYear();
-    const viewDate = new Date(viewYear, viewMonth, 1);
+  if (!longtermSection || !longtermList) return;
 
-    const startValue = savingsGoals.longtermStart || '';
-    const endValue = savingsGoals.longtermEnd || '';
-    const parseMonthInput = (value) => {
-      if (!value) return null;
+  const viewMonth = window._currentMonth !== undefined ? window._currentMonth : new Date().getMonth();
+  const viewYear = window._currentYear !== undefined ? window._currentYear : new Date().getFullYear();
+  const viewDate = new Date(viewYear, viewMonth, 1);
+
+  const parseMonthInput = (value) => {
+    if (!value) return null;
+    if (value.includes('-')) {
       const parts = value.split('-');
       if (parts.length < 2) return null;
       const y = parseInt(parts[0], 10);
       const m = parseInt(parts[1], 10);
       if (!isFinite(y) || !isFinite(m)) return null;
       return new Date(y, m - 1, 1);
-    };
-    const startDate = parseMonthInput(startValue);
-    const endDate = parseMonthInput(endValue);
-
-    if (startDate && viewDate < startDate) {
-      if (longtermSection) longtermSection.style.display = 'none';
-      return;
     }
-    if (endDate && viewDate > endDate) {
-      if (longtermSection) longtermSection.style.display = 'none';
-      return;
-    }
+    return null;
+  };
 
-    if (longtermSection) longtermSection.style.display = 'block';
+  const netWorthEntries = (window.CacheManager && CacheManager.getNetWorthWithTimestamp)
+    ? (CacheManager.getNetWorthWithTimestamp()?.entries || [])
+    : [];
+  const monthNamesShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                           'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const netWorthDateKey = `${monthNamesShort[viewMonth]} ${viewYear}`;
 
-    const goalName = document.getElementById('savingsGoalName');
-    const goalActual = document.getElementById('savingsGoalActual');
-    const goalTarget = document.getElementById('savingsGoalTarget');
-    const goalPercent = document.getElementById('savingsGoalPercent');
-    const goalProgress = document.getElementById('savingsGoalProgress');
-    const goalDeadline = document.getElementById('savingsGoalDeadline');
+  const activeGoals = goals.filter(goal => {
+    const target = goal?.target ?? goal?.longtermTarget ?? 0;
+    if (!goal || target <= 0) return false;
+    const endDate = parseMonthInput(goal.end || goal.longtermEnd || '');
+    if (endDate && viewDate > endDate) return false;
+    return true;
+  });
 
-    if (goalName) goalName.textContent = savingsGoals.longtermName || 'Long-term Goal';
-    if (goalTarget) goalTarget.textContent = Utils.formatCurrency(savingsGoals.longtermTarget);
-
-    // Calculate total saved toward long-term goal
-    const totalSaved = savingsGoals.longtermSaved || 0;
-    if (goalActual) goalActual.textContent = Utils.formatCurrency(totalSaved);
-
-    const ltPercent = Math.round((totalSaved / savingsGoals.longtermTarget) * 100);
-    if (goalPercent) goalPercent.textContent = ltPercent + '%';
-    if (goalProgress) goalProgress.style.width = Math.min(100, ltPercent) + '%';
-
-    if (goalDeadline && savingsGoals.longtermEnd) {
-      goalDeadline.textContent = savingsGoals.longtermEnd;
-    } else if (goalDeadline) {
-      goalDeadline.textContent = '';
-    }
-  } else {
-    if (longtermSection) longtermSection.style.display = 'none';
+  if (activeGoals.length === 0) {
+    longtermSection.style.display = 'none';
+    longtermList.innerHTML = '';
+    return;
   }
+
+  longtermSection.style.display = 'block';
+  longtermList.innerHTML = '';
+
+  activeGoals.forEach(goal => {
+    const accountAsset = goal.asset || goal.accountAsset || (goal.type === 'debt' ? 'Debts' : 'Liquid Assets');
+    const accountName = goal.account || goal.accountName || '';
+    const entry = netWorthEntries.find(e => e && e.asset === accountAsset && e.name === accountName && e.date === netWorthDateKey);
+    const accountBalance = entry ? (parseFloat(entry.amount) || 0) : 0;
+
+    let actualValue = 0;
+    if (goal.asset === 'Debts') {
+      actualValue = Math.max(0, (goal.target ?? 0) - accountBalance);
+    } else {
+      actualValue = Math.max(0, accountBalance);
+    }
+
+    const targetAmount = goal.target ?? goal.longtermTarget ?? 0;
+    const percent = targetAmount > 0 ? Math.round((actualValue / targetAmount) * 100) : 0;
+    const deadlineText = goal.end || goal.longtermEnd || '';
+
+    const item = document.createElement('div');
+    item.className = 'savings-longterm-goal';
+    item.innerHTML = `
+      <div class="savings-divider"></div>
+      <div class="savings-row">
+        <span class="savings-label">${accountName || 'Long-term Goal'}</span>
+        <span class="savings-values">
+          <span>${Utils.formatCurrency(actualValue)}</span>
+          <span class="savings-separator">/</span>
+          <span>${Utils.formatCurrency(targetAmount)}</span>
+        </span>
+        <span class="savings-percent">${Math.min(100, Math.max(0, percent))}%</span>
+      </div>
+      <div class="savings-progress-bar longterm">
+        <div class="savings-progress-fill" style="width: ${Math.min(100, Math.max(0, percent))}%"></div>
+      </div>
+      <div class="savings-deadline">${deadlineText}</div>
+    `;
+    longtermList.appendChild(item);
+  });
 }
 
 /**
@@ -1640,10 +1666,32 @@ function makeSavingsGoalEditable() {
 function getSavingsGoals() {
   try {
     const stored = localStorage.getItem('simbudget_savings_goals');
-    return stored ? JSON.parse(stored) : null;
+    if (!stored) return { goals: [] };
+    const parsed = JSON.parse(stored);
+    if (parsed && Array.isArray(parsed.goals)) {
+      return parsed;
+    }
+
+    // Migrate legacy single-goal shape
+    if (parsed && (parsed.longtermTarget || parsed.longtermName)) {
+      const goal = {
+        id: 'savings:legacy',
+        type: 'savings',
+        accountAsset: 'Liquid Assets',
+        accountName: parsed.longtermName || 'Long-term Goal',
+        longtermName: parsed.longtermName || '',
+        longtermTarget: parsed.longtermTarget || 0,
+        longtermStart: parsed.longtermStart || '',
+        longtermEnd: parsed.longtermEnd || parsed.longtermDeadline || '',
+        longtermSaved: parsed.longtermSaved || 0
+      };
+      return { goals: [goal] };
+    }
+
+    return { goals: [] };
   } catch (e) {
     console.error('Error reading savings goals:', e);
-    return null;
+    return { goals: [] };
   }
 }
 

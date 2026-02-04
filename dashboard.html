@@ -165,22 +165,9 @@
           </div>
         </div>
 
-          <div class="savings-longterm" id="savingsLongtermSection" style="display: none;">
-            <div class="savings-divider"></div>
-            <div class="savings-row">
-              <span class="savings-label" id="savingsGoalName">Goal</span>
-              <span class="savings-values">
-                <span id="savingsGoalActual">€0</span>
-                <span class="savings-separator">/</span>
-                <span id="savingsGoalTarget">€0</span>
-              </span>
-              <span class="savings-percent" id="savingsGoalPercent">0%</span>
-            </div>
-            <div class="savings-progress-bar longterm">
-              <div class="savings-progress-fill" id="savingsGoalProgress" style="width: 0%"></div>
-            </div>
-            <div class="savings-deadline" id="savingsGoalDeadline"></div>
-          </div>
+        <div class="savings-longterm" id="savingsLongtermSection" style="display: none;">
+          <div id="savingsLongtermList"></div>
+        </div>
         </div>
 
         <!-- Expense Breakdown -->
@@ -213,6 +200,19 @@
           <div>
             <label class="savings-form-sublabel">Target Amount</label>
             <input type="number" id="savingsGoalTargetInput" class="savings-input" placeholder="0">
+          </div>
+        </div>
+        <div class="savings-form-row two-col">
+          <div>
+            <label class="savings-form-sublabel">Goal type</label>
+            <select id="savingsGoalTypeInput" class="savings-input">
+              <option value="savings">Savings goal</option>
+              <option value="debt">Debt payoff goal</option>
+            </select>
+          </div>
+          <div>
+            <label class="savings-form-sublabel">Track account</label>
+            <select id="savingsGoalAccountInput" class="savings-input"></select>
           </div>
         </div>
         <div class="savings-form-row two-col">
@@ -824,6 +824,10 @@ body.dark-mode .chart-container .chart-label {
 .savings-longterm {
   padding: 16px 20px;
   background: #fff;
+}
+
+.savings-longterm-goal + .savings-longterm-goal {
+  margin-top: 14px;
 }
 
 .savings-row {
@@ -2237,6 +2241,8 @@ function navigateToSubscriptions() {
     const saveBtn = document.getElementById('savingsSaveBtn');
     const clearBtn = document.getElementById('savingsClearBtn');
     const cancelBtn = document.getElementById('savingsCancelBtn');
+    const typeInput = document.getElementById('savingsGoalTypeInput');
+    const accountInput = document.getElementById('savingsGoalAccountInput');
 
     if (!settingsBtn || !modal) return;
 
@@ -2268,6 +2274,15 @@ function navigateToSubscriptions() {
       closeSavingsModal();
     });
 
+    typeInput?.addEventListener('change', function() {
+      populateAccountOptions();
+      loadSelectedGoal();
+    });
+
+    accountInput?.addEventListener('change', function() {
+      loadSelectedGoal();
+    });
+
     // ESC to close
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Escape' && modal.style.display !== 'none') {
@@ -2280,14 +2295,8 @@ function navigateToSubscriptions() {
     const modal = document.getElementById('savingsSettingsModal');
     if (!modal) return;
 
-    // Load existing values
-    const goals = window.getSavingsGoals ? window.getSavingsGoals() : null;
-
-    document.getElementById('savingsGoalNameInput').value = goals?.longtermName || '';
-    document.getElementById('savingsGoalTargetInput').value = goals?.longtermTarget || '';
-    document.getElementById('savingsGoalStartInput').value = goals?.longtermStart || '';
-    document.getElementById('savingsGoalEndInput').value = goals?.longtermEnd || '';
-    document.getElementById('savingsGoalSavedInput').value = goals?.longtermSaved || '';
+    populateAccountOptions();
+    loadSelectedGoal();
 
     modal.style.display = 'flex';
   }
@@ -2298,7 +2307,21 @@ function navigateToSubscriptions() {
   }
 
   function saveSavingsSettings() {
-    const goals = {
+    const typeInput = document.getElementById('savingsGoalTypeInput');
+    const accountInput = document.getElementById('savingsGoalAccountInput');
+    const goalType = typeInput?.value || 'savings';
+    const accountName = accountInput?.value || '';
+    const accountAsset = goalType === 'debt' ? 'Debts' : 'Liquid Assets';
+
+    if (!accountName) {
+      return;
+    }
+
+    const goal = {
+      id: `${goalType}:${accountName}`,
+      type: goalType,
+      accountAsset: accountAsset,
+      accountName: accountName,
       longtermName: document.getElementById('savingsGoalNameInput').value.trim(),
       longtermTarget: parseFloat(document.getElementById('savingsGoalTargetInput').value) || 0,
       longtermStart: document.getElementById('savingsGoalStartInput').value,
@@ -2307,7 +2330,15 @@ function navigateToSubscriptions() {
     };
 
     if (window.saveSavingsGoals) {
-      window.saveSavingsGoals(goals);
+      const existing = window.getSavingsGoals ? window.getSavingsGoals() : { goals: [] };
+      const goals = Array.isArray(existing?.goals) ? existing.goals.slice() : [];
+      const index = goals.findIndex(g => g.id === goal.id);
+      if (index >= 0) {
+        goals[index] = goal;
+      } else {
+        goals.push(goal);
+      }
+      window.saveSavingsGoals({ goals: goals });
     }
 
     // Just update the savings card UI directly - no need for full dashboard refresh
@@ -2317,22 +2348,79 @@ function navigateToSubscriptions() {
   }
 
   function clearSavingsGoal() {
-    const goals = {
-      longtermName: '',
-      longtermTarget: 0,
-      longtermStart: '',
-      longtermEnd: '',
-      longtermSaved: 0
-    };
+    const typeInput = document.getElementById('savingsGoalTypeInput');
+    const accountInput = document.getElementById('savingsGoalAccountInput');
+    const goalType = typeInput?.value || 'savings';
+    const accountName = accountInput?.value || '';
+    if (!accountName) return;
 
     if (window.saveSavingsGoals) {
-      window.saveSavingsGoals(goals);
+      const existing = window.getSavingsGoals ? window.getSavingsGoals() : { goals: [] };
+      const goals = Array.isArray(existing?.goals) ? existing.goals.slice() : [];
+      const id = `${goalType}:${accountName}`;
+      const nextGoals = goals.filter(g => g.id !== id);
+      window.saveSavingsGoals({ goals: nextGoals });
     }
 
     // Just update the savings card UI directly - no need for full dashboard refresh
     if (window.SimBudget && SimBudget._currentBudgetData) {
       updateSavingsCard(SimBudget._currentBudgetData);
     }
+  }
+
+  function getNetWorthAccountsByType(goalType) {
+    if (!window.CacheManager || typeof CacheManager.getNetWorthWithTimestamp !== 'function') {
+      return [];
+    }
+    const cached = CacheManager.getNetWorthWithTimestamp();
+    const entries = cached && Array.isArray(cached.entries) ? cached.entries : [];
+
+    const viewMonth = window._currentMonth !== undefined ? window._currentMonth : new Date().getMonth();
+    const viewYear = window._currentYear !== undefined ? window._currentYear : new Date().getFullYear();
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const targetDate = `${monthNames[viewMonth]} ${viewYear}`;
+    const assetKey = goalType === 'debt' ? 'Debts' : 'Liquid Assets';
+
+    const accounts = entries
+      .filter(entry => entry && entry.asset === assetKey && entry.date === targetDate)
+      .map(entry => entry.name)
+      .filter(Boolean);
+
+    return Array.from(new Set(accounts)).sort((a, b) => a.localeCompare(b));
+  }
+
+  function populateAccountOptions() {
+    const typeInput = document.getElementById('savingsGoalTypeInput');
+    const accountInput = document.getElementById('savingsGoalAccountInput');
+    if (!typeInput || !accountInput) return;
+
+    const goalType = typeInput.value || 'savings';
+    const accounts = getNetWorthAccountsByType(goalType);
+    const previous = accountInput.value;
+
+    accountInput.innerHTML = accounts.map(name => `<option value="${name}">${name}</option>`).join('');
+
+    if (previous && accounts.includes(previous)) {
+      accountInput.value = previous;
+    }
+  }
+
+  function loadSelectedGoal() {
+    const typeInput = document.getElementById('savingsGoalTypeInput');
+    const accountInput = document.getElementById('savingsGoalAccountInput');
+    const goalType = typeInput?.value || 'savings';
+    const accountName = accountInput?.value || '';
+
+    const existing = window.getSavingsGoals ? window.getSavingsGoals() : { goals: [] };
+    const goals = Array.isArray(existing?.goals) ? existing.goals : [];
+    const goal = goals.find(g => g.type === goalType && g.accountName === accountName);
+
+    document.getElementById('savingsGoalNameInput').value = goal?.longtermName || '';
+    document.getElementById('savingsGoalTargetInput').value = goal?.longtermTarget || '';
+    document.getElementById('savingsGoalStartInput').value = goal?.longtermStart || '';
+    document.getElementById('savingsGoalEndInput').value = goal?.longtermEnd || '';
+    document.getElementById('savingsGoalSavedInput').value = goal?.longtermSaved || '';
   }
 
   // Make updateSavingsCard available for direct calls

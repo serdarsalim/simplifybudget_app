@@ -2550,9 +2550,19 @@ function init(containerId, cachedData) {
                     </div>
                   </div>
                 </div>
+                <div class="nw-modal-goals-column" id="assetGoalColumn">
+                  <div class="nw-field-group">
+                    <label for="assetGoalTarget">Target Amount</label>
+                    <input type="number" id="assetGoalTarget" class="nw-form-input" inputmode="decimal" placeholder="0">
+                  </div>
+                  <div class="nw-field-group">
+                    <label for="assetGoalEnd">End Date</label>
+                    <input type="date" id="assetGoalEnd" class="nw-form-input" placeholder="mm/dd/yyyy">
+                  </div>
+                </div>
                 <div class="nw-modal-chart" id="assetChartSection">
                   <div class="nw-chart-placeholder">
-                    <canvas id="assetHistoryChart" height="180"></canvas>
+                    <canvas id="assetHistoryChart" height="140"></canvas>
                   </div>
                 </div>
               </div>
@@ -3547,6 +3557,22 @@ function init(containerId, cachedData) {
     document.getElementById('assetCurrencySymbol').textContent = getCurrencySymbol();
     document.getElementById('assetNotes').value = entry.notes || '';
     document.getElementById('assetCategory').value = entry.type || '';
+
+    // Goal fields (Liquid Assets + Debts only)
+    const goalColumn = document.getElementById('assetGoalColumn');
+    if (goalColumn) {
+      const isGoalEligible = entry.asset === 'Liquid Assets' || entry.asset === 'Debts';
+      goalColumn.style.display = isGoalEligible ? 'flex' : 'none';
+
+      if (isGoalEligible) {
+        const goalsState = getSavingsGoalsState();
+        const goalId = `${entry.asset}|${entry.name}`;
+        const goal = (goalsState.goals || []).find(g => g.id === goalId);
+
+        document.getElementById('assetGoalTarget').value = goal?.target || '';
+        document.getElementById('assetGoalEnd').value = goal?.end || '';
+      }
+    }
     
     // Store current entry ID for saving
     modal.setAttribute('data-entry-id', id);
@@ -3718,10 +3744,11 @@ function init(containerId, cachedData) {
         }
       });
       
-      // Sort by date and build chart data
+      // Sort by date and build chart data (max 5 years / 60 months)
       const sortedDates = Object.keys(dateGroups).sort();
+      const trimmedDates = sortedDates.slice(-60);
       
-      sortedDates.forEach(monthKey => {
+      trimmedDates.forEach(monthKey => {
         const entry = dateGroups[monthKey];
         const [year, month] = monthKey.split('-');
         const monthName = new Date(parseInt(year), parseInt(month) - 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
@@ -3898,6 +3925,10 @@ function init(containerId, cachedData) {
     const amount = document.getElementById('assetAmount').value.trim();
     const notes = document.getElementById('assetNotes').value.trim();
     const category = document.getElementById('assetCategory').value.trim();
+
+    // Goal fields
+    const goalTarget = parseFloat(document.getElementById('assetGoalTarget')?.value) || 0;
+    const goalEnd = document.getElementById('assetGoalEnd')?.value || '';
     
     // Validate
     if (!name) {
@@ -3923,6 +3954,32 @@ function init(containerId, cachedData) {
     entry.amount = parseFloat(amount);
     entry.notes = notes;
     entry.type = category;
+
+    if (entry.asset === 'Liquid Assets' || entry.asset === 'Debts') {
+      const goalsState = getSavingsGoalsState();
+      const goals = Array.isArray(goalsState.goals) ? goalsState.goals.slice() : [];
+      const goalId = `${entry.asset}|${name}`;
+      const nextGoal = {
+        id: goalId,
+        asset: entry.asset,
+        account: name,
+        target: goalTarget,
+        end: goalEnd
+      };
+
+      const index = goals.findIndex(g => g.id === goalId);
+      if (nextGoal.target > 0) {
+        if (index >= 0) {
+          goals[index] = nextGoal;
+        } else {
+          goals.push(nextGoal);
+        }
+      } else if (index >= 0) {
+        goals.splice(index, 1);
+      }
+
+      saveSavingsGoalsState({ goals });
+    }
     
     // Save and refresh
     saveNetWorthEntries(_netWorthData.entries);
@@ -3930,6 +3987,26 @@ function init(containerId, cachedData) {
     modal.style.display = 'none';
     
     showMessage(getTranslation('asset_updated_successfully'), 'success');
+  }
+
+  function getSavingsGoalsState() {
+    try {
+      const stored = localStorage.getItem('simbudget_savings_goals');
+      if (!stored) return { goals: [] };
+      const parsed = JSON.parse(stored);
+      return parsed && Array.isArray(parsed.goals) ? parsed : { goals: [] };
+    } catch (e) {
+      console.error('Error reading savings goals:', e);
+      return { goals: [] };
+    }
+  }
+
+  function saveSavingsGoalsState(state) {
+    try {
+      localStorage.setItem('simbudget_savings_goals', JSON.stringify(state));
+    } catch (e) {
+      console.error('Error saving savings goals:', e);
+    }
   }
   
   function showNotesModal(id) {
@@ -6793,12 +6870,14 @@ body.dark-mode .nw-modal-footer {
 }
 
 .nw-modal-top-row {
-  display: flex;
-  gap: 20px;
+  display: grid;
+  grid-template-columns: minmax(160px, 0.7fr) minmax(160px, 0.7fr) minmax(260px, 1.4fr);
+  gap: 16px;
   align-items: stretch;
 }
 
-.nw-modal-fields-column {
+.nw-modal-fields-column,
+.nw-modal-goals-column {
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -6846,9 +6925,8 @@ body.dark-mode .nw-modal-footer {
   justify-content: center;
   background-color: #f8f9fa;
   border-radius: 8px;
-  padding: 12px;
-  flex: 1;
-  min-width: 300px;
+  padding: 10px;
+  min-width: 220px;
   box-sizing: border-box;
 }
 
@@ -6868,7 +6946,13 @@ body.dark-mode .nw-modal-footer {
 
 #assetHistoryChart {
   width: 100%;
-  max-height: 160px;
+  max-height: 120px;
+}
+
+@media (max-width: 980px) {
+  .nw-modal-top-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 .nw-chart-placeholder {
