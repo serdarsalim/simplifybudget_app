@@ -2968,12 +2968,14 @@ function clearTransactionById(transactionId, skipRender) {
     getYearlySpent: getYearlySpent,
     formatCurrency: formatCurrency,
     getTransactions: function() {
-      const monthlyTx = window.MonthlyGrid?.getTransactions?.() || [];
-      if (monthlyTx.length) return monthlyTx;
-
+      // Always prefer cache for complete data (MonthlyGrid only has current month after navigation)
       const unifiedCache = window.CacheManager?.get?.('expenses_with_timestamp');
       const cachedExpenses = unifiedCache?.expenses || [];
-      if (!cachedExpenses.length) return [];
+
+      // Fall back to MonthlyGrid only if cache is empty
+      if (!cachedExpenses.length) {
+        return window.MonthlyGrid?.getTransactions?.() || [];
+      }
 
       return cachedExpenses
         .map((expense) => {
