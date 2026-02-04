@@ -544,6 +544,7 @@ if (subscriptionBody) {
     // 6. RENDER SAVINGS CARD
     if (data.summary && data.categories) {
       try {
+        window._lastDashboardData = data;  // Store for later refreshes
         updateSavingsCard(data);
         makeSavingsGoalEditable();
       } catch (savingsError) {
@@ -1101,6 +1102,14 @@ SimBudget.fixMobileDisplay = function() {
 // Keep both the server-save event and add immediate updates
 document.addEventListener('transaction-batch-saved', handleTransactionUpdate);
 
+// Listen for net worth goals updates to refresh savings card
+document.addEventListener('networth-goals-updated', function() {
+  // Refresh the savings card long-term goals section
+  if (typeof window.updateSavingsCard === 'function' && window._lastDashboardData) {
+    updateSavingsCard(window._lastDashboardData);
+  }
+});
+
 
 
 // Monkey patch TransactionManager for immediate updates
@@ -1496,13 +1505,19 @@ function updateSavingsCard(data) {
   };
 
   // Process all goals and calculate their status
+  // All 3 conditions must be met: target, start, end
   const processedGoals = goals
     .filter(goal => {
       const target = goal?.target ?? goal?.longtermTarget ?? 0;
+      const start = goal?.start || goal?.longtermStart || '';
+      const end = goal?.end || goal?.longtermEnd || '';
       const accountAsset = goal?.asset || goal?.accountAsset || (goal?.type === 'debt' ? 'Debts' : 'Liquid Assets');
       const isDebt = accountAsset === 'Debts';
-      // For debts, target 0 is valid; for savings, need target > 0
-      return isDebt ? (target !== null && target !== undefined && target !== '' && !isNaN(parseFloat(target))) : (target > 0);
+      // All 3 must be set: target (0 valid for debts), start, and end
+      const hasTarget = isDebt ? (target !== null && target !== undefined && target !== '' && !isNaN(parseFloat(target))) : (target > 0);
+      const hasStart = start && start.length > 0;
+      const hasEnd = end && end.length > 0;
+      return hasTarget && hasStart && hasEnd;
     })
     .map(goal => {
       const info = calculateGoalStatus(goal);

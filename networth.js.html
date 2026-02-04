@@ -3656,10 +3656,13 @@ function init(containerId, cachedData) {
 
         updateGoalUI();
 
-        // Expand section if goal exists, collapse if not
+        // Expand section only if all 3 conditions are met: target, start, end
         const isDebt = entry.asset === 'Debts';
-        const hasGoal = isDebt ? (goal?.target !== null && goal?.target !== undefined && goal?.target !== '') : (goal?.target > 0);
-        goalSection.classList.toggle('expanded', hasGoal);
+        const hasTarget = isDebt ? (goal?.target !== null && goal?.target !== undefined && goal?.target !== '' && !isNaN(goal?.target)) : (goal?.target > 0);
+        const hasStart = goal?.start && goal.start.length > 0;
+        const hasEnd = goal?.end && goal.end.length > 0;
+        const hasCompleteGoal = hasTarget && hasStart && hasEnd;
+        goalSection.classList.toggle('expanded', hasCompleteGoal);
 
         // Setup toggle button
         if (goalToggleBtn) {
@@ -3926,10 +3929,14 @@ function init(containerId, cachedData) {
     // Remove all status classes
     statusEl.classList.remove('achieved', 'active', 'expired', 'upcoming', 'none');
 
-    // If no target set, show no status
+    // Check if all 3 conditions are met: target, start, end
     // For debts, target 0 is valid (payoff goal)
-    const hasTarget = isDebt ? (target !== null && target !== undefined && target !== '') : (target && target > 0);
-    if (!hasTarget) {
+    const hasTarget = isDebt ? (target !== null && target !== undefined && target !== '' && !isNaN(target)) : (target && target > 0);
+    const hasStart = start && start.length > 0;
+    const hasEnd = end && end.length > 0;
+
+    // All 3 must be set for a valid goal status
+    if (!hasTarget || !hasStart || !hasEnd) {
       statusEl.classList.add('none');
       if (textEl) textEl.textContent = '—';
       return { status: 'none', amount: currentAmount };
@@ -3939,19 +3946,15 @@ function init(containerId, cachedData) {
     const now = new Date();
     const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-    // Check dates
-    const hasStart = start && start.length > 0;
-    const hasEnd = end && end.length > 0;
-
     // Check if before start date
-    if (hasStart && currentMonth < start) {
+    if (currentMonth < start) {
       statusEl.classList.add('upcoming');
       if (textEl) textEl.textContent = 'Upcoming';
       return { status: 'upcoming', amount: currentAmount };
     }
 
     // Check if past end date - use historical amount
-    if (hasEnd && currentMonth > end) {
+    if (currentMonth > end) {
       const historicalAmount = entry ? getHistoricalAmount(entry, end) : null;
       const amountAtEnd = historicalAmount !== null ? historicalAmount : currentAmount;
 
@@ -3970,7 +3973,7 @@ function init(containerId, cachedData) {
       }
     }
 
-    // Check if achieved
+    // Check if achieved (within date range)
     // For debts: achieved if amount <= target (paid down)
     // For savings: achieved if amount >= target
     const achieved = isDebt ? (currentAmount <= target) : (currentAmount >= target);
@@ -4005,10 +4008,13 @@ function init(containerId, cachedData) {
 
     if (!progressColumn) return;
 
-    // Hide if no target set
+    // All 3 conditions must be met: target, start, end
     // For debts, target 0 is valid (payoff goal)
-    const hasTarget = isDebt ? (target !== null && target !== undefined && target !== '') : (target && target > 0);
-    if (!hasTarget) {
+    const hasTarget = isDebt ? (target !== null && target !== undefined && target !== '' && !isNaN(target)) : (target && target > 0);
+    const hasStart = start && start.length > 0;
+    const hasEnd = end && end.length > 0;
+
+    if (!hasTarget || !hasStart || !hasEnd) {
       progressColumn.style.display = 'none';
       return;
     }
@@ -4024,8 +4030,7 @@ function init(containerId, cachedData) {
     const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
     // If past end date, show historical amount at end date
-    const hasEnd = end && end.length > 0;
-    if (hasEnd && currentMonth > end && entry) {
+    if (currentMonth > end && entry) {
       const historicalAmount = getHistoricalAmount(entry, end);
       if (historicalAmount !== null) {
         displayAmount = historicalAmount;
@@ -4039,8 +4044,7 @@ function init(containerId, cachedData) {
     if (isDebt) {
       // For debts: progress = how much paid off from start
       // Get starting amount at goal start date
-      const hasStart = start && start.length > 0;
-      if (hasStart && entry) {
+      if (entry) {
         const historicalStart = getHistoricalAmount(entry, start);
         if (historicalStart !== null) {
           startingAmount = historicalStart;
@@ -4344,6 +4348,8 @@ function init(containerId, cachedData) {
           const timestamp = result && result.timestamp ? result.timestamp : new Date().toISOString();
           CacheManager.setNetWorthWithTimestamp({ entries: entries, goals: goals }, timestamp);
         }
+        // Dispatch event for dashboard to refresh savings card
+        document.dispatchEvent(new CustomEvent('networth-goals-updated', { detail: { goals } }));
       }, function(error) {
         console.error('NetWorthManager: Error saving goals:', error);
         showMessage(getTranslation('error_saving_data') + error, 'error');
