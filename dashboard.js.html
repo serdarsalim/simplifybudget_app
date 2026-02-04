@@ -1262,10 +1262,18 @@ function updateSavingsCard(data) {
                       'July', 'August', 'September', 'October', 'November', 'December'];
 
   // Get current month name
-  const currentMonth = window._currentMonth !== undefined ? window._currentMonth : new Date().getMonth();
-  const monthLabel = document.getElementById('savingsMonthLabel');
-  if (monthLabel) {
-    monthLabel.textContent = monthNames[currentMonth];
+  const now = new Date();
+  const currentMonth = window._currentMonth !== undefined ? window._currentMonth : now.getMonth();
+  const currentYear = window._currentYear !== undefined ? window._currentYear : now.getFullYear();
+  const isCurrentMonth = currentMonth === now.getMonth() && currentYear === now.getFullYear();
+
+  const goalLabel = document.getElementById('savingsGoalLabel');
+  if (goalLabel) {
+    if (isCurrentMonth) {
+      goalLabel.textContent = `Goal for ${monthNames[currentMonth]} ${currentYear}`;
+    } else {
+      goalLabel.textContent = `Goal in ${monthNames[currentMonth]} ${currentYear}`;
+    }
   }
 
   // Savings goal = budget set for savings category
@@ -1280,6 +1288,41 @@ function updateSavingsCard(data) {
     const safeGoal = Math.max(0, savingsGoal);
     monthGoal.textContent = Utils.formatCurrency(safeGoal);
     monthGoal.dataset.value = safeGoal;
+  }
+
+  const actualRow = document.getElementById('savingsActualRow');
+  const outcomeRow = document.getElementById('savingsOutcomeRow');
+  const actualLabel = document.getElementById('savingsActualLabel');
+  const actualValue = document.getElementById('savingsActualValue');
+  const outcomeValue = document.getElementById('savingsOutcomeValue');
+
+  if (!isCurrentMonth) {
+    const actualSaved = (data.summary.income || 0) - (data.summary.spent || 0);
+    const outcomeDelta = actualSaved - savingsGoal;
+
+    if (actualLabel) {
+      actualLabel.textContent = actualSaved >= 0 ? 'Actually saved' : 'Actually overspent';
+    }
+
+    if (actualValue) {
+      actualValue.textContent = Utils.formatCurrency(Math.abs(actualSaved));
+    }
+
+    if (outcomeValue) {
+      if (Math.abs(outcomeDelta) < 0.01) {
+        outcomeValue.textContent = 'On target';
+      } else {
+        const direction = outcomeDelta >= 0 ? 'above goal' : 'below goal';
+        const sign = outcomeDelta >= 0 ? '+' : '-';
+        outcomeValue.textContent = `${sign} ${Utils.formatCurrency(Math.abs(outcomeDelta))} ${direction}`;
+      }
+    }
+
+    if (actualRow) actualRow.style.display = 'flex';
+    if (outcomeRow) outcomeRow.style.display = 'flex';
+  } else {
+    if (actualRow) actualRow.style.display = 'none';
+    if (outcomeRow) outcomeRow.style.display = 'none';
   }
 
   // Long-term goal (from saved settings)

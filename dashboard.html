@@ -140,13 +140,18 @@
 
         <div class="savings-monthly">
           <div class="savings-row">
-            <span class="savings-label">Goal</span>
+            <span class="savings-label" id="savingsGoalLabel">Goal</span>
             <span class="savings-values">
               <span id="savingsMonthGoal" class="budget-value savings-goal-value" data-category="Savings 💵" data-value="0">€0</span>
             </span>
           </div>
-          <div class="savings-row savings-row-sub">
-            <span class="savings-subtext" id="savingsMonthLabel">February</span>
+          <div class="savings-row savings-row-secondary" id="savingsActualRow" style="display: none;">
+            <span class="savings-subtext" id="savingsActualLabel">Actually saved</span>
+            <span class="savings-subtext savings-subvalue" id="savingsActualValue">€0</span>
+          </div>
+          <div class="savings-row savings-row-secondary" id="savingsOutcomeRow" style="display: none;">
+            <span class="savings-subtext" id="savingsOutcomeLabel">Outcome</span>
+            <span class="savings-subtext savings-subvalue" id="savingsOutcomeValue">€0</span>
           </div>
         </div>
 
@@ -710,10 +715,19 @@ body.dark-mode .chart-container .chart-label {
   margin-bottom: 0;
 }
 
+.savings-row.savings-row-secondary {
+  margin-bottom: 6px;
+}
+
 .savings-subtext {
   color: #94a3b8;
   font-size: 13px;
   font-weight: 600;
+}
+
+.savings-subvalue {
+  color: #475569;
+  font-weight: 700;
 }
 
 .savings-label {
@@ -979,67 +993,6 @@ body.dark-mode .budget-table tbody td.category-name::after {
   .category-name {
     font-size: 15px !important;
   }
-}
-
-/* ======================
-   SAVINGS ROW STYLING - LAST ROW TARGET
-   ====================== */
-.budget-table tbody tr:last-child {
-  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%) !important;
-}
-
-.budget-table tbody tr:last-child td {
-  font-weight: 600 !important;
-  color: #047857 !important;
-  background-color: transparent !important;
-}
-
-/* Inset top border for savings row - starts after emoji */
-.budget-table tbody tr:last-child td.category-name::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: auto;
-  left: 32px;
-  width: 1000px;
-  height: 1px;
-  background-color: #e8e8e8;
-  pointer-events: none;
-  display: block;
-}
-
-.budget-table tbody tr:last-child .category-name {
-  font-weight: 800 !important;
-  color: #065f46 !important;
-  font-size: 15px !important;
-}
-
-.budget-table tbody tr:last-child .budget-value {
-  font-weight: 800 !important;
-  color: #047857 !important;
-  font-size: 15px !important;
-}
-
-.budget-table tbody tr:last-child .actual-value {
-  font-weight: 700 !important;
-  color: #065f46 !important;
-}
-
-/* Dark mode savings row */
-body.dark-mode .budget-table tbody tr:last-child {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.15) 100%) !important;
-}
-
-body.dark-mode .budget-table tbody tr:last-child td {
-  background-color: transparent !important;
-  color: #6ee7b7 !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
-}
-
-body.dark-mode .budget-table tbody tr:last-child .category-name,
-body.dark-mode .budget-table tbody tr:last-child .budget-value,
-body.dark-mode .budget-table tbody tr:last-child .actual-value {
-  color: #6ee7b7 !important;
 }
 
 /* Progress bar - MOVED FROM STYLES.HTML */
