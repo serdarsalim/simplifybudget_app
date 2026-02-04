@@ -2531,6 +2531,7 @@ function init(containerId, cachedData) {
           </div>
           <div class="nw-modal-body">
             <div class="nw-modal-form">
+              <!-- Top row: Details | Chart | Notes -->
               <div class="nw-modal-top-row">
                 <div class="nw-modal-fields-column">
                   <div class="nw-field-group">
@@ -2550,25 +2551,35 @@ function init(containerId, cachedData) {
                     </div>
                   </div>
                 </div>
-                <div class="nw-modal-goals-column" id="assetGoalColumn">
-                  <div class="nw-field-group">
-                    <label for="assetGoalTarget">Target Amount</label>
-                    <input type="number" id="assetGoalTarget" class="nw-form-input" inputmode="decimal" placeholder="0">
-                  </div>
-                  <div class="nw-field-group">
-                    <label for="assetGoalEnd">End Date</label>
-                    <input type="date" id="assetGoalEnd" class="nw-form-input" placeholder="mm/dd/yyyy">
-                  </div>
-                </div>
                 <div class="nw-modal-chart" id="assetChartSection">
-                  <div class="nw-chart-placeholder">
-                    <canvas id="assetHistoryChart" height="140"></canvas>
-                  </div>
+                  <canvas id="assetHistoryChart" height="110"></canvas>
+                </div>
+                <div class="nw-modal-notes-column">
+                  <textarea id="assetNotes" class="nw-form-textarea" placeholder="Add notes..."></textarea>
                 </div>
               </div>
-              <div class="nw-field-group nw-notes-group">
-                <label for="assetNotes" data-translate="notes_label">Notes</label>
-                <textarea id="assetNotes" class="nw-form-textarea" rows="2"></textarea>
+
+              <!-- Collapsible Goal Section (Liquid Assets & Debts only) -->
+              <div class="nw-goal-section" id="assetGoalSection" style="display: none;">
+                <button type="button" class="nw-goal-toggle" id="goalToggleBtn">
+                  <span class="nw-goal-toggle-icon"></span>
+                  <span class="nw-goal-toggle-text" id="goalToggleText">Savings Goal</span>
+                </button>
+                <div class="nw-goal-content" id="goalContent">
+                  <div class="nw-goal-fields">
+                    <div class="nw-field-group">
+                      <label for="assetGoalTarget">Target Amount</label>
+                      <div class="nw-amount-input">
+                        <span class="nw-currency-symbol" id="goalCurrencySymbol"></span>
+                        <input type="number" id="assetGoalTarget" class="nw-form-input" inputmode="decimal" placeholder="0">
+                      </div>
+                    </div>
+                    <div class="nw-field-group">
+                      <label for="assetGoalEnd">End Date</label>
+                      <input type="date" id="assetGoalEnd" class="nw-form-input">
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -3558,19 +3569,39 @@ function init(containerId, cachedData) {
     document.getElementById('assetNotes').value = entry.notes || '';
     document.getElementById('assetCategory').value = entry.type || '';
 
-    // Goal fields (Liquid Assets + Debts only)
-    const goalColumn = document.getElementById('assetGoalColumn');
-    if (goalColumn) {
+    // Goal section (Liquid Assets + Debts only)
+    const goalSection = document.getElementById('assetGoalSection');
+    const goalToggleBtn = document.getElementById('goalToggleBtn');
+    const goalToggleText = document.getElementById('goalToggleText');
+    const goalCurrencySymbol = document.getElementById('goalCurrencySymbol');
+
+    if (goalSection) {
       const isGoalEligible = entry.asset === 'Liquid Assets' || entry.asset === 'Debts';
-      goalColumn.style.display = isGoalEligible ? 'flex' : 'none';
+      goalSection.style.display = isGoalEligible ? 'block' : 'none';
 
       if (isGoalEligible) {
+        // Set goal type label based on asset type
+        const goalTypeLabel = entry.asset === 'Debts' ? 'Payoff Goal' : 'Savings Goal';
+        if (goalToggleText) goalToggleText.textContent = goalTypeLabel;
+        if (goalCurrencySymbol) goalCurrencySymbol.textContent = getCurrencySymbol();
+
         const goalsState = getSavingsGoalsState();
         const goalId = `${entry.asset}|${entry.name}`;
         const goal = (goalsState.goals || []).find(g => g.id === goalId);
 
         document.getElementById('assetGoalTarget').value = goal?.target || '';
         document.getElementById('assetGoalEnd').value = goal?.end || '';
+
+        // Expand section if goal exists, collapse if not
+        const hasGoal = goal?.target > 0;
+        goalSection.classList.toggle('expanded', hasGoal);
+
+        // Setup toggle button
+        if (goalToggleBtn) {
+          goalToggleBtn.onclick = () => {
+            goalSection.classList.toggle('expanded');
+          };
+        }
       }
     }
     
@@ -3595,7 +3626,6 @@ function init(containerId, cachedData) {
   
   function initializeAssetHistoryChart(currentEntry) {
     try {
-      // Reset chart area
       const canvas = document.getElementById('assetHistoryChart');
       const chartSection = document.getElementById('assetChartSection');
 
@@ -3610,51 +3640,45 @@ function init(containerId, cachedData) {
       // Check if Chart.js is available
       if (typeof Chart === 'undefined') {
         console.warn('Chart.js not available for asset history');
-        showChartFallback(getTranslation('chart_library_not_available'));
+        showChartFallback();
         return;
       }
 
-      // Check canvas element again
       if (!canvas) {
         console.warn('Canvas element not found');
-        showChartFallback(getTranslation('chart_container_not_found'));
+        showChartFallback();
         return;
       }
-      
-      // Collect historical data for this asset
+
+      // Collect historical data for this asset (last 6 months)
       const historyData = collectAssetHistory(currentEntry);
-      
-      
-      // Check if we have enough data
+
+      // Check if we have enough data (at least 2 months)
       if (historyData.labels.length < 2) {
-        showChartFallback(getTranslation('not_enough_data_for_chart'));
+        showChartFallback();
         return;
       }
-      
+
       // Destroy existing chart if any
       const existingChart = Chart.getChart(canvas);
       if (existingChart) {
         existingChart.destroy();
       }
-      
-      // Create the chart
+
+      // Create a 6-month bar chart
       const ctx = canvas.getContext('2d');
       new Chart(ctx, {
-        type: 'line',
+        type: 'bar',
         data: {
           labels: historyData.labels,
           datasets: [{
             label: currentEntry.name,
             data: historyData.values,
+            backgroundColor: 'rgba(52, 152, 219, 0.7)',
             borderColor: '#3498db',
-            backgroundColor: 'rgba(52, 152, 219, 0.1)',
-            borderWidth: 2,
-            fill: true,
-            tension: 0.1,
-            pointRadius: 4,
-            pointBackgroundColor: '#3498db',
-            pointBorderColor: '#fff',
-            pointBorderWidth: 2
+            borderWidth: 1,
+            borderRadius: 3,
+            barPercentage: 0.7
           }]
         },
         options: {
@@ -3678,89 +3702,89 @@ function init(containerId, cachedData) {
                 display: false
               },
               ticks: {
-                maxTicksLimit: 14,
-                maxRotation: 45,
-                minRotation: 0
+                font: { size: 10 }
               }
             },
             y: {
               beginAtZero: true,
+              grid: {
+                color: 'rgba(0, 0, 0, 0.05)'
+              },
               ticks: {
+                font: { size: 10 },
+                maxTicksLimit: 4,
                 callback: function(value) {
-                  return formatCurrency(value);
+                  // Compact format for small chart
+                  if (value >= 1000) {
+                    return (value / 1000).toFixed(0) + 'k';
+                  }
+                  return value;
                 }
               }
             }
           }
         }
       });
-      
+
     } catch (error) {
       console.error('Error creating asset history chart:', error);
-      showChartFallback(getTranslation('error_loading_chart'));
+      showChartFallback();
     }
   }
   
   function collectAssetHistory(targetEntry) {
     const labels = [];
     const values = [];
-    
+
     try {
-      // Use CacheManager to get networth data properly
       const cachedData = CacheManager.getNetWorthWithTimestamp();
       if (!cachedData || !cachedData.entries) {
         return { labels, values };
       }
-      
+
       const entries = cachedData.entries;
-      
-      // Group entries by date and find our target asset (last 12 months only)
       const dateGroups = {};
-      const twelveMonthsAgo = new Date();
-      twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
-      
-      // Parse the date field from your cache structure
+
+      // Parse each entry and match by id or name+asset+type
       entries.forEach(entry => {
         const isIdMatch = entry.id === targetEntry.id;
         const isNameMatch = entry.name === targetEntry.name && entry.asset === targetEntry.asset && entry.type === targetEntry.type;
         const hasDateAndAmount = entry.date && entry.amount !== undefined && entry.amount !== null;
-        
+
         if (hasDateAndAmount && (isIdMatch || isNameMatch)) {
-          // Parse the date (format: "MMM YYYY" e.g. "Jul 2025")
-          const monthMap = { 'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6, 
+          const monthMap = { 'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
                            'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12 };
           const [monthStr, yearStr] = entry.date.split(' ');
           const year = parseInt(yearStr);
           const month = monthMap[monthStr];
-          
+
           if (year && month) {
             const monthKey = `${year}-${String(month).padStart(2, '0')}`;
-            
-            // Keep the latest entry for each month
             if (!dateGroups[monthKey]) {
               dateGroups[monthKey] = entry;
             }
           }
         }
       });
-      
-      // Sort by date and build chart data (max 5 years / 60 months)
+
+      // Sort by date and take only last 6 months
       const sortedDates = Object.keys(dateGroups).sort();
-      const trimmedDates = sortedDates.slice(-60);
-      
-      trimmedDates.forEach(monthKey => {
+      const last6Months = sortedDates.slice(-6);
+
+      last6Months.forEach(monthKey => {
         const entry = dateGroups[monthKey];
         const [year, month] = monthKey.split('-');
-        const monthName = new Date(parseInt(year), parseInt(month) - 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-        
+        // Short month label (e.g., "Sep")
+        const monthName = new Date(parseInt(year), parseInt(month) - 1).toLocaleDateString('en-US', { month: 'short' });
+
         labels.push(monthName);
         values.push(parseFloat(entry.amount) || 0);
       });
-      
+
     } catch (error) {
       console.error('Error collecting asset history:', error);
     }
-    
+
     return { labels, values };
   }
   
@@ -6664,6 +6688,18 @@ body.dark-mode .nw-asset-modal .nw-modal-chart {
   background-color: #242424;
 }
 
+body.dark-mode .nw-asset-modal .nw-goal-section {
+  border-top-color: rgba(255, 255, 255, 0.12);
+}
+
+body.dark-mode .nw-asset-modal .nw-goal-toggle {
+  color: #34d399;
+}
+
+body.dark-mode .nw-asset-modal .nw-goal-toggle:hover {
+  background-color: rgba(52, 211, 153, 0.1);
+}
+
 body.dark-mode .nw-asset-modal .nw-autocomplete-container {
   background-color: #1f1f1f;
   border-color: rgba(255, 255, 255, 0.15);
@@ -6871,17 +6907,28 @@ body.dark-mode .nw-modal-footer {
 
 .nw-modal-top-row {
   display: grid;
-  grid-template-columns: minmax(160px, 0.7fr) minmax(160px, 0.7fr) minmax(260px, 1.4fr);
+  grid-template-columns: minmax(120px, 0.8fr) minmax(140px, 1fr) minmax(140px, 1.2fr);
   gap: 16px;
   align-items: stretch;
 }
 
-.nw-modal-fields-column,
-.nw-modal-goals-column {
+.nw-modal-fields-column {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  min-width: 200px;
+  gap: 10px;
+}
+
+.nw-modal-notes-column {
+  display: flex;
+  flex-direction: column;
+}
+
+.nw-modal-notes-column .nw-form-textarea {
+  flex: 1;
+  min-height: 80px;
+  resize: none;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .nw-field-group {
@@ -6903,15 +6950,6 @@ body.dark-mode .nw-modal-footer {
   box-sizing: border-box;
 }
 
-.nw-notes-group {
-  width: 100%;
-}
-
-.nw-notes-group .nw-form-textarea {
-  width: 100%;
-  resize: vertical;
-}
-
 @media (min-width: 768px) {
   .nw-enhanced-modal .nw-simple-form {
     padding: 0 100px;
@@ -6925,8 +6963,7 @@ body.dark-mode .nw-modal-footer {
   justify-content: center;
   background-color: #f8f9fa;
   border-radius: 8px;
-  padding: 10px;
-  min-width: 220px;
+  padding: 8px;
   box-sizing: border-box;
 }
 
@@ -6934,14 +6971,8 @@ body.dark-mode .nw-modal-footer {
   display: none;
 }
 
-.nw-modal-top-row:has(.nw-modal-chart.hidden) .nw-modal-fields-column {
-  flex-direction: row;
-  gap: 16px;
-  width: 100%;
-}
-
-.nw-modal-top-row:has(.nw-modal-chart.hidden) .nw-modal-fields-column .nw-field-group {
-  flex: 1;
+.nw-modal-top-row:has(.nw-modal-chart.hidden) {
+  grid-template-columns: 1fr 1fr;
 }
 
 #assetHistoryChart {
@@ -6949,16 +6980,81 @@ body.dark-mode .nw-modal-footer {
   max-height: 120px;
 }
 
-@media (max-width: 980px) {
-  .nw-modal-top-row {
-    grid-template-columns: 1fr;
-  }
+/* Goal Section - Collapsible */
+.nw-goal-section {
+  border-top: 1px solid #e1e5e9;
+  padding-top: 16px;
+  margin-top: 4px;
 }
 
-.nw-chart-placeholder {
-  width: 100%;
+.nw-goal-toggle {
   display: flex;
-  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  padding: 8px 12px;
+  margin: -8px -12px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #10b981;
+  border-radius: 6px;
+  transition: background-color 0.15s;
+  width: calc(100% + 24px);
+  text-align: left;
+}
+
+.nw-goal-toggle:hover {
+  background-color: rgba(16, 185, 129, 0.08);
+}
+
+.nw-goal-toggle-icon {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  border-left: 5px solid currentColor;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transition: transform 0.2s;
+}
+
+.nw-goal-section.expanded .nw-goal-toggle-icon {
+  transform: rotate(90deg);
+}
+
+.nw-goal-content {
+  display: none;
+  padding-top: 16px;
+}
+
+.nw-goal-section.expanded .nw-goal-content {
+  display: block;
+}
+
+.nw-goal-fields {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.nw-goal-fields .nw-field-group {
+  flex: 1 1 160px;
+  min-width: 140px;
+}
+
+@media (max-width: 980px) {
+  .nw-modal-top-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .nw-modal-chart {
+    display: none;
+  }
+
+  .nw-modal-notes-column .nw-form-textarea {
+    min-height: 100px;
+  }
 }
 
 .nw-autocomplete-container {
@@ -7125,7 +7221,8 @@ input[type="number"] {
 
 @media (max-width: 768px) {
   .nw-modal-top-row {
-    flex-direction: column;
+    grid-template-columns: 1fr;
+    gap: 16px;
   }
 
   .nw-modal-fields-column {
@@ -7152,9 +7249,34 @@ input[type="number"] {
     display: none;
   }
 
+  .nw-modal-notes-column .nw-form-textarea {
+    min-height: 60px;
+  }
+
   .nw-modal-content {
     width: 95%;
     margin: 20px auto;
+  }
+
+  .nw-goal-fields {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .nw-goal-fields .nw-field-group {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .nw-goal-fields .nw-field-group label {
+    min-width: 70px;
+    margin: 0;
+  }
+
+  .nw-goal-fields .nw-field-group .nw-form-input,
+  .nw-goal-fields .nw-field-group .nw-amount-input {
+    flex: 1;
   }
 }
 
