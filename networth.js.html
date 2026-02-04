@@ -2531,20 +2531,22 @@ function init(containerId, cachedData) {
           </div>
           <div class="nw-modal-body">
             <div class="nw-modal-form">
-              <!-- Top row: Details | Notes | Chart -->
-              <!-- For Investments/Physical: Details | Chart | Notes -->
-              <div class="nw-modal-top-row" id="modalTopRow">
-                <div class="nw-modal-fields-column">
-                  <div class="nw-field-group">
+              <!-- Top section: Left (Details) | Right (Chart) -->
+              <div class="nw-modal-top-section">
+                <div class="nw-modal-left-column">
+                  <!-- Asset Details with inline labels -->
+                  <div class="nw-modal-field-row">
                     <label for="assetName" data-translate="name_label">Name:</label>
                     <input type="text" id="assetName" class="nw-form-input">
                   </div>
-                  <div class="nw-field-group">
+                  <div class="nw-modal-field-row">
                     <label for="assetCategory" data-translate="category_label">Category:</label>
-                    <input type="text" id="assetCategory" class="nw-form-input">
-                    <div class="nw-autocomplete-container"></div>
+                    <div class="nw-field-with-autocomplete">
+                      <input type="text" id="assetCategory" class="nw-form-input">
+                      <div class="nw-autocomplete-container"></div>
+                    </div>
                   </div>
-                  <div class="nw-field-group">
+                  <div class="nw-modal-field-row">
                     <label for="assetAmount" data-translate="amount_label">Amount:</label>
                     <div class="nw-amount-input">
                       <span class="nw-currency-symbol" id="assetCurrencySymbol"></span>
@@ -2552,11 +2554,8 @@ function init(containerId, cachedData) {
                     </div>
                   </div>
                 </div>
-                <div class="nw-modal-notes-column" id="notesColumn">
-                  <textarea id="assetNotes" class="nw-form-textarea" placeholder="Add notes..."></textarea>
-                </div>
                 <div class="nw-modal-chart" id="assetChartSection">
-                  <canvas id="assetHistoryChart" height="110"></canvas>
+                  <canvas id="assetHistoryChart" height="100"></canvas>
                 </div>
               </div>
 
@@ -2601,11 +2600,19 @@ function init(containerId, cachedData) {
                         </div>
                         <span class="nw-goal-progress-percent" id="goalProgressPercent"></span>
                       </div>
-                      <div class="nw-goal-progress-summary">
-                        <span id="goalRemainingLabel">Remaining</span>: <strong id="goalRemainingDisplay"></strong>
-                      </div>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              <!-- Collapsible Notes Section -->
+              <div class="nw-notes-section" id="assetNotesSection">
+                <button type="button" class="nw-notes-toggle" id="notesToggleBtn">
+                  <span class="nw-notes-toggle-icon"></span>
+                  <span class="nw-notes-toggle-text">Notes</span>
+                </button>
+                <div class="nw-notes-content" id="notesContent">
+                  <textarea id="assetNotes" class="nw-form-textarea" placeholder="Add notes..."></textarea>
                 </div>
               </div>
             </div>
@@ -3596,11 +3603,16 @@ function init(containerId, cachedData) {
     document.getElementById('assetNotes').value = entry.notes || '';
     document.getElementById('assetCategory').value = entry.type || '';
 
-    // Swap chart and notes order for Investments/Physical Assets
-    const topRow = document.getElementById('modalTopRow');
-    if (topRow) {
-      const isChartFirst = entry.asset === 'Investments' || entry.asset === 'Physical Assets';
-      topRow.classList.toggle('chart-notes-order', isChartFirst);
+    // Notes section - expand if has content
+    const notesSection = document.getElementById('assetNotesSection');
+    const notesToggleBtn = document.getElementById('notesToggleBtn');
+    if (notesSection && notesToggleBtn) {
+      const hasNotes = entry.notes && entry.notes.trim().length > 0;
+      notesSection.classList.toggle('expanded', hasNotes);
+
+      notesToggleBtn.onclick = () => {
+        notesSection.classList.toggle('expanded');
+      };
     }
 
     // Goal section (Liquid Assets + Debts only)
@@ -3988,9 +4000,6 @@ function init(containerId, cachedData) {
     const progressAmount = document.getElementById('goalProgressAmount');
     const progressPercent = document.getElementById('goalProgressPercent');
     const progressFill = document.getElementById('goalProgressFill');
-    const targetDisplay = document.getElementById('goalTargetDisplay');
-    const remainingDisplay = document.getElementById('goalRemainingDisplay');
-    const remainingLabel = document.getElementById('goalRemainingLabel');
     const statusEl = document.getElementById('goalStatus');
     const isDebt = entry && entry.asset === 'Debts';
 
@@ -4052,10 +4061,29 @@ function init(containerId, cachedData) {
       percent = Math.min(Math.round((displayAmount / target) * 100), 100);
     }
 
-    // Update progress amount display
+    // Calculate remaining/over text for inline display
+    let remainingText = '';
+    if (isDebt) {
+      // For debts: remaining = amount still owed above target
+      const remaining = displayAmount - target;
+      if (remaining <= 0) {
+        remainingText = ` (under by ${formatCurrency(Math.abs(remaining))})`;
+      } else {
+        remainingText = ` (${formatCurrency(remaining)} remaining)`;
+      }
+    } else {
+      // For savings: remaining = amount needed to reach target
+      const remaining = target - displayAmount;
+      if (remaining <= 0) {
+        remainingText = ` (over by ${formatCurrency(Math.abs(remaining))})`;
+      } else {
+        remainingText = ` (${formatCurrency(remaining)} remaining)`;
+      }
+    }
+
+    // Update progress amount display with inline remaining/over
     if (progressAmount) {
-      const amountText = displayLabel ? `${formatCurrency(displayAmount)}${displayLabel}` : formatCurrency(displayAmount);
-      progressAmount.textContent = amountText;
+      progressAmount.textContent = `${formatCurrency(displayAmount)}${remainingText}`;
     }
 
     // Update percentage
@@ -4074,33 +4102,6 @@ function init(containerId, cachedData) {
         else if (statusEl.classList.contains('active')) progressFill.classList.add('active');
         else if (statusEl.classList.contains('expired')) progressFill.classList.add('expired');
         else if (statusEl.classList.contains('upcoming')) progressFill.classList.add('upcoming');
-      }
-    }
-
-    // Update remaining/over display
-    if (remainingDisplay && remainingLabel) {
-      if (isDebt) {
-        // For debts: remaining = amount still owed above target
-        const remaining = displayAmount - target;
-        if (remaining <= 0) {
-          // Under target (over-achieved for debt payoff)
-          remainingLabel.textContent = 'Under by';
-          remainingDisplay.textContent = formatCurrency(Math.abs(remaining));
-        } else {
-          remainingLabel.textContent = 'Remaining';
-          remainingDisplay.textContent = formatCurrency(remaining);
-        }
-      } else {
-        // For savings: remaining = amount needed to reach target
-        const remaining = target - displayAmount;
-        if (remaining <= 0) {
-          // Over target (achieved or exceeded)
-          remainingLabel.textContent = 'Over by';
-          remainingDisplay.textContent = formatCurrency(Math.abs(remaining));
-        } else {
-          remainingLabel.textContent = 'Remaining';
-          remainingDisplay.textContent = formatCurrency(remaining);
-        }
       }
     }
 
@@ -7041,9 +7042,27 @@ body.dark-mode .nw-asset-modal .nw-goal-status.upcoming {
   background-color: rgba(107, 114, 128, 0.15);
 }
 
+/* Dark mode: Field row labels */
+body.dark-mode .nw-asset-modal .nw-modal-field-row label {
+  color: rgba(255, 255, 255, 0.6);
+}
+
 /* Dark mode: Goal inputs */
 body.dark-mode .nw-asset-modal .nw-goal-field-row label {
   color: rgba(255, 255, 255, 0.6);
+}
+
+/* Dark mode: Notes section */
+body.dark-mode .nw-asset-modal .nw-notes-section {
+  border-top-color: rgba(255, 255, 255, 0.12);
+}
+
+body.dark-mode .nw-asset-modal .nw-notes-toggle {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+body.dark-mode .nw-asset-modal .nw-notes-toggle:hover {
+  color: rgba(255, 255, 255, 0.8);
 }
 
 /* Dark mode: Progress column */
@@ -7062,14 +7081,6 @@ body.dark-mode .nw-asset-modal .nw-goal-progress-percent {
 
 body.dark-mode .nw-asset-modal .nw-goal-progress-bar-row .nw-goal-progress-bar {
   background-color: rgba(255, 255, 255, 0.1);
-}
-
-body.dark-mode .nw-asset-modal .nw-goal-progress-summary {
-  color: rgba(255, 255, 255, 0.5);
-}
-
-body.dark-mode .nw-asset-modal .nw-goal-progress-summary strong {
-  color: rgba(255, 255, 255, 0.8);
 }
 
 body.dark-mode .nw-asset-modal .nw-goal-progress-column.achieved {
@@ -7265,7 +7276,7 @@ body.dark-mode .nw-modal-footer {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
   width: 90%;
   max-width: 800px;
-  max-height: 84vh;
+  max-height: 92vh;
   overflow-y: auto;
 }
 
@@ -7313,50 +7324,87 @@ body.dark-mode .nw-modal-footer {
   gap: 20px;
 }
 
-.nw-modal-top-row {
+/* Top section: Left (Details) | Right (Chart) */
+.nw-modal-top-section {
   display: grid;
-  grid-template-columns: minmax(120px, 0.8fr) minmax(140px, 1fr) minmax(140px, 1.2fr);
-  gap: 16px;
-  align-items: stretch;
+  grid-template-columns: auto 1fr;
+  gap: 24px;
+  align-items: start;
 }
 
-/* For Investments/Physical Assets: swap chart and notes order */
-.nw-modal-top-row.chart-notes-order {
-  grid-template-columns: minmax(120px, 0.8fr) minmax(140px, 1.2fr) minmax(140px, 1fr);
-}
-
-.nw-modal-top-row.chart-notes-order .nw-modal-notes-column {
-  order: 3;
-}
-
-.nw-modal-top-row.chart-notes-order .nw-modal-chart {
-  order: 2;
-}
-
-.nw-modal-fields-column {
+.nw-modal-left-column {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
-.nw-modal-notes-column {
+/* Inline label field rows */
+.nw-modal-field-row {
   display: flex;
-  flex-direction: column;
-  order: 2;
+  align-items: center;
+  gap: 12px;
+}
+
+.nw-modal-field-row label {
+  min-width: 70px;
+  font-weight: 500;
+  color: #64748b;
+  font-size: 0.85rem;
+  text-align: right;
+}
+
+.nw-modal-field-row .nw-form-input,
+.nw-modal-field-row .nw-amount-input,
+.nw-modal-field-row .nw-field-with-autocomplete {
+  width: 220px;
+  max-width: 220px;
+  flex: none;
+}
+
+.nw-modal-field-row .nw-field-with-autocomplete {
+  position: relative;
+}
+
+.nw-modal-field-row .nw-field-with-autocomplete .nw-form-input {
+  width: 100%;
 }
 
 .nw-modal-chart {
-  order: 3;
-}
-
-.nw-modal-notes-column .nw-form-textarea {
-  flex: 1;
-  min-height: 80px;
-  resize: none;
-  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 8px 12px;
   box-sizing: border-box;
+  height: auto;
+  align-self: stretch;
 }
 
+.nw-modal-chart.hidden {
+  display: none;
+}
+
+.nw-modal-top-section:has(.nw-modal-chart.hidden) {
+  grid-template-columns: auto;
+}
+
+#assetHistoryChart {
+  width: 100%;
+  height: 100%;
+}
+
+.nw-modal-top-section:has(.nw-modal-chart.hidden) .nw-modal-left-column {
+  max-width: 400px;
+}
+
+#assetHistoryChart {
+  width: 100%;
+  max-height: 160px;
+}
+
+/* Legacy field-group for other uses */
 .nw-field-group {
   display: flex;
   flex-direction: column;
@@ -7374,36 +7422,6 @@ body.dark-mode .nw-modal-footer {
 .nw-field-group .nw-form-textarea {
   width: 100%;
   box-sizing: border-box;
-}
-
-@media (min-width: 768px) {
-  .nw-enhanced-modal .nw-simple-form {
-    padding: 0 100px;
-  }
-}
-
-.nw-modal-chart {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background-color: #f8f9fa;
-  border-radius: 8px;
-  padding: 8px;
-  box-sizing: border-box;
-}
-
-.nw-modal-chart.hidden {
-  display: none;
-}
-
-.nw-modal-top-row:has(.nw-modal-chart.hidden) {
-  grid-template-columns: 1fr 1fr;
-}
-
-#assetHistoryChart {
-  width: 100%;
-  max-height: 120px;
 }
 
 /* Goal Section - Collapsible */
@@ -7461,7 +7479,7 @@ body.dark-mode .nw-modal-footer {
 /* 2-column goal layout: inputs | progress */
 .nw-goal-layout {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: auto 1fr;
   gap: 20px;
   align-items: start;
 }
@@ -7484,14 +7502,14 @@ body.dark-mode .nw-modal-footer {
   font-size: 0.85rem;
   font-weight: 500;
   color: #64748b;
+  text-align: right;
 }
 
-.nw-goal-field-row .nw-form-input {
-  flex: 1;
-}
-
+.nw-goal-field-row .nw-form-input,
 .nw-goal-field-row .nw-amount-input {
-  flex: 1;
+  width: 220px;
+  max-width: 220px;
+  flex: none;
 }
 
 /* Right column: Progress visualization */
@@ -7541,15 +7559,6 @@ body.dark-mode .nw-modal-footer {
   font-weight: 700;
   min-width: 40px;
   text-align: right;
-  color: #374151;
-}
-
-.nw-goal-progress-summary {
-  font-size: 0.8rem;
-  color: #64748b;
-}
-
-.nw-goal-progress-summary strong {
   color: #374151;
 }
 
@@ -7675,22 +7684,86 @@ body.dark-mode .nw-modal-footer {
   color: #6b7280;
 }
 
+/* Collapsible Notes Section */
+.nw-notes-section {
+  border-top: 1px solid #e5e7eb;
+  padding-top: 12px;
+}
+
+.nw-notes-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  padding: 8px 0;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #64748b;
+  transition: color 0.15s;
+}
+
+.nw-notes-toggle:hover {
+  color: #475569;
+}
+
+.nw-notes-toggle-icon {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  border-left: 5px solid currentColor;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transition: transform 0.15s;
+}
+
+.nw-notes-section.expanded .nw-notes-toggle-icon {
+  transform: rotate(90deg);
+}
+
+.nw-notes-content {
+  display: none;
+  padding-top: 12px;
+}
+
+.nw-notes-section.expanded .nw-notes-content {
+  display: block;
+}
+
+.nw-notes-content .nw-form-textarea {
+  width: 100%;
+  min-height: 80px;
+  resize: vertical;
+}
+
 @media (max-width: 980px) {
-  .nw-modal-top-row {
-    grid-template-columns: 1fr 1fr;
+  .nw-modal-top-section {
+    grid-template-columns: 1fr;
   }
 
   .nw-modal-chart {
     display: none;
   }
 
-  .nw-modal-notes-column .nw-form-textarea {
-    min-height: 100px;
+  .nw-modal-field-row .nw-form-input,
+  .nw-modal-field-row .nw-amount-input,
+  .nw-modal-field-row .nw-field-with-autocomplete {
+    flex: 1;
+    width: auto;
+    max-width: none;
   }
 
   .nw-goal-layout {
     grid-template-columns: 1fr;
     gap: 16px;
+  }
+
+  .nw-goal-field-row .nw-form-input,
+  .nw-goal-field-row .nw-amount-input {
+    flex: 1;
+    width: auto;
+    max-width: none;
   }
 
   .nw-goal-progress-column {
@@ -7861,37 +7934,25 @@ input[type="number"] {
 }
 
 @media (max-width: 768px) {
-  .nw-modal-top-row {
+  .nw-modal-top-section {
     grid-template-columns: 1fr;
     gap: 16px;
   }
 
-  .nw-modal-fields-column {
-    min-width: auto;
-  }
-
-  .nw-modal-fields-column .nw-field-group {
-    flex-direction: row;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .nw-modal-fields-column .nw-field-group label {
-    min-width: 70px;
-    margin: 0;
-  }
-
-  .nw-modal-fields-column .nw-field-group .nw-form-input,
-  .nw-modal-fields-column .nw-field-group .nw-amount-input {
+  .nw-modal-field-row .nw-form-input,
+  .nw-modal-field-row .nw-amount-input,
+  .nw-modal-field-row .nw-field-with-autocomplete {
     flex: 1;
+    width: auto;
+    max-width: none;
+  }
+
+  .nw-modal-field-row label {
+    min-width: 60px;
   }
 
   .nw-modal-chart {
     display: none;
-  }
-
-  .nw-modal-notes-column .nw-form-textarea {
-    min-height: 60px;
   }
 
   .nw-modal-content {
@@ -7899,13 +7960,15 @@ input[type="number"] {
     margin: 20px auto;
   }
 
-  .nw-goal-fields {
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
+  .nw-goal-field-row .nw-form-input,
+  .nw-goal-field-row .nw-amount-input {
+    flex: 1;
+    width: auto;
+    max-width: none;
   }
 
-  .nw-goal-fields .nw-field-group label {
-    font-size: 0.8rem;
+  .nw-goal-field-row label {
+    min-width: 50px;
   }
 
   .nw-goal-status {
