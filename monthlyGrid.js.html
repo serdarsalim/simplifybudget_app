@@ -3915,7 +3915,12 @@ function refresh(forceServerRefresh) {
   overflow: hidden;
 }
 
-/* Removed hover effect - was causing sticky background issue */
+/* Subtle border hover effect for grid cells - desktop only */
+@media (hover: hover) {
+  .grid-cell:hover {
+    box-shadow: inset 0 0 0 1px rgba(100, 100, 100, 0.3);
+  }
+}
 
 /* Cell content with improved color coding */
 .cell-content {
@@ -5399,7 +5404,12 @@ body.dark-mode .category-total {
   color: #DDA15E !important;
 }
 
-/* Removed hover effect - was causing sticky background issue */
+/* Subtle border hover effect for grid cells in dark mode - desktop only */
+@media (hover: hover) {
+  body.dark-mode .grid-cell:hover {
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+  }
+}
 
 body.dark-mode .notes-content {
   background-color: rgba(58, 58, 58, 0.5);
@@ -5821,11 +5831,13 @@ body.dark-mode .weekend-row {
   }
 }
 
-/* Cell tooltip for desktop */
+/* Cell tooltip for desktop - glassmorphism style */
 .cell-tooltip {
   position: fixed;
-  background: rgba(30, 41, 59, 0.95);
-  color: white;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #374151;
   padding: 6px 10px;
   border-radius: 6px;
   font-size: 12px;
@@ -5833,7 +5845,8 @@ body.dark-mode .weekend-row {
   pointer-events: none;
   z-index: 10000;
   white-space: nowrap;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08), inset 0 0 0 1px rgba(255,255,255,0.5);
+  border: 1px solid rgba(0,0,0,0.08);
   opacity: 0;
   transition: opacity 0.15s ease;
 }
@@ -5841,6 +5854,19 @@ body.dark-mode .weekend-row {
   opacity: 1;
 }
 .cell-tooltip.today-tooltip {
-  background: #0891b2;
+  background: rgba(8, 145, 178, 0.85);
+  color: white;
+  border: 1px solid rgba(8, 145, 178, 0.6);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+}
+body.dark-mode .cell-tooltip {
+  background: rgba(40, 40, 40, 0.7);
+  color: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2), inset 0 0 0 1px rgba(255,255,255,0.05);
+}
+body.dark-mode .cell-tooltip.today-tooltip {
+  background: rgba(8, 145, 178, 0.6);
+  border: 1px solid rgba(8, 145, 178, 0.4);
 }
 </style>
