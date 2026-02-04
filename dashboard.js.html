@@ -1269,10 +1269,13 @@ function updateSavingsCard(data) {
 
   const goalLabel = document.getElementById('savingsGoalLabel');
   if (goalLabel) {
+    const shortMonth = monthNames[currentMonth].slice(0, 3);
+    const shortYear = String(currentYear).slice(-2);
+    const labelMonth = `${shortMonth} '${shortYear}`;
     if (isCurrentMonth) {
-      goalLabel.textContent = `Goal for ${monthNames[currentMonth]} ${currentYear}`;
+      goalLabel.textContent = 'Monthly Goal';
     } else {
-      goalLabel.textContent = `Goal in ${monthNames[currentMonth]} ${currentYear}`;
+      goalLabel.textContent = `Goal in ${labelMonth}`;
     }
   }
 
@@ -1295,6 +1298,8 @@ function updateSavingsCard(data) {
   const actualLabel = document.getElementById('savingsActualLabel');
   const actualValue = document.getElementById('savingsActualValue');
   const outcomeValue = document.getElementById('savingsOutcomeValue');
+  const streakRow = document.getElementById('savingsStreakRow');
+  const streakLabel = document.getElementById('savingsStreakLabel');
 
   if (!isCurrentMonth) {
     const actualSaved = (data.summary.income || 0) - (data.summary.spent || 0);
@@ -1320,9 +1325,17 @@ function updateSavingsCard(data) {
 
     if (actualRow) actualRow.style.display = 'flex';
     if (outcomeRow) outcomeRow.style.display = 'flex';
+    if (streakRow) streakRow.style.display = 'none';
   } else {
     if (actualRow) actualRow.style.display = 'none';
     if (outcomeRow) outcomeRow.style.display = 'none';
+    const streakCount = computeSavingsGoalStreak();
+    if (streakRow && streakLabel && streakCount >= 1) {
+      streakLabel.textContent = `Goal met: ${streakCount} month${streakCount === 1 ? '' : 's'} in a row`;
+      streakRow.style.display = 'flex';
+    } else if (streakRow) {
+      streakRow.style.display = 'none';
+    }
   }
 
   // Long-term goal (from saved settings)
@@ -1358,6 +1371,113 @@ function updateSavingsCard(data) {
   } else {
     if (longtermSection) longtermSection.style.display = 'none';
   }
+}
+
+/**
+ * Compute consecutive months (ending last month) where savings goal was met
+ */
+function computeSavingsGoalStreak() {
+  if (!window.CacheManager || typeof CacheManager.get !== 'function') return 0;
+
+  const budgetData = CacheManager.getBudgetData();
+  const budgets = (budgetData && budgetData.budgets) ? budgetData.budgets : {};
+
+  const unifiedCache = CacheManager.get('expenses_with_timestamp');
+  const allEntries = unifiedCache && Array.isArray(unifiedCache.expenses)
+    ? unifiedCache.expenses
+    : null;
+
+  if (!allEntries || allEntries.length === 0) return 0;
+
+  const monthlyMap = new Map();
+
+  allEntries.forEach(entry => {
+    if (!entry) return;
+
+    let entryDate = entry.date || entry.transactionDate || entry.startDate || entry.month;
+    if (entryDate && !(entryDate instanceof Date)) {
+      entryDate = new Date(entryDate);
+    }
+    if (!(entryDate instanceof Date) || isNaN(entryDate.getTime())) return;
+
+    const year = entryDate.getFullYear();
+    const month = entryDate.getMonth();
+    const key = `${year}-${month}`;
+
+    if (!monthlyMap.has(key)) {
+      monthlyMap.set(key, { income: 0, expenses: 0 });
+    }
+
+    const summary = monthlyMap.get(key);
+    const rawAmount = entry.amount !== undefined ? entry.amount :
+      entry.value !== undefined ? entry.value : null;
+    let numericAmount = 0;
+
+    if (typeof rawAmount === 'number') {
+      numericAmount = rawAmount;
+    } else if (typeof rawAmount === 'string') {
+      const cleaned = rawAmount.replace(/[^0-9.-]/g, '');
+      numericAmount = cleaned ? parseFloat(cleaned) : NaN;
+    } else {
+      numericAmount = Number(rawAmount);
+    }
+
+    if (!isFinite(numericAmount)) return;
+    const amount = Math.abs(numericAmount);
+    if (amount <= 0) return;
+
+    const categoryName = (entry.category || entry.type || '').toString().toLowerCase();
+    const isIncomeCategory = categoryName.includes('income');
+
+    if (isIncomeCategory) {
+      summary.income += amount;
+    } else {
+      summary.expenses += amount;
+    }
+  });
+
+  const now = new Date();
+  let year = now.getFullYear();
+  let month = now.getMonth() - 1;
+  if (month < 0) {
+    month = 11;
+    year -= 1;
+  }
+
+  let streak = 0;
+  let safety = 0;
+  for (;;) {
+    if (safety++ > 120) break;
+    const key = `${year}-${String(month + 1).padStart(2, '0')}`;
+    const summaryKey = `${year}-${month}`;
+    const summary = monthlyMap.get(summaryKey);
+    if (!summary) break;
+
+    const goal = budgets[key] && typeof budgets[key].savings === 'number' ? budgets[key].savings : 0;
+    if (goal <= 0) {
+      month -= 1;
+      if (month < 0) {
+        month = 11;
+        year -= 1;
+      }
+      continue;
+    }
+
+    const actualSaved = summary.income - summary.expenses;
+    if (actualSaved >= goal) {
+      streak += 1;
+    } else {
+      break;
+    }
+
+    month -= 1;
+    if (month < 0) {
+      month = 11;
+      year -= 1;
+    }
+  }
+
+  return streak;
 }
 
 /**

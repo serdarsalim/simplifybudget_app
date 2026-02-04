@@ -145,6 +145,9 @@
               <span id="savingsMonthGoal" class="budget-value savings-goal-value" data-category="Savings 💵" data-value="0">€0</span>
             </span>
           </div>
+          <div class="savings-row savings-row-secondary" id="savingsStreakRow" style="display: none;">
+            <span class="savings-subtext" id="savingsStreakLabel">Goal met: 0 months in a row</span>
+          </div>
           <div class="savings-row savings-row-secondary" id="savingsActualRow" style="display: none;">
             <span class="savings-subtext" id="savingsActualLabel">Actually saved</span>
             <span class="savings-subtext savings-subvalue" id="savingsActualValue">€0</span>
@@ -678,7 +681,7 @@ body.dark-mode .chart-container .chart-label {
 }
 
 .savings-settings-btn {
-  background: rgba(255,255,255,0.2);
+  background: transparent;
   border: none;
   border-radius: 6px;
   padding: 4px 8px;
@@ -690,7 +693,7 @@ body.dark-mode .chart-container .chart-label {
 }
 
 .savings-settings-btn:hover {
-  background: rgba(255,255,255,0.3);
+  background: transparent;
 }
 
 .savings-settings-btn i {
