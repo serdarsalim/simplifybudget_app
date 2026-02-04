@@ -1581,16 +1581,21 @@ function updateSavingsCard(data) {
 
     const item = document.createElement('div');
     item.className = 'savings-longterm-goal';
+    const primaryLabel = isDebt ? 'Owed:' : 'Saved:';
+
     item.innerHTML = `
       <div class="savings-divider"></div>
-      <div class="savings-row">
-        <span class="savings-label">${accountName || 'Long-term Goal'}</span>
-        <span class="savings-status ${statusClass}">${statusLabel}</span>
+      <div class="savings-row savings-row-title">
+        <div class="savings-title-group">
+          <span class="savings-label">${accountName || 'Long-term Goal'}</span>
+          <span class="savings-status ${statusClass}">${statusLabel}</span>
+        </div>
       </div>
       <div class="savings-row savings-row-sub">
-        <span class="savings-values">
+        <span class="savings-values savings-values-inline">
+          <span class="savings-label-inline">${primaryLabel}</span>
           <span>${Utils.formatCurrency(displayAmount)}</span>
-          <span class="savings-separator">/</span>
+          <span class="savings-label-inline">· Goal:</span>
           <span>${Utils.formatCurrency(target)}</span>
         </span>
         <span class="savings-percent ${statusClass}">${percent}%</span>

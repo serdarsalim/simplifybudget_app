@@ -786,6 +786,16 @@ body.dark-mode .chart-container .chart-label {
   margin-bottom: 8px;
 }
 
+.savings-row-title {
+  justify-content: flex-start;
+}
+
+.savings-title-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .savings-row.savings-row-sub {
   margin-bottom: 0;
 }
@@ -829,6 +839,20 @@ body.dark-mode .chart-container .chart-label {
   font-size: 14px;
 }
 
+.savings-values-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.savings-label-inline {
+  color: #94a3b8;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.2px;
+}
+
 .savings-values #savingsMonthActual,
 .savings-values #savingsGoalActual {
   color: #10b981;
@@ -846,6 +870,9 @@ body.dark-mode .chart-container .chart-label {
   font-size: 14px;
   min-width: 45px;
   text-align: right;
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
 }
 
 .savings-progress-bar {
@@ -946,18 +973,22 @@ body.dark-mode .chart-container .chart-label {
 /* Percent text status colors */
 .savings-percent.savings-status-active {
   color: #10b981;
+  background: transparent;
 }
 
 .savings-percent.savings-status-upcoming {
   color: #6366f1;
+  background: transparent;
 }
 
 .savings-percent.savings-status-achieved {
   color: #059669;
+  background: transparent;
 }
 
 .savings-percent.savings-status-expired {
   color: #dc2626;
+  background: transparent;
 }
 
 /* Dark mode savings card */
