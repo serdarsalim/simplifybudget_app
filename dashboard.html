@@ -205,32 +205,38 @@
     </div>
     <div class="savings-modal-body">
       <div class="savings-form-section">
-        <label class="savings-form-label">Goal name</label>
-        <div class="savings-form-row">
-          <input type="text" id="savingsGoalNameInput" class="savings-input" placeholder="e.g., Vacation, Emergency Fund">
-        </div>
         <div class="savings-form-row two-col">
+          <div>
+            <label class="savings-form-sublabel">Goal name</label>
+            <input type="text" id="savingsGoalNameInput" class="savings-input" placeholder="e.g., Vacation, Emergency Fund">
+          </div>
           <div>
             <label class="savings-form-sublabel">Target Amount</label>
             <input type="number" id="savingsGoalTargetInput" class="savings-input" placeholder="0">
           </div>
+        </div>
+        <div class="savings-form-row two-col">
           <div>
             <label class="savings-form-sublabel">Start Month</label>
             <input type="month" id="savingsGoalStartInput" class="savings-input">
           </div>
+          <div>
+            <label class="savings-form-sublabel">End Month</label>
+            <input type="month" id="savingsGoalEndInput" class="savings-input">
+          </div>
         </div>
-        <div class="savings-form-row">
-          <label class="savings-form-sublabel">End Month</label>
-          <input type="month" id="savingsGoalEndInput" class="savings-input">
-        </div>
-        <div class="savings-form-row">
-          <label class="savings-form-sublabel">Starting Amount</label>
-          <input type="number" id="savingsGoalSavedInput" class="savings-input" placeholder="0">
+        <div class="savings-form-row two-col">
+          <div>
+            <label class="savings-form-sublabel">Starting Amount</label>
+            <input type="number" id="savingsGoalSavedInput" class="savings-input" placeholder="0">
+          </div>
+          <div></div>
         </div>
       </div>
     </div>
     <div class="savings-modal-footer">
       <button class="savings-btn-secondary" id="savingsClearBtn">Clear Goal</button>
+      <button class="savings-btn-secondary" id="savingsCancelBtn">Cancel</button>
       <button class="savings-btn-primary" id="savingsSaveBtn">Save</button>
     </div>
   </div>
@@ -1978,6 +1984,12 @@ body.dark-mode .clickable-subscription-card:hover::after {
   animation: savingsModalIn 0.2s ease-out;
 }
 
+/* Remove calendar icon for month inputs */
+.savings-modal-content input[type="month"]::-webkit-calendar-picker-indicator {
+  opacity: 0;
+  display: none;
+}
+
 @keyframes savingsModalIn {
   from {
     opacity: 0;
@@ -2224,6 +2236,7 @@ function navigateToSubscriptions() {
     const backdrop = modal?.querySelector('.savings-modal-backdrop');
     const saveBtn = document.getElementById('savingsSaveBtn');
     const clearBtn = document.getElementById('savingsClearBtn');
+    const cancelBtn = document.getElementById('savingsCancelBtn');
 
     if (!settingsBtn || !modal) return;
 
@@ -2247,6 +2260,11 @@ function navigateToSubscriptions() {
     // Clear button
     clearBtn?.addEventListener('click', function() {
       clearSavingsGoal();
+      closeSavingsModal();
+    });
+
+    // Cancel button
+    cancelBtn?.addEventListener('click', function() {
       closeSavingsModal();
     });
 

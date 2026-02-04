@@ -1365,18 +1365,30 @@ function updateSavingsCard(data) {
   const savingsGoals = getSavingsGoals();
   const longtermSection = document.getElementById('savingsLongtermSection');
 
-  if (savingsGoals && savingsGoals.longtermName && savingsGoals.longtermTarget > 0) {
+  if (savingsGoals && savingsGoals.longtermTarget > 0) {
     const viewMonth = window._currentMonth !== undefined ? window._currentMonth : new Date().getMonth();
     const viewYear = window._currentYear !== undefined ? window._currentYear : new Date().getFullYear();
     const viewDate = new Date(viewYear, viewMonth, 1);
 
     const startValue = savingsGoals.longtermStart || '';
     const endValue = savingsGoals.longtermEnd || '';
-    const startDate = startValue ? new Date(startValue + '-01') : null;
-    const endDate = endValue ? new Date(endValue + '-01') : null;
+    const parseMonthInput = (value) => {
+      if (!value) return null;
+      const parts = value.split('-');
+      if (parts.length < 2) return null;
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      if (!isFinite(y) || !isFinite(m)) return null;
+      return new Date(y, m - 1, 1);
+    };
+    const startDate = parseMonthInput(startValue);
+    const endDate = parseMonthInput(endValue);
 
-    const inRange = startDate && endDate && viewDate >= startDate && viewDate <= endDate;
-    if (!inRange) {
+    if (startDate && viewDate < startDate) {
+      if (longtermSection) longtermSection.style.display = 'none';
+      return;
+    }
+    if (endDate && viewDate > endDate) {
       if (longtermSection) longtermSection.style.display = 'none';
       return;
     }
@@ -1390,7 +1402,7 @@ function updateSavingsCard(data) {
     const goalProgress = document.getElementById('savingsGoalProgress');
     const goalDeadline = document.getElementById('savingsGoalDeadline');
 
-    if (goalName) goalName.textContent = savingsGoals.longtermName;
+    if (goalName) goalName.textContent = savingsGoals.longtermName || 'Long-term Goal';
     if (goalTarget) goalTarget.textContent = Utils.formatCurrency(savingsGoals.longtermTarget);
 
     // Calculate total saved toward long-term goal
