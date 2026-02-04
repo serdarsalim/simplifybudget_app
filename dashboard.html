@@ -128,13 +128,94 @@
         </div>
       </div>
 
-      <!-- Expense Breakdown -->
-      <div class="dashboard-card donut-chart-card">
-        <h3 class="donut-chart-header" data-translate="expense_breakdown">Expense Breakdown</h3>
-        <div class="donut-chart-container">
-          <canvas id="expense-donut-chart"></canvas>
+      <div class="dashboard-left-stack">
+        <!-- Savings Card -->
+        <div class="dashboard-card savings-card">
+          <div class="savings-header">
+            <h3 data-translate="savings">Savings</h3>
+            <button class="savings-settings-btn" id="savingsSettingsBtn" title="Add savings goal">
+              <i class="material-icons">add</i>
+            </button>
+          </div>
+
+          <div class="savings-monthly">
+            <div class="savings-row">
+              <span class="savings-label" id="savingsMonthLabel">February</span>
+              <span class="savings-values">
+                <span id="savingsMonthActual">€0</span>
+                <span class="savings-separator">/</span>
+                <span id="savingsMonthGoal">€0</span>
+              </span>
+              <span class="savings-percent" id="savingsMonthPercent">0%</span>
+            </div>
+            <div class="savings-progress-bar">
+              <div class="savings-progress-fill" id="savingsMonthProgress" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <div class="savings-longterm" id="savingsLongtermSection" style="display: none;">
+            <div class="savings-divider"></div>
+            <div class="savings-row">
+              <span class="savings-label" id="savingsGoalName">Goal</span>
+              <span class="savings-values">
+                <span id="savingsGoalActual">€0</span>
+                <span class="savings-separator">/</span>
+                <span id="savingsGoalTarget">€0</span>
+              </span>
+              <span class="savings-percent" id="savingsGoalPercent">0%</span>
+            </div>
+            <div class="savings-progress-bar longterm">
+              <div class="savings-progress-fill" id="savingsGoalProgress" style="width: 0%"></div>
+            </div>
+            <div class="savings-deadline" id="savingsGoalDeadline"></div>
+          </div>
+        </div>
+
+        <!-- Expense Breakdown -->
+        <div class="dashboard-card donut-chart-card">
+          <h3 class="donut-chart-header" data-translate="expense_breakdown">Expense Breakdown</h3>
+          <div class="donut-chart-container">
+            <canvas id="expense-donut-chart"></canvas>
+          </div>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Savings Settings Modal -->
+<div id="savingsSettingsModal" class="savings-modal" style="display: none;">
+  <div class="savings-modal-backdrop"></div>
+  <div class="savings-modal-content">
+    <div class="savings-modal-header">
+      <h3>Savings Goals</h3>
+      <button class="savings-modal-close" id="savingsModalClose">×</button>
+    </div>
+    <div class="savings-modal-body">
+      <div class="savings-form-section">
+        <label class="savings-form-label">Long-term Goal (Optional)</label>
+        <div class="savings-form-row">
+          <input type="text" id="savingsGoalNameInput" class="savings-input" placeholder="e.g., Vacation, Emergency Fund">
+        </div>
+        <div class="savings-form-row two-col">
+          <div>
+            <label class="savings-form-sublabel">Target Amount</label>
+            <input type="number" id="savingsGoalTargetInput" class="savings-input" placeholder="0">
+          </div>
+          <div>
+            <label class="savings-form-sublabel">Target Date</label>
+            <input type="month" id="savingsGoalDeadlineInput" class="savings-input">
+          </div>
+        </div>
+        <div class="savings-form-row">
+          <label class="savings-form-sublabel">Amount Saved So Far</label>
+          <input type="number" id="savingsGoalSavedInput" class="savings-input" placeholder="0">
+        </div>
+      </div>
+    </div>
+    <div class="savings-modal-footer">
+      <button class="savings-btn-secondary" id="savingsClearBtn">Clear Goal</button>
+      <button class="savings-btn-primary" id="savingsSaveBtn">Save</button>
     </div>
   </div>
 </div>
@@ -249,12 +330,16 @@ body, .dashboard-container {
   height: fit-content !important;
 }
 
-/* Chart placement when enabled (desktop) */
-#budgetView.show-expense-chart .donut-chart-card {
-  grid-column: 1 / 2 !important;
-  grid-row: 1 !important;
-  align-self: start !important;
+/* Left Stack - Savings + Expense Breakdown */
+.dashboard-left-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+  align-self: start;
 }
+
+/* Chart placement when enabled (desktop) - handled in savings section */
 
 #budgetView.show-expense-chart .budget-data-card {
   grid-column: 2 / 3 !important;
@@ -528,6 +613,195 @@ body.dark-mode .chart-container .chart-label {
   border-bottom: none;
   border-radius: 8px 8px 0 0;
   box-shadow: 0 4px 12px rgba(88, 71, 178, 0.15);
+}
+
+/* ======================
+   SAVINGS CARD
+   ====================== */
+.savings-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+/* ======================
+   SAVINGS & CHART GRID POSITIONING
+   ====================== */
+
+/* 3-COLUMN LAYOUT (show-expense-chart enabled) */
+#budgetView.show-expense-chart .dashboard-left-stack {
+  grid-column: 1 / 2 !important;
+  grid-row: 1 !important;
+  align-self: start !important;
+}
+
+/* 2-COLUMN LAYOUT (no expense chart class - hide chart and savings goes below budget) */
+#budgetView:not(.show-expense-chart) .dashboard-left-stack {
+  grid-column: 1 / 2 !important;
+  grid-row: 2 !important;
+  align-self: start !important;
+}
+
+#budgetView:not(.show-expense-chart) .donut-chart-card {
+  display: none !important;
+}
+
+.savings-header {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #ffffff;
+  padding: 14px 20px;
+  margin: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-radius: 8px 8px 0 0;
+}
+
+.savings-header h3 {
+  margin: 0;
+  font-size: 15px;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+}
+
+.savings-settings-btn {
+  background: rgba(255,255,255,0.2);
+  border: none;
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.savings-settings-btn:hover {
+  background: rgba(255,255,255,0.3);
+}
+
+.savings-settings-btn i {
+  color: #fff;
+  font-size: 18px;
+}
+
+.savings-monthly,
+.savings-longterm {
+  padding: 16px 20px;
+  background: #fff;
+}
+
+.savings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.savings-label {
+  font-weight: 600;
+  color: #334155;
+  font-size: 14px;
+}
+
+.savings-values {
+  color: #64748b;
+  font-size: 14px;
+}
+
+.savings-values #savingsMonthActual,
+.savings-values #savingsGoalActual {
+  color: #10b981;
+  font-weight: 600;
+}
+
+.savings-separator {
+  color: #94a3b8;
+  margin: 0 2px;
+}
+
+.savings-percent {
+  font-weight: 700;
+  color: #10b981;
+  font-size: 14px;
+  min-width: 45px;
+  text-align: right;
+}
+
+.savings-progress-bar {
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.savings-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.savings-divider {
+  height: 1px;
+  background: #e2e8f0;
+  margin: 0 0 16px 0;
+}
+
+.savings-longterm {
+  padding-top: 0;
+}
+
+.savings-longterm .savings-progress-bar {
+  background: #e2e8f0;
+}
+
+.savings-longterm .savings-progress-fill {
+  background: linear-gradient(90deg, #6366f1 0%, #818cf8 100%);
+}
+
+.savings-longterm .savings-percent {
+  color: #6366f1;
+}
+
+.savings-deadline {
+  text-align: right;
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 6px;
+}
+
+/* Dark mode savings card */
+body.dark-mode .savings-card {
+  background: #1e293b;
+}
+
+body.dark-mode .savings-monthly,
+body.dark-mode .savings-longterm {
+  background: #1e293b;
+}
+
+body.dark-mode .savings-label {
+  color: #e2e8f0;
+}
+
+body.dark-mode .savings-values {
+  color: #94a3b8;
+}
+
+body.dark-mode .savings-separator {
+  color: #64748b;
+}
+
+body.dark-mode .savings-progress-bar {
+  background: #334155;
+}
+
+body.dark-mode .savings-divider {
+  background: #334155;
+}
+
+body.dark-mode .savings-deadline {
+  color: #64748b;
 }
 
 /* ======================
@@ -1141,6 +1415,11 @@ body.dark-mode .subscription-list-card {
     grid-row: 4 !important;
   }
 
+  .dashboard-left-stack {
+    grid-column: 1 / 2 !important;
+    grid-row: 2 !important;
+  }
+
 }
 
 /* Small screens - 1 column */
@@ -1152,7 +1431,8 @@ body.dark-mode .subscription-list-card {
   
   .col-left,
   .budget-data-card,
-  .col-right {
+  .col-right,
+  .dashboard-left-stack {
     grid-column: 1 / 2 !important;
     grid-row: auto !important;
   }
@@ -1220,6 +1500,11 @@ body.dark-mode .subscription-list-card {
   #budgetView .pie-chart-container,
   #budgetView .donut-chart-container {
     order: 3 !important;
+  }
+
+  #budgetView .dashboard-left-stack {
+    order: 3 !important;
+    width: 100% !important;
   }
 
   #budgetView .col-left,
@@ -1556,6 +1841,246 @@ body.dark-mode .clickable-subscription-card::after {
 body.dark-mode .clickable-subscription-card:hover::after {
   color: #9d6bff;
 }
+
+/* ======================
+   SAVINGS SETTINGS MODAL
+   ====================== */
+.savings-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.savings-modal-backdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(4px);
+}
+
+.savings-modal-content {
+  position: relative;
+  background: #fff;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 420px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  animation: savingsModalIn 0.2s ease-out;
+}
+
+@keyframes savingsModalIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.savings-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.savings-modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.savings-modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+  border-radius: 6px;
+  transition: all 0.15s;
+}
+
+.savings-modal-close:hover {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.savings-modal-body {
+  padding: 24px;
+}
+
+.savings-form-section {
+  margin-bottom: 20px;
+}
+
+.savings-form-section:last-child {
+  margin-bottom: 0;
+}
+
+.savings-form-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 12px;
+}
+
+.savings-form-sublabel {
+  display: block;
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 6px;
+}
+
+.savings-form-row {
+  margin-bottom: 16px;
+}
+
+.savings-form-row:last-child {
+  margin-bottom: 0;
+}
+
+.savings-form-row.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.savings-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #334155;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  box-sizing: border-box;
+}
+
+.savings-input:focus {
+  outline: none;
+  border-color: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+}
+
+.savings-input::placeholder {
+  color: #94a3b8;
+}
+
+.savings-modal-footer {
+  display: flex;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 0 0 16px 16px;
+}
+
+.savings-btn-primary,
+.savings-btn-secondary {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.savings-btn-primary {
+  background: #10b981;
+  color: #fff;
+  border: none;
+}
+
+.savings-btn-primary:hover {
+  background: #059669;
+}
+
+.savings-btn-secondary {
+  background: #fff;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+}
+
+.savings-btn-secondary:hover {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+/* Dark mode modal */
+body.dark-mode .savings-modal-content {
+  background: #1e293b;
+}
+
+body.dark-mode .savings-modal-header {
+  border-bottom-color: #334155;
+}
+
+body.dark-mode .savings-modal-header h3 {
+  color: #f1f5f9;
+}
+
+body.dark-mode .savings-modal-close {
+  color: #64748b;
+}
+
+body.dark-mode .savings-modal-close:hover {
+  background: #334155;
+  color: #f1f5f9;
+}
+
+body.dark-mode .savings-form-label {
+  color: #e2e8f0;
+}
+
+body.dark-mode .savings-form-sublabel {
+  color: #94a3b8;
+}
+
+body.dark-mode .savings-input {
+  background: #334155;
+  border-color: #475569;
+  color: #f1f5f9;
+}
+
+body.dark-mode .savings-input:focus {
+  border-color: #10b981;
+}
+
+body.dark-mode .savings-input::placeholder {
+  color: #64748b;
+}
+
+body.dark-mode .savings-modal-footer {
+  background: #0f172a;
+  border-top-color: #334155;
+}
+
+body.dark-mode .savings-btn-secondary {
+  background: #334155;
+  border-color: #475569;
+  color: #94a3b8;
+}
+
+body.dark-mode .savings-btn-secondary:hover {
+  background: #475569;
+  color: #f1f5f9;
+}
 </style>
 
 <script>
@@ -1587,4 +2112,124 @@ function navigateToSubscriptions() {
     }
   }
 }
+
+// Savings Settings Modal
+(function() {
+  // Wait for DOM to be ready
+  function initSavingsModal() {
+    const settingsBtn = document.getElementById('savingsSettingsBtn');
+    const modal = document.getElementById('savingsSettingsModal');
+    const closeBtn = document.getElementById('savingsModalClose');
+    const backdrop = modal?.querySelector('.savings-modal-backdrop');
+    const saveBtn = document.getElementById('savingsSaveBtn');
+    const clearBtn = document.getElementById('savingsClearBtn');
+
+    if (!settingsBtn || !modal) return;
+
+    // Open modal
+    settingsBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      openSavingsModal();
+    });
+
+    // Close modal
+    closeBtn?.addEventListener('click', closeSavingsModal);
+    backdrop?.addEventListener('click', closeSavingsModal);
+
+    // Save button
+    saveBtn?.addEventListener('click', function() {
+      saveSavingsSettings();
+      closeSavingsModal();
+    });
+
+    // Clear button
+    clearBtn?.addEventListener('click', function() {
+      clearSavingsGoal();
+      closeSavingsModal();
+    });
+
+    // ESC to close
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && modal.style.display !== 'none') {
+        closeSavingsModal();
+      }
+    });
+  }
+
+  function openSavingsModal() {
+    const modal = document.getElementById('savingsSettingsModal');
+    if (!modal) return;
+
+    // Load existing values
+    const goals = window.getSavingsGoals ? window.getSavingsGoals() : null;
+
+    document.getElementById('savingsGoalNameInput').value = goals?.longtermName || '';
+    document.getElementById('savingsGoalTargetInput').value = goals?.longtermTarget || '';
+    document.getElementById('savingsGoalDeadlineInput').value = goals?.longtermDeadline || '';
+    document.getElementById('savingsGoalSavedInput').value = goals?.longtermSaved || '';
+
+    modal.style.display = 'flex';
+  }
+
+  function closeSavingsModal() {
+    const modal = document.getElementById('savingsSettingsModal');
+    if (modal) modal.style.display = 'none';
+  }
+
+  function saveSavingsSettings() {
+    const goals = {
+      longtermName: document.getElementById('savingsGoalNameInput').value.trim(),
+      longtermTarget: parseFloat(document.getElementById('savingsGoalTargetInput').value) || 0,
+      longtermDeadline: document.getElementById('savingsGoalDeadlineInput').value,
+      longtermSaved: parseFloat(document.getElementById('savingsGoalSavedInput').value) || 0
+    };
+
+    if (window.saveSavingsGoals) {
+      window.saveSavingsGoals(goals);
+    }
+
+    // Just update the savings card UI directly - no need for full dashboard refresh
+    if (window.SimBudget && SimBudget._currentBudgetData) {
+      updateSavingsCard(SimBudget._currentBudgetData);
+    }
+  }
+
+  function clearSavingsGoal() {
+    const goals = {
+      longtermName: '',
+      longtermTarget: 0,
+      longtermDeadline: '',
+      longtermSaved: 0
+    };
+
+    if (window.saveSavingsGoals) {
+      window.saveSavingsGoals(goals);
+    }
+
+    // Just update the savings card UI directly - no need for full dashboard refresh
+    if (window.SimBudget && SimBudget._currentBudgetData) {
+      updateSavingsCard(SimBudget._currentBudgetData);
+    }
+  }
+
+  // Make updateSavingsCard available for direct calls
+  function updateSavingsCard(data) {
+    if (window.updateSavingsCard) {
+      window.updateSavingsCard(data);
+    } else if (typeof SimBudget !== 'undefined' && SimBudget._currentBudgetData) {
+      // Fallback - trigger the function from dashboard.js
+      const event = new CustomEvent('savings-card-update', { detail: data });
+      document.dispatchEvent(event);
+    }
+  }
+
+  // Initialize when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initSavingsModal);
+  } else {
+    // DOM already loaded, wait a tick for other scripts
+    setTimeout(initSavingsModal, 100);
+  }
+})();
 </script>
