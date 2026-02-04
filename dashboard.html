@@ -136,9 +136,6 @@
             <h3 data-translate="savings">Savings</h3>
             <button class="savings-help-btn" id="savingsHelpBtn" title="How savings works">?</button>
           </div>
-          <button class="savings-settings-btn" id="savingsSettingsBtn" title="Add savings goal">
-            <i class="material-icons">add</i>
-          </button>
         </div>
 
         <div class="savings-monthly">
@@ -178,66 +175,6 @@
           </div>
         </div>
       </div>
-    </div>
-  </div>
-</div>
-
-<!-- Savings Settings Modal -->
-<div id="savingsSettingsModal" class="savings-modal" style="display: none;">
-  <div class="savings-modal-backdrop"></div>
-  <div class="savings-modal-content">
-    <div class="savings-modal-header">
-      <h3>Long-term Saving Goal</h3>
-      <button class="savings-modal-close" id="savingsModalClose">×</button>
-    </div>
-    <div class="savings-modal-body">
-      <div class="savings-form-section">
-        <div class="savings-form-row two-col">
-          <div>
-            <label class="savings-form-sublabel">Goal name</label>
-            <input type="text" id="savingsGoalNameInput" class="savings-input" placeholder="e.g., Vacation, Emergency Fund">
-          </div>
-          <div>
-            <label class="savings-form-sublabel">Target Amount</label>
-            <input type="number" id="savingsGoalTargetInput" class="savings-input" placeholder="0">
-          </div>
-        </div>
-        <div class="savings-form-row two-col">
-          <div>
-            <label class="savings-form-sublabel">Goal type</label>
-            <select id="savingsGoalTypeInput" class="savings-input">
-              <option value="savings">Savings goal</option>
-              <option value="debt">Debt payoff goal</option>
-            </select>
-          </div>
-          <div>
-            <label class="savings-form-sublabel">Track account</label>
-            <select id="savingsGoalAccountInput" class="savings-input"></select>
-          </div>
-        </div>
-        <div class="savings-form-row two-col">
-          <div>
-            <label class="savings-form-sublabel">Start Month</label>
-            <input type="month" id="savingsGoalStartInput" class="savings-input">
-          </div>
-          <div>
-            <label class="savings-form-sublabel">End Month</label>
-            <input type="month" id="savingsGoalEndInput" class="savings-input">
-          </div>
-        </div>
-        <div class="savings-form-row two-col">
-          <div>
-            <label class="savings-form-sublabel">Starting Amount</label>
-            <input type="number" id="savingsGoalSavedInput" class="savings-input" placeholder="0">
-          </div>
-          <div></div>
-        </div>
-      </div>
-    </div>
-    <div class="savings-modal-footer">
-      <button class="savings-btn-secondary" id="savingsClearBtn">Clear Goal</button>
-      <button class="savings-btn-secondary" id="savingsCancelBtn">Cancel</button>
-      <button class="savings-btn-primary" id="savingsSaveBtn">Save</button>
     </div>
   </div>
 </div>
@@ -942,6 +879,79 @@ body.dark-mode .chart-container .chart-label {
   margin-top: 6px;
 }
 
+/* Goal status badges */
+.savings-status {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.savings-status-active {
+  background: rgba(16, 185, 129, 0.15);
+  color: #059669;
+}
+
+.savings-status-upcoming {
+  background: rgba(99, 102, 241, 0.15);
+  color: #4f46e5;
+}
+
+.savings-status-achieved {
+  background: rgba(16, 185, 129, 0.2);
+  color: #047857;
+}
+
+.savings-status-expired {
+  background: rgba(239, 68, 68, 0.15);
+  color: #dc2626;
+}
+
+/* Progress bar status colors */
+.savings-progress-fill.savings-status-active {
+  background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
+}
+
+.savings-progress-fill.savings-status-upcoming {
+  background: linear-gradient(90deg, #6366f1 0%, #818cf8 100%);
+}
+
+.savings-progress-fill.savings-status-achieved {
+  background: linear-gradient(90deg, #059669 0%, #10b981 100%);
+}
+
+.savings-progress-fill.savings-status-expired {
+  background: linear-gradient(90deg, #ef4444 0%, #f87171 100%);
+}
+
+/* Progress bar container status colors */
+.savings-progress-bar.savings-status-achieved {
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.savings-progress-bar.savings-status-expired {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* Percent text status colors */
+.savings-percent.savings-status-active {
+  color: #10b981;
+}
+
+.savings-percent.savings-status-upcoming {
+  color: #6366f1;
+}
+
+.savings-percent.savings-status-achieved {
+  color: #059669;
+}
+
+.savings-percent.savings-status-expired {
+  color: #dc2626;
+}
+
 /* Dark mode savings card */
 body.dark-mode .savings-card {
   background: #1e293b;
@@ -974,6 +984,51 @@ body.dark-mode .savings-divider {
 
 body.dark-mode .savings-deadline {
   color: #64748b;
+}
+
+/* Dark mode status badges */
+body.dark-mode .savings-status-active {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+}
+
+body.dark-mode .savings-status-upcoming {
+  background: rgba(99, 102, 241, 0.2);
+  color: #818cf8;
+}
+
+body.dark-mode .savings-status-achieved {
+  background: rgba(16, 185, 129, 0.25);
+  color: #6ee7b7;
+}
+
+body.dark-mode .savings-status-expired {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+body.dark-mode .savings-percent.savings-status-active {
+  color: #34d399;
+}
+
+body.dark-mode .savings-percent.savings-status-upcoming {
+  color: #818cf8;
+}
+
+body.dark-mode .savings-percent.savings-status-achieved {
+  color: #6ee7b7;
+}
+
+body.dark-mode .savings-percent.savings-status-expired {
+  color: #f87171;
+}
+
+body.dark-mode .savings-progress-bar.savings-status-achieved {
+  background: rgba(16, 185, 129, 0.15);
+}
+
+body.dark-mode .savings-progress-bar.savings-status-expired {
+  background: rgba(239, 68, 68, 0.15);
 }
 
 /* ======================
@@ -1953,251 +2008,6 @@ body.dark-mode .clickable-subscription-card:hover::after {
   color: #9d6bff;
 }
 
-/* ======================
-   SAVINGS SETTINGS MODAL
-   ====================== */
-.savings-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 10000;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.savings-modal-backdrop {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(15, 23, 42, 0.5);
-  backdrop-filter: blur(4px);
-}
-
-.savings-modal-content {
-  position: relative;
-  background: #fff;
-  border-radius: 16px;
-  width: 90%;
-  max-width: 420px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
-  animation: savingsModalIn 0.2s ease-out;
-}
-
-/* Remove calendar icon for month inputs */
-.savings-modal-content input[type="month"]::-webkit-calendar-picker-indicator {
-  opacity: 0;
-  display: none;
-}
-
-@keyframes savingsModalIn {
-  from {
-    opacity: 0;
-    transform: scale(0.95) translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-}
-
-.savings-modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 24px;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.savings-modal-header h3 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: #1e293b;
-}
-
-.savings-modal-close {
-  background: none;
-  border: none;
-  font-size: 24px;
-  color: #94a3b8;
-  cursor: pointer;
-  padding: 4px;
-  line-height: 1;
-  border-radius: 6px;
-  transition: all 0.15s;
-}
-
-.savings-modal-close:hover {
-  background: #f1f5f9;
-  color: #475569;
-}
-
-.savings-modal-body {
-  padding: 24px;
-}
-
-.savings-form-section {
-  margin-bottom: 20px;
-}
-
-.savings-form-section:last-child {
-  margin-bottom: 0;
-}
-
-.savings-form-label {
-  display: block;
-  font-size: 14px;
-  font-weight: 600;
-  color: #334155;
-  margin-bottom: 12px;
-}
-
-.savings-form-sublabel {
-  display: block;
-  font-size: 12px;
-  color: #64748b;
-  margin-bottom: 6px;
-}
-
-.savings-form-row {
-  margin-bottom: 16px;
-}
-
-.savings-form-row:last-child {
-  margin-bottom: 0;
-}
-
-.savings-form-row.two-col {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.savings-input {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 14px;
-  color: #334155;
-  transition: border-color 0.15s, box-shadow 0.15s;
-  box-sizing: border-box;
-}
-
-.savings-input:focus {
-  outline: none;
-  border-color: #10b981;
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
-}
-
-.savings-input::placeholder {
-  color: #94a3b8;
-}
-
-.savings-modal-footer {
-  display: flex;
-  justify-content: space-between;
-  padding: 16px 24px;
-  border-top: 1px solid #e2e8f0;
-  background: #f8fafc;
-  border-radius: 0 0 16px 16px;
-}
-
-.savings-btn-primary,
-.savings-btn-secondary {
-  padding: 10px 20px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.savings-btn-primary {
-  background: #10b981;
-  color: #fff;
-  border: none;
-}
-
-.savings-btn-primary:hover {
-  background: #059669;
-}
-
-.savings-btn-secondary {
-  background: #fff;
-  color: #64748b;
-  border: 1px solid #e2e8f0;
-}
-
-.savings-btn-secondary:hover {
-  background: #f1f5f9;
-  color: #475569;
-}
-
-/* Dark mode modal */
-body.dark-mode .savings-modal-content {
-  background: #1e293b;
-}
-
-body.dark-mode .savings-modal-header {
-  border-bottom-color: #334155;
-}
-
-body.dark-mode .savings-modal-header h3 {
-  color: #f1f5f9;
-}
-
-body.dark-mode .savings-modal-close {
-  color: #64748b;
-}
-
-body.dark-mode .savings-modal-close:hover {
-  background: #334155;
-  color: #f1f5f9;
-}
-
-body.dark-mode .savings-form-label {
-  color: #e2e8f0;
-}
-
-body.dark-mode .savings-form-sublabel {
-  color: #94a3b8;
-}
-
-body.dark-mode .savings-input {
-  background: #334155;
-  border-color: #475569;
-  color: #f1f5f9;
-}
-
-body.dark-mode .savings-input:focus {
-  border-color: #10b981;
-}
-
-body.dark-mode .savings-input::placeholder {
-  color: #64748b;
-}
-
-body.dark-mode .savings-modal-footer {
-  background: #0f172a;
-  border-top-color: #334155;
-}
-
-body.dark-mode .savings-btn-secondary {
-  background: #334155;
-  border-color: #475569;
-  color: #94a3b8;
-}
-
-body.dark-mode .savings-btn-secondary:hover {
-  background: #475569;
-  color: #f1f5f9;
-}
 </style>
 
 <script>
@@ -2230,216 +2040,4 @@ function navigateToSubscriptions() {
   }
 }
 
-// Savings Settings Modal
-(function() {
-  // Wait for DOM to be ready
-  function initSavingsModal() {
-    const settingsBtn = document.getElementById('savingsSettingsBtn');
-    const modal = document.getElementById('savingsSettingsModal');
-    const closeBtn = document.getElementById('savingsModalClose');
-    const backdrop = modal?.querySelector('.savings-modal-backdrop');
-    const saveBtn = document.getElementById('savingsSaveBtn');
-    const clearBtn = document.getElementById('savingsClearBtn');
-    const cancelBtn = document.getElementById('savingsCancelBtn');
-    const typeInput = document.getElementById('savingsGoalTypeInput');
-    const accountInput = document.getElementById('savingsGoalAccountInput');
-
-    if (!settingsBtn || !modal) return;
-
-    // Open modal
-    settingsBtn.addEventListener('click', function(e) {
-      e.preventDefault();
-      e.stopPropagation();
-      openSavingsModal();
-    });
-
-    // Close modal
-    closeBtn?.addEventListener('click', closeSavingsModal);
-    backdrop?.addEventListener('click', closeSavingsModal);
-
-    // Save button
-    saveBtn?.addEventListener('click', function() {
-      saveSavingsSettings();
-      closeSavingsModal();
-    });
-
-    // Clear button
-    clearBtn?.addEventListener('click', function() {
-      clearSavingsGoal();
-      closeSavingsModal();
-    });
-
-    // Cancel button
-    cancelBtn?.addEventListener('click', function() {
-      closeSavingsModal();
-    });
-
-    typeInput?.addEventListener('change', function() {
-      populateAccountOptions();
-      loadSelectedGoal();
-    });
-
-    accountInput?.addEventListener('change', function() {
-      loadSelectedGoal();
-    });
-
-    // ESC to close
-    document.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape' && modal.style.display !== 'none') {
-        closeSavingsModal();
-      }
-    });
-  }
-
-  function openSavingsModal() {
-    const modal = document.getElementById('savingsSettingsModal');
-    if (!modal) return;
-
-    populateAccountOptions();
-    loadSelectedGoal();
-
-    modal.style.display = 'flex';
-  }
-
-  function closeSavingsModal() {
-    const modal = document.getElementById('savingsSettingsModal');
-    if (modal) modal.style.display = 'none';
-  }
-
-  function saveSavingsSettings() {
-    const typeInput = document.getElementById('savingsGoalTypeInput');
-    const accountInput = document.getElementById('savingsGoalAccountInput');
-    const goalType = typeInput?.value || 'savings';
-    const accountName = accountInput?.value || '';
-    const accountAsset = goalType === 'debt' ? 'Debts' : 'Liquid Assets';
-
-    if (!accountName) {
-      return;
-    }
-
-    const goal = {
-      id: `${goalType}:${accountName}`,
-      type: goalType,
-      accountAsset: accountAsset,
-      accountName: accountName,
-      longtermName: document.getElementById('savingsGoalNameInput').value.trim(),
-      longtermTarget: parseFloat(document.getElementById('savingsGoalTargetInput').value) || 0,
-      longtermStart: document.getElementById('savingsGoalStartInput').value,
-      longtermEnd: document.getElementById('savingsGoalEndInput').value,
-      longtermSaved: parseFloat(document.getElementById('savingsGoalSavedInput').value) || 0
-    };
-
-    if (window.saveSavingsGoals) {
-      const existing = window.getSavingsGoals ? window.getSavingsGoals() : { goals: [] };
-      const goals = Array.isArray(existing?.goals) ? existing.goals.slice() : [];
-      const index = goals.findIndex(g => g.id === goal.id);
-      if (index >= 0) {
-        goals[index] = goal;
-      } else {
-        goals.push(goal);
-      }
-      window.saveSavingsGoals({ goals: goals });
-    }
-
-    // Just update the savings card UI directly - no need for full dashboard refresh
-    if (window.SimBudget && SimBudget._currentBudgetData) {
-      updateSavingsCard(SimBudget._currentBudgetData);
-    }
-  }
-
-  function clearSavingsGoal() {
-    const typeInput = document.getElementById('savingsGoalTypeInput');
-    const accountInput = document.getElementById('savingsGoalAccountInput');
-    const goalType = typeInput?.value || 'savings';
-    const accountName = accountInput?.value || '';
-    if (!accountName) return;
-
-    if (window.saveSavingsGoals) {
-      const existing = window.getSavingsGoals ? window.getSavingsGoals() : { goals: [] };
-      const goals = Array.isArray(existing?.goals) ? existing.goals.slice() : [];
-      const id = `${goalType}:${accountName}`;
-      const nextGoals = goals.filter(g => g.id !== id);
-      window.saveSavingsGoals({ goals: nextGoals });
-    }
-
-    // Just update the savings card UI directly - no need for full dashboard refresh
-    if (window.SimBudget && SimBudget._currentBudgetData) {
-      updateSavingsCard(SimBudget._currentBudgetData);
-    }
-  }
-
-  function getNetWorthAccountsByType(goalType) {
-    if (!window.CacheManager || typeof CacheManager.getNetWorthWithTimestamp !== 'function') {
-      return [];
-    }
-    const cached = CacheManager.getNetWorthWithTimestamp();
-    const entries = cached && Array.isArray(cached.entries) ? cached.entries : [];
-
-    const viewMonth = window._currentMonth !== undefined ? window._currentMonth : new Date().getMonth();
-    const viewYear = window._currentYear !== undefined ? window._currentYear : new Date().getFullYear();
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const targetDate = `${monthNames[viewMonth]} ${viewYear}`;
-    const assetKey = goalType === 'debt' ? 'Debts' : 'Liquid Assets';
-
-    const accounts = entries
-      .filter(entry => entry && entry.asset === assetKey && entry.date === targetDate)
-      .map(entry => entry.name)
-      .filter(Boolean);
-
-    return Array.from(new Set(accounts)).sort((a, b) => a.localeCompare(b));
-  }
-
-  function populateAccountOptions() {
-    const typeInput = document.getElementById('savingsGoalTypeInput');
-    const accountInput = document.getElementById('savingsGoalAccountInput');
-    if (!typeInput || !accountInput) return;
-
-    const goalType = typeInput.value || 'savings';
-    const accounts = getNetWorthAccountsByType(goalType);
-    const previous = accountInput.value;
-
-    accountInput.innerHTML = accounts.map(name => `<option value="${name}">${name}</option>`).join('');
-
-    if (previous && accounts.includes(previous)) {
-      accountInput.value = previous;
-    }
-  }
-
-  function loadSelectedGoal() {
-    const typeInput = document.getElementById('savingsGoalTypeInput');
-    const accountInput = document.getElementById('savingsGoalAccountInput');
-    const goalType = typeInput?.value || 'savings';
-    const accountName = accountInput?.value || '';
-
-    const existing = window.getSavingsGoals ? window.getSavingsGoals() : { goals: [] };
-    const goals = Array.isArray(existing?.goals) ? existing.goals : [];
-    const goal = goals.find(g => g.type === goalType && g.accountName === accountName);
-
-    document.getElementById('savingsGoalNameInput').value = goal?.longtermName || '';
-    document.getElementById('savingsGoalTargetInput').value = goal?.longtermTarget || '';
-    document.getElementById('savingsGoalStartInput').value = goal?.longtermStart || '';
-    document.getElementById('savingsGoalEndInput').value = goal?.longtermEnd || '';
-    document.getElementById('savingsGoalSavedInput').value = goal?.longtermSaved || '';
-  }
-
-  // Make updateSavingsCard available for direct calls
-  function updateSavingsCard(data) {
-    if (window.updateSavingsCard) {
-      window.updateSavingsCard(data);
-    } else if (typeof SimBudget !== 'undefined' && SimBudget._currentBudgetData) {
-      // Fallback - trigger the function from dashboard.js
-      const event = new CustomEvent('savings-card-update', { detail: data });
-      document.dispatchEvent(event);
-    }
-  }
-
-  // Initialize when DOM is ready
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initSavingsModal);
-  } else {
-    // DOM already loaded, wait a tick for other scripts
-    setTimeout(initSavingsModal, 100);
-  }
-})();
 </script>

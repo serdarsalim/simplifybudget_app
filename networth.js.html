@@ -460,7 +460,7 @@ function init(containerId, cachedData) {
           hideLoadingIndicator();
           
           if (window.CacheManager && typeof CacheManager.setNetWorthWithTimestamp === 'function') {
-            CacheManager.setNetWorthWithTimestamp(cleanedEntries, result.timestamp);
+            CacheManager.setNetWorthWithTimestamp({ entries: cleanedEntries, goals: result.goals }, result.timestamp);
           }
         } else {
           console.error('NetWorthManager: Invalid server response:', result);
@@ -3906,12 +3906,15 @@ function init(containerId, cachedData) {
     if (!statusEl) return { status: 'none', amount: currentAmount };
 
     const textEl = statusEl.querySelector('.nw-goal-status-text');
+    const isDebt = entry && entry.asset === 'Debts';
 
     // Remove all status classes
     statusEl.classList.remove('achieved', 'active', 'expired', 'upcoming', 'none');
 
     // If no target set, show no status
-    if (!target || target <= 0) {
+    // For debts, target 0 is valid (payoff goal)
+    const hasTarget = isDebt ? (target !== null && target !== undefined && target !== '') : (target && target > 0);
+    if (!hasTarget) {
       statusEl.classList.add('none');
       if (textEl) textEl.textContent = '—';
       return { status: 'none', amount: currentAmount };
@@ -3937,7 +3940,11 @@ function init(containerId, cachedData) {
       const historicalAmount = entry ? getHistoricalAmount(entry, end) : null;
       const amountAtEnd = historicalAmount !== null ? historicalAmount : currentAmount;
 
-      if (amountAtEnd >= target) {
+      // For debts: achieved if amount <= target (paid down)
+      // For savings: achieved if amount >= target
+      const achieved = isDebt ? (amountAtEnd <= target) : (amountAtEnd >= target);
+
+      if (achieved) {
         statusEl.classList.add('achieved');
         if (textEl) textEl.textContent = 'Achieved';
         return { status: 'achieved', amount: amountAtEnd, atDate: end };
@@ -3948,8 +3955,11 @@ function init(containerId, cachedData) {
       }
     }
 
-    // Check if achieved (current >= target)
-    if (currentAmount >= target) {
+    // Check if achieved
+    // For debts: achieved if amount <= target (paid down)
+    // For savings: achieved if amount >= target
+    const achieved = isDebt ? (currentAmount <= target) : (currentAmount >= target);
+    if (achieved) {
       statusEl.classList.add('achieved');
       if (textEl) textEl.textContent = 'Achieved';
       return { status: 'achieved', amount: currentAmount };
@@ -3976,11 +3986,14 @@ function init(containerId, cachedData) {
     const progressPercent = document.getElementById('goalProgressPercent');
     const progressFill = document.getElementById('goalProgressFill');
     const statusEl = document.getElementById('goalStatus');
+    const isDebt = entry && entry.asset === 'Debts';
 
     if (!progressRow) return;
 
-    // Hide if no target
-    if (!target || target <= 0) {
+    // Hide if no target set
+    // For debts, target 0 is valid (payoff goal)
+    const hasTarget = isDebt ? (target !== null && target !== undefined && target !== '') : (target && target > 0);
+    if (!hasTarget) {
       progressRow.classList.remove('visible');
       return;
     }
@@ -4006,7 +4019,33 @@ function init(containerId, cachedData) {
     }
 
     // Calculate percentage
-    const percent = Math.min(Math.round((displayAmount / target) * 100), 100);
+    let percent;
+    if (isDebt) {
+      // For debts: progress = how much paid off from start
+      // Get starting amount at goal start date
+      const hasStart = start && start.length > 0;
+      let startingAmount = displayAmount; // fallback to current
+      if (hasStart && entry) {
+        const historicalStart = getHistoricalAmount(entry, start);
+        if (historicalStart !== null) {
+          startingAmount = historicalStart;
+        }
+      }
+
+      // Progress = (startingAmount - currentAmount) / (startingAmount - target) * 100
+      // e.g., started at 1000, target 0, now at 200 → (1000-200)/(1000-0) = 80%
+      if (displayAmount <= target) {
+        percent = 100;
+      } else if (startingAmount <= target) {
+        percent = 0; // edge case: started below target already
+      } else {
+        const totalToPayOff = startingAmount - target;
+        const paidOff = startingAmount - displayAmount;
+        percent = Math.max(0, Math.min(100, Math.round((paidOff / totalToPayOff) * 100)));
+      }
+    } else {
+      percent = Math.min(Math.round((displayAmount / target) * 100), 100);
+    }
 
     // Update text
     if (progressText) {
@@ -4107,7 +4146,10 @@ function init(containerId, cachedData) {
                 if (result && result.success) {
                   // ✅ UPDATE CACHE WITH CURRENT TIMESTAMP
                   if (window.CacheManager && typeof CacheManager.setNetWorthWithTimestamp === 'function') {
-                    CacheManager.setNetWorthWithTimestamp(_netWorthData);
+                    const cached = CacheManager.getNetWorthWithTimestamp();
+                    const goals = cached && Array.isArray(cached.goals) ? cached.goals : [];
+                    const timestamp = result.timestamp || new Date().toISOString();
+                    CacheManager.setNetWorthWithTimestamp({ entries: _netWorthData.entries, goals: goals }, timestamp);
                   }
                 }
               });
@@ -4209,7 +4251,13 @@ function init(containerId, cachedData) {
       };
 
       const index = goals.findIndex(g => g.id === goalId);
-      if (nextGoal.target > 0) {
+      // For debts, target 0 is valid (payoff goal). For savings, target must be > 0
+      const isDebt = entry.asset === 'Debts';
+      const hasValidTarget = isDebt
+        ? (nextGoal.target !== null && nextGoal.target !== undefined && nextGoal.target !== '' && !isNaN(nextGoal.target))
+        : (nextGoal.target > 0);
+
+      if (hasValidTarget) {
         if (index >= 0) {
           goals[index] = nextGoal;
         } else {
@@ -4222,7 +4270,7 @@ function init(containerId, cachedData) {
       saveSavingsGoalsState({ goals });
     }
     
-    // Save and refresh
+    // Save goals + entries and refresh
     saveNetWorthEntries(_netWorthData.entries);
     renderNetWorthView();
     modal.style.display = 'none';
@@ -4231,22 +4279,30 @@ function init(containerId, cachedData) {
   }
 
   function getSavingsGoalsState() {
-    try {
-      const stored = localStorage.getItem('simbudget_savings_goals');
-      if (!stored) return { goals: [] };
-      const parsed = JSON.parse(stored);
-      return parsed && Array.isArray(parsed.goals) ? parsed : { goals: [] };
-    } catch (e) {
-      console.error('Error reading savings goals:', e);
-      return { goals: [] };
+    if (window.CacheManager && typeof CacheManager.getNetWorthWithTimestamp === 'function') {
+      const cached = CacheManager.getNetWorthWithTimestamp();
+      if (cached && Array.isArray(cached.goals)) {
+        return { goals: cached.goals };
+      }
     }
+    return { goals: [] };
   }
 
   function saveSavingsGoalsState(state) {
-    try {
-      localStorage.setItem('simbudget_savings_goals', JSON.stringify(state));
-    } catch (e) {
-      console.error('Error saving savings goals:', e);
+    const goals = Array.isArray(state?.goals) ? state.goals : [];
+
+    if (window.API && typeof API.saveNetWorthGoals === 'function') {
+      API.saveNetWorthGoals({ goals: goals }, function(result) {
+        if (window.CacheManager && typeof CacheManager.setNetWorthWithTimestamp === 'function') {
+          const cached = CacheManager.getNetWorthWithTimestamp();
+          const entries = cached && Array.isArray(cached.entries) ? cached.entries : _netWorthData.entries;
+          const timestamp = result && result.timestamp ? result.timestamp : new Date().toISOString();
+          CacheManager.setNetWorthWithTimestamp({ entries: entries, goals: goals }, timestamp);
+        }
+      }, function(error) {
+        console.error('NetWorthManager: Error saving goals:', error);
+        showMessage(getTranslation('error_saving_data') + error, 'error');
+      });
     }
   }
   
@@ -4378,8 +4434,10 @@ function init(containerId, cachedData) {
             if (result && result.success) {
               // ✅ UPDATE CACHE WITH CURRENT TIMESTAMP
               if (window.CacheManager && typeof CacheManager.setNetWorthWithTimestamp === 'function') {
-                const currentTimestamp = new Date().toISOString();
-                CacheManager.setNetWorthWithTimestamp(_netWorthData.entries, currentTimestamp);
+                const cached = CacheManager.getNetWorthWithTimestamp();
+                const goals = cached && Array.isArray(cached.goals) ? cached.goals : [];
+                const currentTimestamp = result.timestamp || new Date().toISOString();
+                CacheManager.setNetWorthWithTimestamp({ entries: _netWorthData.entries, goals: goals }, currentTimestamp);
               }
             }
           }, function(error) {
@@ -4416,8 +4474,10 @@ function init(containerId, cachedData) {
     
     // ✅ UPDATE CACHE WITH CURRENT TIMESTAMP
     if (window.CacheManager && typeof CacheManager.setNetWorthWithTimestamp === 'function') {
-      const currentTimestamp = new Date().toISOString();
-      CacheManager.setNetWorthWithTimestamp(_netWorthData.entries, currentTimestamp);
+      const cached = CacheManager.getNetWorthWithTimestamp();
+      const goals = cached && Array.isArray(cached.goals) ? cached.goals : [];
+      const currentTimestamp = result.timestamp || new Date().toISOString();
+      CacheManager.setNetWorthWithTimestamp({ entries: _netWorthData.entries, goals: goals }, currentTimestamp);
     }
       }
     }, function(error) {
@@ -4503,7 +4563,7 @@ function init(containerId, cachedData) {
     }
     
     if (window.CacheManager && typeof CacheManager.invalidate === 'function') {
-      CacheManager.invalidate('netWorthWithTimestamp');
+      CacheManager.invalidate('networth_with_timestamp');
     }
     
     showLoadingState();

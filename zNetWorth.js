@@ -55,6 +55,8 @@ function getNetWorthData() {
       return { success: false, error: "Net Worth sheet not found" };
     }
 
+    const timestamp = getNetWorthTimestamp_();
+
     // CHECK IF SHEET IS EMPTY FIRST
     const lastRow = netWorthSheet.getLastRow();
     
@@ -63,6 +65,8 @@ function getNetWorthData() {
       return {
         success: true,
         entries: [],
+        goals: getNetWorthGoalsFromDontedit_(),
+        timestamp: timestamp,
         meta: {
           totalRows: 0,
           processedRows: 0,
@@ -96,6 +100,8 @@ function getNetWorthData() {
       return {
         success: true,
         entries: [],
+        goals: getNetWorthGoalsFromDontedit_(),
+        timestamp: timestamp,
         meta: {
           totalRows: 0,
           processedRows: 0,
@@ -177,9 +183,13 @@ function getNetWorthData() {
     }
 
 
+    const goals = getNetWorthGoalsFromDontedit_();
+
     return {
       success: true,
       entries: entries,
+      goals: goals,
+      timestamp: timestamp,
       meta: {
         totalRows: dataRows.length,
         processedRows: processedCount,
@@ -195,6 +205,89 @@ function getNetWorthData() {
       success: false,
       error: error.toString()
     };
+  }
+}
+
+/**
+ * Read net worth goals from Dontedit K6
+ * @return {Array} Goals array
+ */
+function getNetWorthGoalsFromDontedit_() {
+  try {
+    const sheet = getBudgetSheet("Dontedit");
+    if (!sheet) return [];
+    const raw = sheet.getRange("K6").getValue();
+    if (!raw) return [];
+
+    let text = raw;
+    if (raw instanceof Date) {
+      return [];
+    }
+    if (typeof raw !== 'string') {
+      text = raw.toString();
+    }
+
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed)) return parsed;
+    if (parsed && Array.isArray(parsed.goals)) return parsed.goals;
+    return [];
+  } catch (error) {
+    Logger.log("Error reading net worth goals: " + error.toString());
+    return [];
+  }
+}
+
+/**
+ * Write net worth goals to Dontedit K6 and update J6 timestamp
+ * @param {Object|Array} payload - {goals:[...]} or goals array
+ * @return {Object} Result with timestamp
+ */
+function saveNetWorthGoals(payload) {
+  try {
+    const sheet = getBudgetSheet("Dontedit");
+    if (!sheet) {
+      return { success: false, error: "Dontedit sheet not found" };
+    }
+
+    const goalsArray = Array.isArray(payload)
+      ? payload
+      : (payload && Array.isArray(payload.goals) ? payload.goals : []);
+
+    sheet.getRange("K6").setValue(JSON.stringify({ goals: goalsArray }));
+
+    // Update timestamp in J6
+    updateDataTimestamp('netWorth');
+
+    const timestamp = getNetWorthTimestamp_();
+
+    return {
+      success: true,
+      goals: goalsArray,
+      timestamp: timestamp
+    };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Read net worth timestamp from Dontedit J6
+ * @return {string} ISO timestamp
+ */
+function getNetWorthTimestamp_() {
+  try {
+    const sheet = getBudgetSheet("Dontedit");
+    if (!sheet) return new Date().toISOString();
+    const value = sheet.getRange("J6").getValue();
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+    if (value) {
+      return value.toString();
+    }
+    return new Date().toISOString();
+  } catch (error) {
+    return new Date().toISOString();
   }
 }
 
@@ -307,6 +400,7 @@ function saveBatchNetWorth(entries) {
     
     // Update timestamp
     updateDataTimestamp('netWorth');
+    const timestamp = getNetWorthTimestamp_();
     
 
     // Prepare the list of entries to return for client-side update
@@ -342,7 +436,8 @@ function saveBatchNetWorth(entries) {
       updated: toUpdate.length,
       inserted: toInsert.length,
       total: toUpdate.length + toInsert.length,
-      entries: savedEntries
+      entries: savedEntries,
+      timestamp: timestamp
     };
 
   } catch (error) {
@@ -423,7 +518,8 @@ function clearNetWorthRow(identifier) {
       success: true,
       message: "Net worth entry cleared successfully",
       identifier: identifier,
-      rowIndex: rowToDelete
+      rowIndex: rowToDelete,
+      timestamp: timestamp
     };
     
   } catch (error) {
@@ -448,19 +544,7 @@ function getNetWorthWithTimestamp() {
 
     // Get timestamp from Dontedit J6
     if (!result.timestamp) {
-      const sheet = getBudgetSheet("Dontedit");
-      if (sheet) {
-        const value = sheet.getRange("J6").getValue();
-        if (value instanceof Date) {
-          result.timestamp = value.toISOString();
-        } else if (value) {
-          result.timestamp = value.toString();
-        } else {
-          result.timestamp = new Date().toISOString();
-        }
-      } else {
-        result.timestamp = new Date().toISOString();
-      }
+      result.timestamp = getNetWorthTimestamp_();
     }
 
     return result;

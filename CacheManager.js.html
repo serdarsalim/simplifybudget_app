@@ -1326,12 +1326,26 @@ function setCategoriesWithTimestamp(categories, timestamp) {
 
 /**
  * Set net worth data with timestamp in cache
- * @param {Array} entries - Net worth entries array
+ * @param {Array|Object} entriesOrData - Net worth entries array or {entries, goals}
  * @param {string} timestamp - Server timestamp
+ * @param {Array} goals - Optional goals array
  */
-setNetWorthWithTimestamp: function(entries, timestamp) {
+setNetWorthWithTimestamp: function(entriesOrData, timestamp, goals) {
+  let entries = [];
+  let goalList = Array.isArray(goals) ? goals : [];
+
+  if (Array.isArray(entriesOrData)) {
+    entries = entriesOrData;
+  } else if (entriesOrData && Array.isArray(entriesOrData.entries)) {
+    entries = entriesOrData.entries;
+    if (Array.isArray(entriesOrData.goals)) {
+      goalList = entriesOrData.goals;
+    }
+  }
+
   set('networth_with_timestamp', {
     entries: entries,
+    goals: goalList,
     timestamp: timestamp,
     cached_at: Date.now()
   }, { ttl: config.ttl.longLived });
@@ -1385,7 +1399,7 @@ loadNetWorthWithTimestamp: function() {
               const cachedTimestamp = new Date(cachedData.timestamp).getTime();
               
               if (serverTimestamp > cachedTimestamp) {
-                this.setNetWorthWithTimestamp(result.entries, result.timestamp);
+                this.setNetWorthWithTimestamp({ entries: result.entries, goals: result.goals }, result.timestamp);
                 resolve(result.entries);
               } else {
                 resolve(cachedData.entries);
@@ -1421,7 +1435,7 @@ fetchFreshNetWorthData: function() {
           if (result && result.success && result.entries) {
             
             // Cache the fresh data with timestamp
-            this.setNetWorthWithTimestamp(result.entries, result.timestamp);
+            this.setNetWorthWithTimestamp({ entries: result.entries, goals: result.goals }, result.timestamp);
             resolve(result.entries);
           } else {
             console.error('CacheManager: Invalid server response for net worth data:', result);
@@ -1454,7 +1468,9 @@ getNetWorth: function() {
  * @param {Array} entries - Net worth entries array
  */
 setNetWorth: function(entries) {
-  this.setNetWorthWithTimestamp(entries, new Date().toISOString());
+  const cached = this.getNetWorthWithTimestamp();
+  const goals = cached && Array.isArray(cached.goals) ? cached.goals : [];
+  this.setNetWorthWithTimestamp({ entries: entries, goals: goals }, new Date().toISOString());
 },
 
 updateNetWorthEntry: function(entry) {
@@ -1472,7 +1488,8 @@ updateNetWorthEntry: function(entry) {
   
   // FIX: Update timestamp to current date/time when making changes
   const newTimestamp = new Date().toISOString();
-  this.setNetWorthWithTimestamp(entries, newTimestamp);
+  const goals = Array.isArray(cachedData.goals) ? cachedData.goals : [];
+  this.setNetWorthWithTimestamp({ entries: entries, goals: goals }, newTimestamp);
   
 },
 
@@ -1488,7 +1505,8 @@ removeNetWorthEntry: function(entryId) {
   if (filteredEntries.length < originalLength) {
     // FIX: Update timestamp to current date/time when removing entries
     const newTimestamp = new Date().toISOString();
-    this.setNetWorthWithTimestamp(filteredEntries, newTimestamp);
+    const goals = Array.isArray(cachedData.goals) ? cachedData.goals : [];
+    this.setNetWorthWithTimestamp({ entries: filteredEntries, goals: goals }, newTimestamp);
     
     return true;
   }

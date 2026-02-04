@@ -1371,7 +1371,6 @@ function updateSavingsCard(data) {
 
   const viewMonth = window._currentMonth !== undefined ? window._currentMonth : new Date().getMonth();
   const viewYear = window._currentYear !== undefined ? window._currentYear : new Date().getFullYear();
-  const viewDate = new Date(viewYear, viewMonth, 1);
 
   const parseMonthInput = (value) => {
     if (!value) return null;
@@ -1386,22 +1385,143 @@ function updateSavingsCard(data) {
     return null;
   };
 
+  // Convert YYYY-MM to "MMM YYYY" format for net worth lookup
+  const formatMonthKey = (monthStr) => {
+    if (!monthStr) return null;
+    const date = parseMonthInput(monthStr);
+    if (!date) return null;
+    const monthNamesShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                             'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${monthNamesShort[date.getMonth()]} ${date.getFullYear()}`;
+  };
+
   const netWorthEntries = (window.CacheManager && CacheManager.getNetWorthWithTimestamp)
     ? (CacheManager.getNetWorthWithTimestamp()?.entries || [])
     : [];
   const monthNamesShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                            'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const netWorthDateKey = `${monthNamesShort[viewMonth]} ${viewYear}`;
+  const currentDateKey = `${monthNamesShort[viewMonth]} ${viewYear}`;
 
-  const activeGoals = goals.filter(goal => {
-    const target = goal?.target ?? goal?.longtermTarget ?? 0;
-    if (!goal || target <= 0) return false;
-    const endDate = parseMonthInput(goal.end || goal.longtermEnd || '');
-    if (endDate && viewDate > endDate) return false;
-    return true;
+  // Get current month key in YYYY-MM format for comparisons
+  const currentMonthKey = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}`;
+
+  // Helper to get historical amount from net worth entries
+  const getHistoricalAmount = (assetType, accountName, monthKey) => {
+    const dateKey = formatMonthKey(monthKey);
+    if (!dateKey) return null;
+    const entry = netWorthEntries.find(e => e && e.asset === assetType && e.name === accountName && e.date === dateKey);
+    return entry ? (parseFloat(entry.amount) || 0) : null;
+  };
+
+  // Calculate goal status
+  const calculateGoalStatus = (goal) => {
+    const accountAsset = goal.asset || goal.accountAsset || (goal.type === 'debt' ? 'Debts' : 'Liquid Assets');
+    const accountName = goal.account || goal.accountName || '';
+    const target = goal.target ?? goal.longtermTarget ?? 0;
+    const start = goal.start || goal.longtermStart || '';
+    const end = goal.end || goal.longtermEnd || '';
+    const isDebt = accountAsset === 'Debts';
+
+    // Get current balance
+    const currentEntry = netWorthEntries.find(e => e && e.asset === accountAsset && e.name === accountName && e.date === currentDateKey);
+    const currentBalance = currentEntry ? (parseFloat(currentEntry.amount) || 0) : 0;
+
+    // For debts, target can be 0 (payoff goal)
+    const hasValidTarget = isDebt
+      ? (target !== null && target !== undefined && target !== '' && !isNaN(target))
+      : (target > 0);
+
+    if (!hasValidTarget) {
+      return { status: 'none', amount: currentBalance, accountAsset, accountName, target, start, end, isDebt };
+    }
+
+    // Check if before start date
+    if (start && currentMonthKey < start) {
+      return { status: 'upcoming', amount: currentBalance, accountAsset, accountName, target, start, end, isDebt };
+    }
+
+    // Check if past end date - use historical amount
+    if (end && currentMonthKey > end) {
+      const historicalAmount = getHistoricalAmount(accountAsset, accountName, end);
+      const amountAtEnd = historicalAmount !== null ? historicalAmount : currentBalance;
+      const achieved = isDebt ? (amountAtEnd <= target) : (amountAtEnd >= target);
+
+      return {
+        status: achieved ? 'achieved' : 'expired',
+        amount: amountAtEnd,
+        amountAtDate: end,
+        accountAsset,
+        accountName,
+        target,
+        start,
+        end,
+        isDebt
+      };
+    }
+
+    // Check if achieved (within date range or no end date)
+    const achieved = isDebt ? (currentBalance <= target) : (currentBalance >= target);
+    if (achieved) {
+      return { status: 'achieved', amount: currentBalance, accountAsset, accountName, target, start, end, isDebt };
+    }
+
+    // Active goal
+    return { status: 'active', amount: currentBalance, accountAsset, accountName, target, start, end, isDebt };
+  };
+
+  // Calculate progress percentage
+  const calculateProgress = (goalInfo) => {
+    const { status, amount, target, start, isDebt, accountAsset, accountName } = goalInfo;
+
+    if (isDebt) {
+      // For debts: progress = how much paid off from start
+      let startingAmount = amount;
+      if (start) {
+        const historicalStart = getHistoricalAmount(accountAsset, accountName, start);
+        if (historicalStart !== null) {
+          startingAmount = historicalStart;
+        }
+      }
+
+      if (amount <= target) return 100;
+      if (startingAmount <= target) return 0;
+
+      const totalToPayOff = startingAmount - target;
+      const paidOff = startingAmount - amount;
+      return Math.max(0, Math.min(100, Math.round((paidOff / totalToPayOff) * 100)));
+    } else {
+      // For savings: progress = amount / target
+      return target > 0 ? Math.min(100, Math.round((amount / target) * 100)) : 0;
+    }
+  };
+
+  // Process all goals and calculate their status
+  const processedGoals = goals
+    .filter(goal => {
+      const target = goal?.target ?? goal?.longtermTarget ?? 0;
+      const accountAsset = goal?.asset || goal?.accountAsset || (goal?.type === 'debt' ? 'Debts' : 'Liquid Assets');
+      const isDebt = accountAsset === 'Debts';
+      // For debts, target 0 is valid; for savings, need target > 0
+      return isDebt ? (target !== null && target !== undefined && target !== '' && !isNaN(parseFloat(target))) : (target > 0);
+    })
+    .map(goal => {
+      const info = calculateGoalStatus(goal);
+      const percent = calculateProgress(info);
+      return { ...info, percent, originalGoal: goal };
+    });
+
+  // Filter to only show goals where the viewing month is within the goal's active period
+  // Goals should only show between their start and end months
+  const displayGoals = processedGoals.filter(g => {
+    // Hide goals that are past their end date (have amountAtDate means it's a historical lookup)
+    if (g.amountAtDate) return false;
+    // Hide upcoming goals (before start date)
+    if (g.status === 'upcoming') return false;
+    // Show active and achieved-within-range goals
+    return g.status === 'active' || g.status === 'achieved';
   });
 
-  if (activeGoals.length === 0) {
+  if (displayGoals.length === 0) {
     longtermSection.style.display = 'none';
     longtermList.innerHTML = '';
     return;
@@ -1410,22 +1530,45 @@ function updateSavingsCard(data) {
   longtermSection.style.display = 'block';
   longtermList.innerHTML = '';
 
-  activeGoals.forEach(goal => {
-    const accountAsset = goal.asset || goal.accountAsset || (goal.type === 'debt' ? 'Debts' : 'Liquid Assets');
-    const accountName = goal.account || goal.accountName || '';
-    const entry = netWorthEntries.find(e => e && e.asset === accountAsset && e.name === accountName && e.date === netWorthDateKey);
-    const accountBalance = entry ? (parseFloat(entry.amount) || 0) : 0;
+  // Sort: active first, then upcoming, then achieved
+  const statusOrder = { active: 0, upcoming: 1, achieved: 2, expired: 3, none: 4 };
+  displayGoals.sort((a, b) => (statusOrder[a.status] ?? 4) - (statusOrder[b.status] ?? 4));
 
-    let actualValue = 0;
-    if (goal.asset === 'Debts') {
-      actualValue = Math.max(0, (goal.target ?? 0) - accountBalance);
-    } else {
-      actualValue = Math.max(0, accountBalance);
+  displayGoals.forEach(goalInfo => {
+    const { status, amount, amountAtDate, accountName, target, end, percent, isDebt } = goalInfo;
+
+    // Format status badge
+    const statusClasses = {
+      active: 'savings-status-active',
+      upcoming: 'savings-status-upcoming',
+      achieved: 'savings-status-achieved',
+      expired: 'savings-status-expired'
+    };
+    const statusLabels = {
+      active: 'Active',
+      upcoming: 'Upcoming',
+      achieved: 'Achieved',
+      expired: 'Expired'
+    };
+    const statusClass = statusClasses[status] || '';
+    const statusLabel = statusLabels[status] || '';
+
+    // Format deadline with date label if showing historical amount
+    let deadlineDisplay = '';
+    if (end) {
+      const endDate = parseMonthInput(end);
+      if (endDate) {
+        const endLabel = `${monthNamesShort[endDate.getMonth()]} ${endDate.getFullYear()}`;
+        if (amountAtDate) {
+          deadlineDisplay = `at ${endLabel}`;
+        } else {
+          deadlineDisplay = `by ${endLabel}`;
+        }
+      }
     }
 
-    const targetAmount = goal.target ?? goal.longtermTarget ?? 0;
-    const percent = targetAmount > 0 ? Math.round((actualValue / targetAmount) * 100) : 0;
-    const deadlineText = goal.end || goal.longtermEnd || '';
+    // For debts, show amount remaining
+    const displayAmount = isDebt ? Math.max(0, amount) : amount;
 
     const item = document.createElement('div');
     item.className = 'savings-longterm-goal';
@@ -1433,17 +1576,20 @@ function updateSavingsCard(data) {
       <div class="savings-divider"></div>
       <div class="savings-row">
         <span class="savings-label">${accountName || 'Long-term Goal'}</span>
+        <span class="savings-status ${statusClass}">${statusLabel}</span>
+      </div>
+      <div class="savings-row savings-row-sub">
         <span class="savings-values">
-          <span>${Utils.formatCurrency(actualValue)}</span>
+          <span>${Utils.formatCurrency(displayAmount)}</span>
           <span class="savings-separator">/</span>
-          <span>${Utils.formatCurrency(targetAmount)}</span>
+          <span>${Utils.formatCurrency(target)}</span>
         </span>
-        <span class="savings-percent">${Math.min(100, Math.max(0, percent))}%</span>
+        <span class="savings-percent ${statusClass}">${percent}%</span>
       </div>
-      <div class="savings-progress-bar longterm">
-        <div class="savings-progress-fill" style="width: ${Math.min(100, Math.max(0, percent))}%"></div>
+      <div class="savings-progress-bar longterm ${statusClass}">
+        <div class="savings-progress-fill ${statusClass}" style="width: ${percent}%"></div>
       </div>
-      <div class="savings-deadline">${deadlineText}</div>
+      ${deadlineDisplay ? `<div class="savings-deadline">${deadlineDisplay}</div>` : ''}
     `;
     longtermList.appendChild(item);
   });
@@ -1665,29 +1811,12 @@ function makeSavingsGoalEditable() {
  */
 function getSavingsGoals() {
   try {
-    const stored = localStorage.getItem('simbudget_savings_goals');
-    if (!stored) return { goals: [] };
-    const parsed = JSON.parse(stored);
-    if (parsed && Array.isArray(parsed.goals)) {
-      return parsed;
+    if (window.CacheManager && typeof CacheManager.getNetWorthWithTimestamp === 'function') {
+      const cached = CacheManager.getNetWorthWithTimestamp();
+      if (cached && Array.isArray(cached.goals)) {
+        return { goals: cached.goals };
+      }
     }
-
-    // Migrate legacy single-goal shape
-    if (parsed && (parsed.longtermTarget || parsed.longtermName)) {
-      const goal = {
-        id: 'savings:legacy',
-        type: 'savings',
-        accountAsset: 'Liquid Assets',
-        accountName: parsed.longtermName || 'Long-term Goal',
-        longtermName: parsed.longtermName || '',
-        longtermTarget: parsed.longtermTarget || 0,
-        longtermStart: parsed.longtermStart || '',
-        longtermEnd: parsed.longtermEnd || parsed.longtermDeadline || '',
-        longtermSaved: parsed.longtermSaved || 0
-      };
-      return { goals: [goal] };
-    }
-
     return { goals: [] };
   } catch (e) {
     console.error('Error reading savings goals:', e);
@@ -1700,7 +1829,19 @@ function getSavingsGoals() {
  */
 function saveSavingsGoals(goals) {
   try {
-    localStorage.setItem('simbudget_savings_goals', JSON.stringify(goals));
+    if (window.API && typeof API.saveNetWorthGoals === 'function') {
+      API.saveNetWorthGoals(goals, function(result) {
+        if (window.CacheManager && typeof CacheManager.setNetWorthWithTimestamp === 'function') {
+          const cached = CacheManager.getNetWorthWithTimestamp();
+          const entries = cached && Array.isArray(cached.entries) ? cached.entries : [];
+          const goalList = Array.isArray(goals?.goals) ? goals.goals : [];
+          const timestamp = result && result.timestamp ? result.timestamp : new Date().toISOString();
+          CacheManager.setNetWorthWithTimestamp({ entries: entries, goals: goalList }, timestamp);
+        }
+      }, function(error) {
+        console.error('Error saving savings goals:', error);
+      });
+    }
   } catch (e) {
     console.error('Error saving savings goals:', e);
   }

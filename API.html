@@ -1176,6 +1176,35 @@ saveBatchNetWorth: function(entries, successCallback, errorCallback) {
 },
 
 /**
+ * Save net worth goals (Dontedit K6)
+ * @param {Object} goalsState - {goals:[...]}
+ * @param {Function} successCallback - Called on success
+ * @param {Function} errorCallback - Called on error
+ */
+saveNetWorthGoals: function(goalsState, successCallback, errorCallback) {
+  try {
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result && result.success) {
+          successCallback(result);
+        } else {
+          const err = result && result.error || 'Unknown error';
+          console.error('API.saveNetWorthGoals error:', err);
+          errorCallback(err);
+        }
+      })
+      .withFailureHandler(function(error) {
+        console.error('API.saveNetWorthGoals failure:', error);
+        errorCallback(error);
+      })
+      .saveNetWorthGoals(goalsState);
+  } catch (e) {
+    console.error('API.saveNetWorthGoals exception:', e);
+    errorCallback(e.toString());
+  }
+},
+
+/**
  * Clear net worth entry row
  * @param {string} identifier - Entry ID or identifier to clear
  * @param {Function} successCallback - Called on success

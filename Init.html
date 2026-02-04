@@ -878,15 +878,17 @@ const Views = {
   API.getNetWorthData(
     (result) => {
       if (result?.entries) {
-        const netWorthTimestamp = CacheManager.getTimestamp('netWorth');
-        CacheManager.setNetWorthWithTimestamp(result.entries, netWorthTimestamp);
+        const entries = Array.isArray(result.entries) ? result.entries : [];
+        const goals = Array.isArray(result.goals) ? result.goals : [];
+        const netWorthTimestamp = result.timestamp || CacheManager.getTimestamp('netWorth') || new Date().toISOString();
+        CacheManager.setNetWorthWithTimestamp({ entries: entries, goals: goals }, netWorthTimestamp);
         
         // Re-render net worth view if current
         const currentView = this.Views.getCurrent();
         if (currentView === 'netWorth') {
           if (window.NetWorthManager) {
       // Update data silently without loading overlay
-      NetWorthManager.updateDataSilently(result.entries);
+      NetWorthManager.updateDataSilently(entries);
           }
         }
       }
@@ -2234,6 +2236,7 @@ if (refreshBudgetBtn) {
         // Clear only budget-related caches, keep settings
         CacheManager.invalidate('expenses_with_timestamp');
         CacheManager.invalidate('budget_data_with_timestamp');
+        CacheManager.invalidate('networth_with_timestamp');
         // DON'T clear categories during refresh - they're needed for budget calculation
         // CacheManager.invalidate('categories_with_timestamp');
         // Clear all dashboard cache entries
@@ -2296,7 +2299,7 @@ if (refreshBudgetBtn) {
         NetWorthManager.showLoadingState();
       }
       // Force refresh by invalidating cache
-      CacheManager.invalidate("netWorth");
+      CacheManager.invalidate("networth_with_timestamp");
       this.loadViewData("netWorth", true);
 
       // Failsafe: clear loading state if something stalls
