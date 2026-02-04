@@ -46,22 +46,16 @@ var NetWorthManager = (function() {
 
   // Translation helper function
   function getTranslation(key) {
-    // Try to use the global translation function if available
-    if (typeof window.getTranslation === 'function' && typeof getLanguageFromSettings === 'function') {
-      try {
-        const lang = getLanguageFromSettings();
-        const translated = window.getTranslation(key, lang);
-        return translated;
-      } catch (e) {
-        console.error('Translation error:', e);
-      }
+    // Prefer translations loaded into the client (Init.html stores these here)
+    if (window.SimBudget && SimBudget.translations && SimBudget.translations[key]) {
+      return SimBudget.translations[key];
     }
-    
+
     // Try direct access to translation objects if loaded
     if (typeof ENGLISH_TRANSLATIONS !== 'undefined' && ENGLISH_TRANSLATIONS[key]) {
       return ENGLISH_TRANSLATIONS[key];
     }
-    
+
     // Fallback to key if translation system not available
     return key;
   }
