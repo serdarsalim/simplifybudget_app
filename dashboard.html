@@ -129,42 +129,50 @@
       </div>
 
       <div class="dashboard-left-stack">
-        <!-- Savings Card -->
-        <div class="dashboard-card savings-card">
-        <div class="savings-header">
-          <div class="savings-title">
-            <h3 data-translate="savings">Savings</h3>
-            <button class="savings-help-btn" id="savingsHelpBtn" title="How savings works">?</button>
+        <!-- Savings from Income Card -->
+        <div class="dashboard-card savings-card savings-income-card">
+          <div class="savings-header">
+            <div class="savings-title">
+              <h3>Savings from Income</h3>
+              <button class="savings-help-btn" id="savingsHelpBtn" title="How savings works">?</button>
+            </div>
+          </div>
+
+          <div class="savings-monthly">
+            <div class="savings-row">
+              <span class="savings-label" id="savingsGoalLabel">Goal</span>
+              <span class="savings-values">
+                <span id="savingsMonthGoal" class="budget-value savings-goal-value" data-category="Savings 💵" data-value="0">€0</span>
+              </span>
+            </div>
+            <div class="savings-row savings-row-secondary" id="savingsStreakRow" style="display: none;">
+              <span class="savings-subtext" id="savingsStreakLabel">Streak: 0 months</span>
+            </div>
+            <div class="savings-row savings-row-secondary" id="savingsActualRow" style="display: none;">
+              <span class="savings-subtext" id="savingsActualLabel">Actually saved</span>
+              <span class="savings-subtext savings-subvalue" id="savingsActualValue">€0</span>
+            </div>
+            <div class="savings-row savings-row-secondary" id="savingsOutcomeRow" style="display: none;">
+              <span class="savings-subtext" id="savingsOutcomeLabel">Outcome</span>
+              <span class="savings-subtext savings-subvalue" id="savingsOutcomeValue">€0</span>
+            </div>
+            <div class="savings-row savings-row-secondary" id="savingsGoalMetRow" style="display: none;">
+              <span class="savings-subtext" id="savingsGoalMetLabel">Goal met</span>
+              <span class="savings-subtext savings-subvalue" id="savingsGoalMetValue">✓</span>
+            </div>
           </div>
         </div>
 
-        <div class="savings-monthly">
-          <div class="savings-row">
-            <span class="savings-label" id="savingsGoalLabel">Goal</span>
-            <span class="savings-values">
-              <span id="savingsMonthGoal" class="budget-value savings-goal-value" data-category="Savings 💵" data-value="0">€0</span>
-            </span>
+        <!-- Long-term Goals Card -->
+        <div class="dashboard-card savings-card savings-longterm-card" id="savingsLongtermSection" style="display: none;">
+          <div class="savings-header savings-longterm-header">
+            <div class="savings-title">
+              <h3>Long-term Goals</h3>
+            </div>
           </div>
-          <div class="savings-row savings-row-secondary" id="savingsStreakRow" style="display: none;">
-            <span class="savings-subtext" id="savingsStreakLabel">Goal met: 0 months in a row</span>
+          <div class="savings-longterm">
+            <div id="savingsLongtermList"></div>
           </div>
-          <div class="savings-row savings-row-secondary" id="savingsActualRow" style="display: none;">
-            <span class="savings-subtext" id="savingsActualLabel">Actually saved</span>
-            <span class="savings-subtext savings-subvalue" id="savingsActualValue">€0</span>
-          </div>
-          <div class="savings-row savings-row-secondary" id="savingsOutcomeRow" style="display: none;">
-            <span class="savings-subtext" id="savingsOutcomeLabel">Outcome</span>
-            <span class="savings-subtext savings-subvalue" id="savingsOutcomeValue">€0</span>
-          </div>
-          <div class="savings-row savings-row-secondary" id="savingsGoalMetRow" style="display: none;">
-            <span class="savings-subtext" id="savingsGoalMetLabel">Goal met</span>
-            <span class="savings-subtext savings-subvalue" id="savingsGoalMetValue">✓</span>
-          </div>
-        </div>
-
-        <div class="savings-longterm" id="savingsLongtermSection" style="display: none;">
-          <div id="savingsLongtermList"></div>
-        </div>
         </div>
 
         <!-- Expense Breakdown -->
@@ -627,6 +635,10 @@ body.dark-mode .chart-container .chart-label {
   border-radius: 8px 8px 0 0;
 }
 
+.savings-longterm-header {
+  background: linear-gradient(135deg, #7c6ed6 0%, #8f84ac 100%);
+}
+
 .savings-title {
   display: inline-flex;
   align-items: center;
@@ -854,10 +866,6 @@ body.dark-mode .chart-container .chart-label {
   height: 1px;
   background: #e2e8f0;
   margin: 0 0 16px 0;
-}
-
-.savings-longterm {
-  padding-top: 0;
 }
 
 .savings-longterm .savings-progress-bar {

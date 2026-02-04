@@ -1288,13 +1288,7 @@ function updateSavingsCard(data) {
   const goalLabel = document.getElementById('savingsGoalLabel');
   if (goalLabel) {
     const shortMonth = monthNames[currentMonth].slice(0, 3);
-    const shortYear = String(currentYear).slice(-2);
-    const labelMonth = `${shortMonth} '${shortYear}`;
-    if (isCurrentMonth) {
-      goalLabel.textContent = 'Monthly Goal';
-    } else {
-      goalLabel.textContent = 'Monthly Goal';
-    }
+    goalLabel.textContent = `${shortMonth} ${currentYear} Goal`;
   }
 
   // Savings goal = budget set for savings category
@@ -1363,7 +1357,7 @@ function updateSavingsCard(data) {
     if (goalMetRow) goalMetRow.style.display = 'none';
     const streakCount = computeSavingsGoalStreak();
     if (streakRow && streakLabel && streakCount >= 1) {
-      streakLabel.textContent = `Goal met: ${streakCount} month${streakCount === 1 ? '' : 's'} in a row`;
+      streakLabel.textContent = `Streak: ${streakCount} month${streakCount === 1 ? '' : 's'}`;
       streakRow.style.display = 'flex';
     } else if (streakRow) {
       streakRow.style.display = 'none';
