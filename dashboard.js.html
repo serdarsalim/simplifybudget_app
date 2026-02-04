@@ -1285,12 +1285,6 @@ function updateSavingsCard(data) {
   const currentYear = window._currentYear !== undefined ? window._currentYear : now.getFullYear();
   const isCurrentMonth = currentMonth === now.getMonth() && currentYear === now.getFullYear();
 
-  const goalLabel = document.getElementById('savingsGoalLabel');
-  if (goalLabel) {
-    const shortMonth = monthNames[currentMonth].slice(0, 3);
-    goalLabel.textContent = `${shortMonth} ${currentYear} Goal`;
-  }
-
   // Savings goal = budget set for savings category
   const savingsCategory = (data.categories || []).find(c =>
     c && c.name && (c.name === 'Savings 💵' || c.name.includes('Savings'))

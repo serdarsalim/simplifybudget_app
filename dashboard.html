@@ -133,18 +133,15 @@
         <div class="dashboard-card savings-card savings-income-card">
           <div class="savings-header">
             <div class="savings-title">
-              <h3>Savings from Income</h3>
+              <h3>Income Savings Goal</h3>
               <button class="savings-help-btn" id="savingsHelpBtn" title="How savings works">?</button>
+            </div>
+            <div class="savings-header-amount">
+              <span id="savingsMonthGoal" class="budget-value savings-goal-value" data-category="Savings 💵" data-value="0">€0</span>
             </div>
           </div>
 
           <div class="savings-monthly">
-            <div class="savings-row">
-              <span class="savings-label" id="savingsGoalLabel">Goal</span>
-              <span class="savings-values">
-                <span id="savingsMonthGoal" class="budget-value savings-goal-value" data-category="Savings 💵" data-value="0">€0</span>
-              </span>
-            </div>
             <div class="savings-row savings-row-secondary" id="savingsStreakRow" style="display: none;">
               <span class="savings-subtext" id="savingsStreakLabel">Streak: 0 months</span>
             </div>
@@ -643,6 +640,24 @@ body.dark-mode .chart-container .chart-label {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+
+.savings-header-amount {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.savings-header-amount .savings-goal-value {
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 16px !important;
+}
+
+.savings-header-amount .budget-value.editable:hover,
+.savings-header-amount .budget-value.editable:focus {
+  background-color: rgba(255, 255, 255, 0.15);
+  box-shadow: none;
 }
 
 .savings-header h3 {

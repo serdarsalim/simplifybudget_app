@@ -4327,7 +4327,7 @@ function init(containerId, cachedData) {
     renderNetWorthView();
     modal.style.display = 'none';
     
-    showMessage(getTranslation('asset_updated_successfully'), 'success');
+    showMessage(`${getTranslation('asset_updated_successfully')}: ${name}`, 'success');
   }
 
   function getSavingsGoalsState() {
