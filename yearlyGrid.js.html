@@ -3557,7 +3557,7 @@ window.showFinancialDashboard = function() {
                 <td class="income-total">$0</td>
               </tr>
               <tr class="spending-row">
-                <td class="row-header">Spending</td>
+                <td class="row-header">Spent</td>
                 <td class="spending-cell" data-month="0">$0</td>
                 <td class="spending-cell" data-month="1">$0</td>
                 <td class="spending-cell" data-month="2">$0</td>
@@ -3571,6 +3571,9 @@ window.showFinancialDashboard = function() {
                 <td class="spending-cell" data-month="10">$0</td>
                 <td class="spending-cell" data-month="11">$0</td>
                 <td class="spending-total">$0</td>
+              </tr>
+              <tr class="divider-row">
+                <td colspan="14"></td>
               </tr>
               <tr class="savings-row">
                 <td class="row-header">Saved</td>
@@ -3639,10 +3642,10 @@ window.showFinancialDashboard = function() {
   // Generate colors for categories
   const categoryColors = {};
   const colorPalette = [
-    '#FF6F61', '#6B5B95', '#88D8C0', '#F7CAC9', '#92A8D1',
-    '#F7DC6F', '#BB8FCE', '#85C1E9', '#F8C471', '#82E0AA',
-    '#F1948A', '#D2B4DE', '#AED6F1', '#F9E79F', '#A3E4D7',
-    '#FADBD8', '#D5A6BD', '#A9CCE3', '#FCF3CF', '#ABEBC6'
+    '#ef4444', '#f97316', '#eab308', '#22c55e', '#14b8a6',
+    '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7',
+    '#ec4899', '#f43f5e', '#78716c', '#64748b', '#0ea5e9',
+    '#84cc16', '#10b981', '#f59e0b', '#7c3aed', '#db2777'
   ];
   
   allCategories.forEach((category, index) => {
@@ -3710,18 +3713,30 @@ window.showFinancialDashboard = function() {
       plugins: {
         title: {
           display: true,
-          text: 'Monthly Spending by Category'
+          text: 'Monthly Spending',
+          font: {
+            size: 14,
+            weight: '600'
+          },
+          color: '#475569',
+          padding: { bottom: 16 }
         },
         legend: {
-          display: true,
-          position: 'right',
-          align: 'start',
-          reverse: true,
-          labels: {
-            boxWidth: 12,
-            padding: 8,
-            font: {
-              size: 11
+          display: false
+        },
+        tooltip: {
+          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+          titleColor: '#1e293b',
+          bodyColor: '#475569',
+          borderColor: '#e2e8f0',
+          borderWidth: 1,
+          cornerRadius: 8,
+          padding: 12,
+          boxPadding: 6,
+          usePointStyle: true,
+          callbacks: {
+            label: function(context) {
+              return context.dataset.label + ': ' + YearlyGrid.formatCurrency(context.raw);
             }
           }
         },
@@ -3731,7 +3746,7 @@ window.showFinancialDashboard = function() {
       }
     }
   });
-  
+
   // Store chart instance
   let chartInstance = chart;
   
@@ -3844,18 +3859,30 @@ window.showFinancialDashboard = function() {
         plugins: {
           title: {
             display: true,
-            text: 'Monthly Spending by Category'
-          },
-        legend: {
-          display: true,
-          position: 'right',
-          align: 'start',
-          reverse: true,
-          labels: {
-            boxWidth: 12,
-            padding: 8,
+            text: 'Monthly Spending',
             font: {
-              size: 11
+              size: 14,
+              weight: '600'
+            },
+            color: '#475569',
+            padding: { bottom: 16 }
+          },
+          legend: {
+            display: false
+          },
+          tooltip: {
+            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+            titleColor: '#1e293b',
+            bodyColor: '#475569',
+            borderColor: '#e2e8f0',
+            borderWidth: 1,
+            cornerRadius: 8,
+            padding: 12,
+            boxPadding: 6,
+            usePointStyle: true,
+            callbacks: {
+              label: function(context) {
+                return context.dataset.label + ': ' + YearlyGrid.formatCurrency(context.raw);
               }
             }
           },
@@ -3866,7 +3893,7 @@ window.showFinancialDashboard = function() {
       }
     });
   }
-  
+
   prevBtn.addEventListener('click', () => {
     createChartForYear(viewYear - 1);
   });
@@ -4852,6 +4879,7 @@ body.dark-mode .yearly-grid td {
   display: flex;
   justify-content: center;
   align-items: center;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 .dashboard-backdrop {
@@ -4860,27 +4888,27 @@ body.dark-mode .yearly-grid td {
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
+  background-color: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(8px);
 }
 
 .dashboard-content {
   position: relative;
-  background: white;
-  border-radius: 16px;
-  padding: 24px;
-  max-width: 1100px;
-  width: 90%;
-  max-height: 87vh;
-  overflow-y: auto;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  animation: dashboardSlideIn 0.3s ease-out;
+  background: #fafbfc;
+  border-radius: 20px;
+  padding: 32px 40px;
+  max-width: 1200px;
+  width: 94%;
+  max-height: 90vh;
+  overflow: hidden;
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.25);
+  animation: dashboardSlideIn 0.25s ease-out;
 }
 
 @keyframes dashboardSlideIn {
   from {
     opacity: 0;
-    transform: scale(0.9) translateY(-20px);
+    transform: scale(0.96) translateY(-10px);
   }
   to {
     opacity: 1;
@@ -4892,116 +4920,61 @@ body.dark-mode .yearly-grid td {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
-  padding-bottom: 16px;
-  border-bottom: 2px solid #f0f0f0;
-}
-
-.dashboard-header h2 {
-  margin: 0;
-  color: #333;
-  font-size: 24px;
-  font-weight: 600;
+  margin-bottom: 28px;
 }
 
 .year-navigation {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 20px;
-  font-size: 24px;
-  font-weight: 600;
-  color: #333;
+  gap: 16px;
 }
 
 .year-nav-btn {
   background: none;
   border: none;
-  font-size: 28px;
-  color: #666;
+  font-size: 24px;
+  color: #94a3b8;
   cursor: pointer;
-  padding: 0 10px;
+  padding: 4px 8px;
   line-height: 1;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
+  border-radius: 6px;
 }
 
 .year-nav-btn:hover {
-  color: #333;
-  transform: scale(1.2);
+  color: #334155;
+  background: rgba(0,0,0,0.05);
 }
 
 .year-display {
-  min-width: 60px;
+  font-size: 28px;
+  font-weight: 700;
+  color: #1e293b;
+  letter-spacing: -0.5px;
+  min-width: 80px;
   text-align: center;
-}
-
-.dashboard-controls {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.year-filter {
-  display: flex;
-  gap: 8px;
-}
-
-.filter-btn {
-  padding: 8px 16px;
-  border: 1px solid #ddd;
-  background: white;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.2s ease;
-}
-
-.filter-btn:hover {
-  background: #f5f5f5;
-  border-color: #ccc;
-}
-
-.filter-btn.active {
-  background: #1976d2;
-  color: white;
-  border-color: #1976d2;
-}
-
-.filter-btn.active:hover {
-  background: #1565c0;
-  border-color: #1565c0;
 }
 
 .dashboard-close {
   background: none;
   border: none;
-  font-size: 28px;
-  color: #666;
+  font-size: 24px;
+  color: #94a3b8;
   cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 50%;
-  transition: all 0.2s ease;
+  padding: 8px;
+  border-radius: 8px;
+  transition: all 0.15s ease;
+  line-height: 1;
 }
 
 .dashboard-close:hover {
-  background-color: #f5f5f5;
-  color: #333;
+  background: rgba(0,0,0,0.05);
+  color: #475569;
 }
 
-
+/* Table Styles - Clean & Modern */
 .monthly-breakdown-table {
-  background: white;
-  border-radius: 12px;
-  padding: 20px;
-  margin-bottom: 20px;
-}
-
-.monthly-breakdown-table h3 {
-  margin: 0 0 16px 0;
-  color: #333;
-  font-size: 18px;
-  font-weight: 600;
+  margin-bottom: 24px;
 }
 
 .table-container {
@@ -5011,99 +4984,189 @@ body.dark-mode .yearly-grid td {
 .monthly-breakdown-table table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .monthly-breakdown-table th,
 .monthly-breakdown-table td {
-  padding: 8px 6px;
+  padding: 12px 8px;
   text-align: center;
-  border: 1px solid #e9ecef;
 }
 
-.monthly-breakdown-table th {
-  background: #f8f9fa;
+/* Header row - no borders, clean */
+.monthly-breakdown-table thead th {
   font-weight: 600;
-  color: #495057;
+  color: #64748b;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border: none;
+  background: transparent;
+  padding-bottom: 8px;
 }
 
 .monthly-breakdown-table .row-header {
-  background: #f8f9fa;
   font-weight: 600;
-  color: #495057;
+  color: #475569;
   text-align: left;
-  white-space: nowrap;
-  min-width: 100px;
+  padding-left: 0;
+  background: transparent;
+  border: none;
+  min-width: 70px;
 }
 
-.monthly-breakdown-table .income-cell {
-  color: #1976d2;
-  font-weight: 500;
+/* Data rows */
+.monthly-breakdown-table tbody td {
+  border: none;
 }
 
-.monthly-breakdown-table .spending-cell {
-  color: #333;
+.monthly-breakdown-table .income-row td {
+  color: #1e293b;
   font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.monthly-breakdown-table .spending-row td {
+  color: #64748b;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Divider row */
+.monthly-breakdown-table .divider-row td {
+  padding: 0;
+  height: 1px;
+  background: transparent;
+  position: relative;
+}
+
+.monthly-breakdown-table .divider-row td::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: linear-gradient(to right, transparent, #e2e8f0 5%, #e2e8f0 95%, transparent);
+}
+
+/* Savings row - THE RESULT - emphasized */
+.monthly-breakdown-table .savings-row td {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding-top: 12px;
+}
+
+.monthly-breakdown-table .savings-row .row-header {
+  font-weight: 700;
+  color: #1e293b;
 }
 
 .monthly-breakdown-table .savings-cell {
-  font-weight: 400;
+  font-weight: 600;
 }
 
 .monthly-breakdown-table .savings-cell.positive {
-  color: #2e7d32;
+  color: #16a34a;
 }
 
 .monthly-breakdown-table .savings-cell.negative {
-  color: #d32f2f;
+  color: #dc2626;
 }
 
-.monthly-breakdown-table .savings-cell.positive::before {
-  content: '▲ ';
+/* Arrow AFTER the amount */
+.monthly-breakdown-table .savings-cell.positive::after {
+  content: ' ▲';
+  font-size: 9px;
+  vertical-align: middle;
+  margin-left: 2px;
 }
 
+.monthly-breakdown-table .savings-cell.negative::after {
+  content: ' ▼';
+  font-size: 9px;
+  vertical-align: middle;
+  margin-left: 2px;
+}
+
+/* Remove old ::before arrows */
+.monthly-breakdown-table .savings-cell.positive::before,
 .monthly-breakdown-table .savings-cell.negative::before {
-  content: '▼ ';
+  content: none;
 }
 
+/* Total column */
 .monthly-breakdown-table .total-header {
-  background: #f1f3f4;
+  color: #475569;
   font-weight: 700;
-  color: #333;
-  border-left: 2px solid #ddd;
+  padding-left: 16px;
+  border: none;
+  background: transparent;
+}
+
+.monthly-breakdown-table .income-total,
+.monthly-breakdown-table .spending-total,
+.monthly-breakdown-table .savings-total {
+  padding-left: 16px;
+  border: none;
+  position: relative;
+}
+
+.monthly-breakdown-table .income-total::before,
+.monthly-breakdown-table .spending-total::before,
+.monthly-breakdown-table .savings-total::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 20%;
+  bottom: 20%;
+  width: 1px;
+  background: #e2e8f0;
 }
 
 .monthly-breakdown-table .income-total {
-  color: #1976d2;
-  font-weight: 600;
-  border-left: 2px solid #ddd;
+  color: #1e293b;
+  font-weight: 700;
 }
 
 .monthly-breakdown-table .spending-total {
-  color: #333;
+  color: #64748b;
   font-weight: 600;
-  border-left: 2px solid #ddd;
 }
 
 .monthly-breakdown-table .savings-total {
-  font-weight: 600;
-  border-left: 2px solid #ddd;
+  font-weight: 700;
 }
 
 .monthly-breakdown-table .savings-total.positive {
-  color: #2e7d32;
+  color: #16a34a;
 }
 
 .monthly-breakdown-table .savings-total.negative {
-  color: #d32f2f;
+  color: #dc2626;
 }
 
-.monthly-breakdown-table .savings-total.positive::before {
-  content: '▲ ';
+.monthly-breakdown-table .savings-total.positive::after {
+  content: ' ▲';
+  font-size: 10px;
+  vertical-align: middle;
 }
 
+.monthly-breakdown-table .savings-total.negative::after {
+  content: ' ▼';
+  font-size: 10px;
+  vertical-align: middle;
+}
+
+.monthly-breakdown-table .savings-total.positive::before,
 .monthly-breakdown-table .savings-total.negative::before {
-  content: '▼ ';
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 20%;
+  bottom: 20%;
+  width: 1px;
+  background: #e2e8f0;
 }
 
 /* Dark mode support for monthly breakdown table */
@@ -5112,70 +5175,11 @@ body.dark-mode .monthly-breakdown-table {
   border-color: #4a5568;
 }
 
-body.dark-mode .monthly-breakdown-table h3 {
-  color: #e2e8f0;
-}
-
-body.dark-mode .monthly-breakdown-table th,
-body.dark-mode .monthly-breakdown-table .row-header {
-  background: #4a5568;
-  color: #e2e8f0;
-  border-color: #4a5568;
-}
-
-body.dark-mode .monthly-breakdown-table td {
-  border-color: #4a5568;
-}
-
-
-body.dark-mode .monthly-breakdown-table .income-cell {
-  color: #63b3ed;
-}
-
-body.dark-mode .monthly-breakdown-table .spending-cell {
-  color: #e2e8f0;
-}
-
-body.dark-mode .monthly-breakdown-table .savings-cell.positive {
-  color: #68d391;
-}
-
-body.dark-mode .monthly-breakdown-table .savings-cell.negative {
-  color: #f56565;
-}
-
-body.dark-mode .monthly-breakdown-table .total-header {
-  background: #4a5568;
-  color: #e2e8f0;
-  border-left-color: #718096;
-}
-
-body.dark-mode .monthly-breakdown-table .income-total {
-  color: #63b3ed;
-  border-left-color: #718096;
-}
-
-body.dark-mode .monthly-breakdown-table .spending-total {
-  color: #e2e8f0;
-  border-left-color: #718096;
-}
-
-body.dark-mode .monthly-breakdown-table .savings-total {
-  border-left-color: #718096;
-}
-
-body.dark-mode .monthly-breakdown-table .savings-total.positive {
-  color: #68d391;
-}
-
-body.dark-mode .monthly-breakdown-table .savings-total.negative {
-  color: #f56565;
-}
-
+/* Chart container */
 .dashboard-chart {
-  background: white;
-  padding: 0px 20px 20px;
-  height: 330px;
+  background: transparent;
+  padding: 0;
+  height: 340px;
   position: relative;
 }
 
@@ -5186,43 +5190,88 @@ body.dark-mode .monthly-breakdown-table .savings-total.negative {
 
 /* Dark mode support */
 body.dark-mode .dashboard-content {
-  background: #2d3748;
-  color: #e2e8f0;
+  background: #1e293b;
 }
 
-body.dark-mode .dashboard-header {
-  border-bottom-color: #4a5568;
-}
-
-body.dark-mode .dashboard-header h2 {
-  color: #e2e8f0;
-}
-
-body.dark-mode .year-navigation {
-  color: #e2e8f0;
+body.dark-mode .year-display {
+  color: #f1f5f9;
 }
 
 body.dark-mode .year-nav-btn {
-  color: #a0aec0;
+  color: #64748b;
 }
 
 body.dark-mode .year-nav-btn:hover {
-  color: #e2e8f0;
+  color: #f1f5f9;
+  background: rgba(255,255,255,0.1);
 }
 
 body.dark-mode .dashboard-close {
-  color: #a0aec0;
+  color: #64748b;
 }
 
 body.dark-mode .dashboard-close:hover {
-  background-color: #4a5568;
-  color: #e2e8f0;
+  background: rgba(255,255,255,0.1);
+  color: #f1f5f9;
 }
 
+/* Dark mode table */
+body.dark-mode .monthly-breakdown-table thead th {
+  color: #94a3b8;
+}
+
+body.dark-mode .monthly-breakdown-table .row-header {
+  color: #94a3b8;
+}
+
+body.dark-mode .monthly-breakdown-table .income-row td {
+  color: #f1f5f9;
+}
+
+body.dark-mode .monthly-breakdown-table .spending-row td {
+  color: #94a3b8;
+}
+
+body.dark-mode .monthly-breakdown-table .savings-row .row-header {
+  color: #f1f5f9;
+}
+
+body.dark-mode .monthly-breakdown-table .divider-row td::after {
+  background: linear-gradient(to right, transparent, #475569 5%, #475569 95%, transparent);
+}
+
+body.dark-mode .monthly-breakdown-table .savings-cell.positive {
+  color: #4ade80;
+}
+
+body.dark-mode .monthly-breakdown-table .savings-cell.negative {
+  color: #f87171;
+}
+
+body.dark-mode .monthly-breakdown-table .income-total {
+  color: #f1f5f9;
+}
+
+body.dark-mode .monthly-breakdown-table .spending-total {
+  color: #94a3b8;
+}
+
+body.dark-mode .monthly-breakdown-table .income-total::before,
+body.dark-mode .monthly-breakdown-table .spending-total::before,
+body.dark-mode .monthly-breakdown-table .savings-total::before {
+  background: #475569;
+}
+
+body.dark-mode .monthly-breakdown-table .savings-total.positive {
+  color: #4ade80;
+}
+
+body.dark-mode .monthly-breakdown-table .savings-total.negative {
+  color: #f87171;
+}
 
 body.dark-mode .dashboard-chart {
-  background: #2d3748;
-  border-color: #4a5568;
+  background: transparent;
 }
 
 body.dark-mode .filter-btn {
