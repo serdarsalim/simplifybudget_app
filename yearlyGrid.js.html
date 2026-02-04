@@ -3667,7 +3667,7 @@ window.showFinancialDashboard = function() {
         categoryData.push(0);
       }
     }
-    
+
     return {
       label: category,
       data: categoryData,
@@ -3676,7 +3676,32 @@ window.showFinancialDashboard = function() {
       borderWidth: 1
     };
   });
-  
+
+  // Add income line dataset - use null for months with no data so line stops
+  const incomeLineData = [];
+  for (let month = 0; month <= 11; month++) {
+    const income = getMonthlyIncomeForYear(month, viewYear);
+    incomeLineData.push(income > 0 ? income : null);
+  }
+
+  datasets.push({
+    label: 'Income',
+    data: incomeLineData,
+    type: 'line',
+    borderColor: '#10b981',
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    borderWidth: 2,
+    pointBackgroundColor: '#10b981',
+    pointBorderColor: '#fff',
+    pointBorderWidth: 2,
+    pointRadius: 4,
+    pointHoverRadius: 6,
+    fill: false,
+    tension: 0.3,
+    order: 0,
+    spanGaps: false
+  });
+
   // Initialize Chart.js
   const ctx = document.getElementById('financialChart').getContext('2d');
   
@@ -3760,13 +3785,7 @@ window.showFinancialDashboard = function() {
   const yearDisplay = popup.querySelector('.year-display');
 
   function updateYearNavState() {
-    if (nextBtn) {
-      const isAtCurrentYear = viewYear >= currentYear;
-      nextBtn.disabled = isAtCurrentYear;
-      nextBtn.setAttribute('aria-disabled', isAtCurrentYear ? 'true' : 'false');
-      nextBtn.style.opacity = isAtCurrentYear ? '0.4' : '';
-      nextBtn.style.cursor = isAtCurrentYear ? 'not-allowed' : '';
-    }
+    // Both nav buttons always visible and clickable
   }
   
   // Function to create chart for any year
@@ -3822,6 +3841,31 @@ window.showFinancialDashboard = function() {
         borderColor: categoryColors[category],
         borderWidth: 1
       };
+    });
+
+    // Add income line dataset - use null for months with no data so line stops
+    const incomeData = [];
+    for (let month = 0; month <= 11; month++) {
+      const income = getMonthlyIncomeForYear(month, viewYear);
+      incomeData.push(income > 0 ? income : null);
+    }
+
+    datasets.push({
+      label: 'Income',
+      data: incomeData,
+      type: 'line',
+      borderColor: '#10b981',
+      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+      borderWidth: 2,
+      pointBackgroundColor: '#10b981',
+      pointBorderColor: '#fff',
+      pointBorderWidth: 2,
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      fill: false,
+      tension: 0.3,
+      order: 0,
+      spanGaps: false
     });
 
     // Create new chart
@@ -3903,10 +3947,6 @@ window.showFinancialDashboard = function() {
   });
   
   nextBtn.addEventListener('click', () => {
-    if (viewYear >= currentYear) {
-      updateYearNavState();
-      return;
-    }
     createChartForYear(viewYear + 1);
   });
 
