@@ -156,6 +156,10 @@
             <span class="savings-subtext" id="savingsOutcomeLabel">Outcome</span>
             <span class="savings-subtext savings-subvalue" id="savingsOutcomeValue">€0</span>
           </div>
+          <div class="savings-row savings-row-secondary" id="savingsGoalMetRow" style="display: none;">
+            <span class="savings-subtext" id="savingsGoalMetLabel">Goal met</span>
+            <span class="savings-subtext savings-subvalue" id="savingsGoalMetValue">✓</span>
+          </div>
         </div>
 
           <div class="savings-longterm" id="savingsLongtermSection" style="display: none;">
@@ -731,6 +735,19 @@ body.dark-mode .chart-container .chart-label {
 .savings-subvalue {
   color: #475569;
   font-weight: 700;
+  font-size: 14px;
+}
+
+.savings-subvalue.is-positive {
+  color: #10b981;
+}
+
+.savings-subvalue.is-negative {
+  color: #ef4444;
+}
+
+.savings-actual-value {
+  font-size: 15px;
 }
 
 .savings-label {
