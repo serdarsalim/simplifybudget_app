@@ -1556,6 +1556,7 @@ function makeSavingsGoalEditable() {
     this.dataset.value = numValue;
 
     if (Math.abs(numValue - lastCommittedValue) < 0.001) {
+      this.classList.remove('saving');
       return;
     }
 
@@ -1579,6 +1580,7 @@ function makeSavingsGoalEditable() {
   });
 
   goalEl.addEventListener('focus', function() {
+    this.classList.remove('saving', 'saved', 'error');
     const text = this.textContent;
     const match = text.match(/[\d.,]/);
     if (match) {
