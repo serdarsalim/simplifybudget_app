@@ -2568,15 +2568,26 @@ function init(containerId, cachedData) {
                 <div class="nw-goal-content" id="goalContent">
                   <div class="nw-goal-fields">
                     <div class="nw-field-group">
-                      <label for="assetGoalTarget">Target Amount</label>
+                      <label for="assetGoalTarget">Target</label>
                       <div class="nw-amount-input">
                         <span class="nw-currency-symbol" id="goalCurrencySymbol"></span>
                         <input type="number" id="assetGoalTarget" class="nw-form-input" inputmode="decimal" placeholder="0">
                       </div>
                     </div>
                     <div class="nw-field-group">
-                      <label for="assetGoalEnd">End Date</label>
-                      <input type="date" id="assetGoalEnd" class="nw-form-input">
+                      <label for="assetGoalStart">Start</label>
+                      <input type="month" id="assetGoalStart" class="nw-form-input">
+                    </div>
+                    <div class="nw-field-group">
+                      <label for="assetGoalEnd">End</label>
+                      <input type="month" id="assetGoalEnd" class="nw-form-input">
+                    </div>
+                    <div class="nw-field-group">
+                      <label>Status</label>
+                      <div class="nw-goal-status" id="goalStatus">
+                        <span class="nw-goal-status-icon"></span>
+                        <span class="nw-goal-status-text"></span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -3590,7 +3601,11 @@ function init(containerId, cachedData) {
         const goal = (goalsState.goals || []).find(g => g.id === goalId);
 
         document.getElementById('assetGoalTarget').value = goal?.target || '';
+        document.getElementById('assetGoalStart').value = goal?.start || '';
         document.getElementById('assetGoalEnd').value = goal?.end || '';
+
+        // Calculate and display status
+        updateGoalStatus(entry.amount, goal?.target, goal?.start, goal?.end);
 
         // Expand section if goal exists, collapse if not
         const hasGoal = goal?.target > 0;
@@ -3602,6 +3617,25 @@ function init(containerId, cachedData) {
             goalSection.classList.toggle('expanded');
           };
         }
+
+        // Update status when fields change
+        const targetInput = document.getElementById('assetGoalTarget');
+        const startInput = document.getElementById('assetGoalStart');
+        const endInput = document.getElementById('assetGoalEnd');
+        const amountInput = document.getElementById('assetAmount');
+
+        const updateStatusHandler = () => {
+          const currentAmount = parseFloat(amountInput.value) || 0;
+          const target = parseFloat(targetInput.value) || 0;
+          const start = startInput.value;
+          const end = endInput.value;
+          updateGoalStatus(currentAmount, target, start, end);
+        };
+
+        targetInput.addEventListener('input', updateStatusHandler);
+        startInput.addEventListener('change', updateStatusHandler);
+        endInput.addEventListener('change', updateStatusHandler);
+        amountInput.addEventListener('input', updateStatusHandler);
       }
     }
     
@@ -3816,6 +3850,56 @@ function init(containerId, cachedData) {
     return months;
   }
 
+  function updateGoalStatus(currentAmount, target, start, end) {
+    const statusEl = document.getElementById('goalStatus');
+    if (!statusEl) return;
+
+    const textEl = statusEl.querySelector('.nw-goal-status-text');
+
+    // Remove all status classes
+    statusEl.classList.remove('achieved', 'active', 'expired', 'upcoming', 'none');
+
+    // If no target set, show no status
+    if (!target || target <= 0) {
+      statusEl.classList.add('none');
+      if (textEl) textEl.textContent = '—';
+      return;
+    }
+
+    // Check if achieved (current >= target)
+    if (currentAmount >= target) {
+      statusEl.classList.add('achieved');
+      if (textEl) textEl.textContent = 'Achieved';
+      return;
+    }
+
+    // Get current month in YYYY-MM format
+    const now = new Date();
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    // Check dates
+    const hasStart = start && start.length > 0;
+    const hasEnd = end && end.length > 0;
+
+    if (hasStart && currentMonth < start) {
+      // Before start date
+      statusEl.classList.add('upcoming');
+      if (textEl) textEl.textContent = 'Upcoming';
+      return;
+    }
+
+    if (hasEnd && currentMonth > end) {
+      // Past end date and not achieved
+      statusEl.classList.add('expired');
+      if (textEl) textEl.textContent = 'Expired';
+      return;
+    }
+
+    // Within date range (or no dates set) and not achieved
+    statusEl.classList.add('active');
+    if (textEl) textEl.textContent = 'Active';
+  }
+
   function bindAssetDetailsModalEvents(modal, entry) {
     // Clear any existing handlers by storing them and removing them
     if (modal._handlers) {
@@ -3952,6 +4036,7 @@ function init(containerId, cachedData) {
 
     // Goal fields
     const goalTarget = parseFloat(document.getElementById('assetGoalTarget')?.value) || 0;
+    const goalStart = document.getElementById('assetGoalStart')?.value || '';
     const goalEnd = document.getElementById('assetGoalEnd')?.value || '';
     
     // Validate
@@ -3988,6 +4073,7 @@ function init(containerId, cachedData) {
         asset: entry.asset,
         account: name,
         target: goalTarget,
+        start: goalStart,
         end: goalEnd
       };
 
@@ -6700,6 +6786,26 @@ body.dark-mode .nw-asset-modal .nw-goal-toggle:hover {
   background-color: rgba(52, 211, 153, 0.1);
 }
 
+body.dark-mode .nw-asset-modal .nw-goal-status {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+body.dark-mode .nw-asset-modal .nw-goal-status.achieved {
+  background-color: rgba(16, 185, 129, 0.15);
+}
+
+body.dark-mode .nw-asset-modal .nw-goal-status.active {
+  background-color: rgba(59, 130, 246, 0.15);
+}
+
+body.dark-mode .nw-asset-modal .nw-goal-status.expired {
+  background-color: rgba(239, 68, 68, 0.15);
+}
+
+body.dark-mode .nw-asset-modal .nw-goal-status.upcoming {
+  background-color: rgba(107, 114, 128, 0.15);
+}
+
 body.dark-mode .nw-asset-modal .nw-autocomplete-container {
   background-color: #1f1f1f;
   border-color: rgba(255, 255, 255, 0.15);
@@ -7033,14 +7139,75 @@ body.dark-mode .nw-modal-footer {
 }
 
 .nw-goal-fields {
-  display: flex;
-  gap: 20px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr 0.8fr;
+  gap: 16px;
+  align-items: end;
 }
 
 .nw-goal-fields .nw-field-group {
-  flex: 1 1 160px;
-  min-width: 140px;
+  min-width: 0;
+}
+
+.nw-goal-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background-color: #f8f9fa;
+  font-weight: 500;
+  font-size: 0.85rem;
+}
+
+.nw-goal-status-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.nw-goal-status.achieved {
+  background-color: rgba(16, 185, 129, 0.1);
+  color: #059669;
+}
+
+.nw-goal-status.achieved .nw-goal-status-icon::before {
+  content: "✓";
+}
+
+.nw-goal-status.active {
+  background-color: rgba(59, 130, 246, 0.1);
+  color: #2563eb;
+}
+
+.nw-goal-status.active .nw-goal-status-icon::before {
+  content: "●";
+}
+
+.nw-goal-status.expired {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+}
+
+.nw-goal-status.expired .nw-goal-status-icon::before {
+  content: "✗";
+}
+
+.nw-goal-status.upcoming {
+  background-color: rgba(107, 114, 128, 0.1);
+  color: #6b7280;
+}
+
+.nw-goal-status.upcoming .nw-goal-status-icon::before {
+  content: "○";
+}
+
+.nw-goal-status.none {
+  background-color: transparent;
+  color: #9ca3af;
+}
+
+.nw-goal-status.none .nw-goal-status-icon::before {
+  content: "—";
 }
 
 @media (max-width: 980px) {
@@ -7259,24 +7426,23 @@ input[type="number"] {
   }
 
   .nw-goal-fields {
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .nw-goal-fields .nw-field-group {
-    flex-direction: row;
-    align-items: center;
+    grid-template-columns: 1fr 1fr;
     gap: 12px;
   }
 
   .nw-goal-fields .nw-field-group label {
-    min-width: 70px;
-    margin: 0;
+    font-size: 0.8rem;
   }
 
-  .nw-goal-fields .nw-field-group .nw-form-input,
-  .nw-goal-fields .nw-field-group .nw-amount-input {
-    flex: 1;
+  .nw-goal-status {
+    padding: 6px 10px;
+    font-size: 0.8rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .nw-goal-fields {
+    grid-template-columns: 1fr;
   }
 }
 
