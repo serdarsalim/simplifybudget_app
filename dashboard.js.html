@@ -361,23 +361,16 @@ if (budgetAlert) {
       const categoriesBody = document.getElementById('budget-categories-body');
       if (categoriesBody) {
         categoriesBody.innerHTML = '';
-        
-        data.categories.forEach((category, index) =>  {
+
+        // Filter out savings category - it now has its own card
+        const expenseCategories = data.categories.filter(c =>
+          !c.name.includes('Savings') && c.name !== 'Savings 💵'
+        );
+
+        expenseCategories.forEach((category, index) =>  {
         const percentSpent = category.budgeted > 0 ? (category.actual / category.budgeted) * 100 : (category.actual > 0 ? 100 : 0);
-// Reverse logic for Savings (last category)
-let progressClass = '';
-if (index === data.categories.length - 1) {
-  // Savings: Higher % = Better
-  if (percentSpent < 30) {
-    progressClass = 'savings-poor';
-  } else if (percentSpent < 70) {
-    progressClass = 'savings-moderate'; 
-  }
-  // 70%+ stays green (no class)
-} else {
-  // Expenses: Existing logic
-  progressClass = percentSpent > 100 ? 'over-budget' : (percentSpent > 80 ? 'near-limit' : '');
-}        
+// Expenses logic
+let progressClass = percentSpent > 100 ? 'over-budget' : (percentSpent > 80 ? 'near-limit' : '');        
 
 // Extract emoji and text separately
 const emojiRegex = /[\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}\u{2460}-\u{24FF}\u{2500}-\u{257F}\u{2580}-\u{259F}\u{25A0}-\u{25FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2B50}\u{2B55}\u{231A}\u{231B}\u{2328}\u{23CF}\u{23E9}-\u{23F3}\u{23F8}-\u{23FA}\u{24C2}\u{25AA}\u{25AB}\u{25B6}\u{25C0}\u{25FB}-\u{25FE}\u{2934}\u{2935}\u{3030}\u{303D}\u{3297}\u{3299}]|\u{FE0F}/gu;
@@ -385,28 +378,6 @@ const emojiRegex = /[\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u
 const allEmojis = category.name.match(emojiRegex);
 const categoryText = category.name.replace(emojiRegex, '').trim();
 const categoryEmoji = allEmojis ? allEmojis.join('') : '';
-
-// Helper function to check if we're viewing the current month
-function isCurrentMonth() {
-  const now = new Date();
-  const currentMonth = window._currentMonth !== undefined ? window._currentMonth : now.getMonth();
-  const currentYear = window._currentYear !== undefined ? window._currentYear : now.getFullYear();
-  return currentMonth === now.getMonth() && currentYear === now.getFullYear();
-}
-
-// Determine actual value display for savings in current month
-const actualValueDisplay = (category.name === 'Savings 💵' && isCurrentMonth())
-  ? ''
-  : Utils.formatCurrency(category.actual);
-
-// Determine progress bar display for savings in current month
-const isSavingsCurrentMonth = category.name === 'Savings 💵' && isCurrentMonth();
-const progressBarDisplay = isSavingsCurrentMonth
-  ? ''
-  : `<div class="progress-bar-container">
-      <div class="progress-bar ${progressClass}" style="width: ${Math.min(percentSpent, 100)}%"></div>
-    </div>
-    <div class="progress-percentage">${Math.round(percentSpent)}%</div>`;
 
 // Create row
 const row = document.createElement('tr');
@@ -416,9 +387,12 @@ row.innerHTML = `
     ${Utils.translateCategory(categoryText)}
   </td>
   <td class="budget-value" data-category="${category.name}" data-value="${category.budgeted}">${Utils.formatCurrency(category.budgeted)}</td>
-  <td class="actual-value">${actualValueDisplay}</td>
-  <td class="progress-cell${isSavingsCurrentMonth ? ' no-progress' : ''}">
-    ${progressBarDisplay}
+  <td class="actual-value">${Utils.formatCurrency(category.actual)}</td>
+  <td class="progress-cell">
+    <div class="progress-bar-container">
+      <div class="progress-bar ${progressClass}" style="width: ${Math.min(percentSpent, 100)}%"></div>
+    </div>
+    <div class="progress-percentage">${Math.round(percentSpent)}%</div>
   </td>
 `;
   
@@ -566,8 +540,18 @@ if (subscriptionBody) {
     console.error("Error rendering subscriptions:", subError);
   }
 }
-    
-    // 6. RENDER CHART (After small delay to ensure DOM is ready)
+
+    // 6. RENDER SAVINGS CARD
+    if (data.summary && data.categories) {
+      try {
+        updateSavingsCard(data);
+        makeSavingsGoalEditable();
+      } catch (savingsError) {
+        console.error("Error rendering savings card:", savingsError);
+      }
+    }
+
+    // 7. RENDER CHART (After small delay to ensure DOM is ready)
 setTimeout(function() {
   try {
     if (typeof SimBudget.renderExpenseChart === 'function' && data.categories) {
@@ -1266,8 +1250,211 @@ function notifyDashboardOfCategoryChange() {
 
 window.notifyDashboardOfCategoryChange = notifyDashboardOfCategoryChange;
 
+/**
+ * Update the Savings Card with current data
+ *
+ * Monthly Savings Logic:
+ * - Goal = Budget set for the Savings category
+ * - We only show the goal value and month label early in the month
+ */
+function updateSavingsCard(data) {
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                      'July', 'August', 'September', 'October', 'November', 'December'];
 
+  // Get current month name
+  const currentMonth = window._currentMonth !== undefined ? window._currentMonth : new Date().getMonth();
+  const monthLabel = document.getElementById('savingsMonthLabel');
+  if (monthLabel) {
+    monthLabel.textContent = monthNames[currentMonth];
+  }
 
+  // Savings goal = budget set for savings category
+  const savingsCategory = (data.categories || []).find(c =>
+    c && c.name && (c.name === 'Savings 💵' || c.name.includes('Savings'))
+  );
+  const savingsGoal = savingsCategory ? (savingsCategory.budgeted || 0) : 0;
+
+  // Update monthly savings display (goal-only presentation)
+  const monthGoal = document.getElementById('savingsMonthGoal');
+  if (monthGoal) {
+    const safeGoal = Math.max(0, savingsGoal);
+    monthGoal.textContent = Utils.formatCurrency(safeGoal);
+    monthGoal.dataset.value = safeGoal;
+  }
+
+  // Long-term goal (from saved settings)
+  const savingsGoals = getSavingsGoals();
+  const longtermSection = document.getElementById('savingsLongtermSection');
+
+  if (savingsGoals && savingsGoals.longtermName && savingsGoals.longtermTarget > 0) {
+    if (longtermSection) longtermSection.style.display = 'block';
+
+    const goalName = document.getElementById('savingsGoalName');
+    const goalActual = document.getElementById('savingsGoalActual');
+    const goalTarget = document.getElementById('savingsGoalTarget');
+    const goalPercent = document.getElementById('savingsGoalPercent');
+    const goalProgress = document.getElementById('savingsGoalProgress');
+    const goalDeadline = document.getElementById('savingsGoalDeadline');
+
+    if (goalName) goalName.textContent = savingsGoals.longtermName;
+    if (goalTarget) goalTarget.textContent = Utils.formatCurrency(savingsGoals.longtermTarget);
+
+    // Calculate total saved toward long-term goal
+    const totalSaved = savingsGoals.longtermSaved || 0;
+    if (goalActual) goalActual.textContent = Utils.formatCurrency(totalSaved);
+
+    const ltPercent = Math.round((totalSaved / savingsGoals.longtermTarget) * 100);
+    if (goalPercent) goalPercent.textContent = ltPercent + '%';
+    if (goalProgress) goalProgress.style.width = Math.min(100, ltPercent) + '%';
+
+    if (goalDeadline && savingsGoals.longtermDeadline) {
+      goalDeadline.textContent = savingsGoals.longtermDeadline;
+    } else if (goalDeadline) {
+      goalDeadline.textContent = '';
+    }
+  } else {
+    if (longtermSection) longtermSection.style.display = 'none';
+  }
+}
+
+/**
+ * Make Savings Goal editable (stored as Savings category budget)
+ */
+function makeSavingsGoalEditable() {
+  const goalEl = document.getElementById('savingsMonthGoal');
+  if (!goalEl || goalEl.dataset.editableAttached === 'true') return;
+
+  goalEl.dataset.editableAttached = 'true';
+  goalEl.setAttribute('contenteditable', 'true');
+  goalEl.setAttribute('title', 'Click to edit savings goal');
+  goalEl.setAttribute('inputmode', 'decimal');
+  goalEl.classList.add('editable');
+
+  const categoryName = 'Savings 💵';
+  const originalValue = parseFloat(goalEl.dataset.value || '0');
+  let lastCommittedValue = isNaN(originalValue) ? 0 : originalValue;
+
+  goalEl.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      this.blur();
+    }
+
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      this.textContent = Utils.formatCurrency(lastCommittedValue);
+      this.dataset.value = lastCommittedValue;
+      BatchSaveManager.cancelChange(categoryName);
+      this.blur();
+    }
+  });
+
+  goalEl.addEventListener('input', function() {
+    const rawValue = this.textContent.replace(/[^0-9.-]+/g, '');
+    const numValue = parseFloat(rawValue);
+    if (isNaN(numValue)) return;
+
+    this.classList.add('editing');
+
+    if (SimBudget._currentBudgetData && Array.isArray(SimBudget._currentBudgetData.categories)) {
+      let savingsCat = SimBudget._currentBudgetData.categories.find(c => c.name === categoryName);
+      if (!savingsCat) {
+        savingsCat = { name: categoryName, budgeted: numValue, actual: 0 };
+        SimBudget._currentBudgetData.categories.push(savingsCat);
+      } else {
+        savingsCat.budgeted = numValue;
+      }
+    }
+
+    if (typeof SimBudget.updateInfoMessage === 'function') {
+      SimBudget.updateInfoMessage(true);
+    }
+  });
+
+  goalEl.addEventListener('blur', function() {
+    const rawValue = this.textContent.replace(/[^0-9.-]+/g, '');
+    const numValue = parseFloat(rawValue);
+
+    this.classList.remove('editing');
+
+    if (isNaN(numValue)) {
+      this.textContent = Utils.formatCurrency(lastCommittedValue);
+      return;
+    }
+
+    this.textContent = Utils.formatCurrency(numValue);
+    this.dataset.value = numValue;
+
+    if (Math.abs(numValue - lastCommittedValue) < 0.001) {
+      return;
+    }
+
+    BatchSaveManager.addChange(categoryName, numValue, lastCommittedValue, this);
+    lastCommittedValue = numValue;
+
+    if (window._dataCache && window._dataCache.budget && window._dataCache.budget.budget) {
+      const cacheCats = window._dataCache.budget.budget.categories || [];
+      const cachedSavings = cacheCats.find(c => c.name === categoryName);
+      if (cachedSavings) {
+        cachedSavings.budgeted = numValue;
+      } else {
+        cacheCats.push({ name: categoryName, budgeted: numValue, actual: 0 });
+      }
+      window._dataCache.budget.budget.categories = cacheCats;
+    }
+
+    if (window.CacheManager) {
+      window.CacheManager.invalidate('dashboardData');
+    }
+  });
+
+  goalEl.addEventListener('focus', function() {
+    const text = this.textContent;
+    const match = text.match(/[\d.,]/);
+    if (match) {
+      const numberStart = text.indexOf(match[0]);
+      const range = document.createRange();
+      const textNode = this.firstChild;
+      if (textNode) {
+        range.setStart(textNode, numberStart);
+        range.setEnd(textNode, text.length);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+    }
+  });
+}
+
+/**
+ * Get savings goals from storage
+ */
+function getSavingsGoals() {
+  try {
+    const stored = localStorage.getItem('simbudget_savings_goals');
+    return stored ? JSON.parse(stored) : null;
+  } catch (e) {
+    console.error('Error reading savings goals:', e);
+    return null;
+  }
+}
+
+/**
+ * Save savings goals to storage
+ */
+function saveSavingsGoals(goals) {
+  try {
+    localStorage.setItem('simbudget_savings_goals', JSON.stringify(goals));
+  } catch (e) {
+    console.error('Error saving savings goals:', e);
+  }
+}
+
+// Expose for settings modal
+window.getSavingsGoals = getSavingsGoals;
+window.saveSavingsGoals = saveSavingsGoals;
+window.updateSavingsCard = updateSavingsCard;
+window.makeSavingsGoalEditable = makeSavingsGoalEditable;
 
 })();
 

@@ -3123,14 +3123,10 @@ loadFreshBudgetData: function() {
           el.style.display = "none";
           return;
         } else if (budget.income > totalBudgeted) {
-
-
-          key = "budget_under_income";
-          el.setAttribute("data-param1", formatted);
-          el.setAttribute(
-            "data-param2",
-            Utils.formatCurrency(budget.income - totalBudgeted)
-          );
+          // Unassigned budget goes to savings
+          key = "budget_savings_auto";
+          const unassigned = budget.income - totalBudgeted;
+          el.setAttribute("data-param1", Utils.formatCurrency(unassigned));
         } else {
           key = "budget_over_income";
           el.setAttribute("data-param1", formatted);
@@ -3145,15 +3141,19 @@ loadFreshBudgetData: function() {
         el.setAttribute("data-translate", key);
 
         // Set initial text content using current translations if available
+        const params = [
+          el.getAttribute("data-param1"),
+          el.getAttribute("data-param2"),
+        ].filter(Boolean);
+
         if (SimBudget.translations && SimBudget.translations[key]) {
-          const params = [
-            el.getAttribute("data-param1"),
-            el.getAttribute("data-param2"),
-          ].filter(Boolean);
           el.textContent = Utils.formatTranslation(
             SimBudget.translations[key],
             params
           );
+        } else if (key === "budget_savings_auto") {
+          // Fallback for unassigned income message
+          el.textContent = `You have ${params[0]} left unassigned to any goals from income.`;
         }
 
         // Update class and ensure visibility

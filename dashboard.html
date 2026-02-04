@@ -138,20 +138,17 @@
             </button>
           </div>
 
-          <div class="savings-monthly">
-            <div class="savings-row">
-              <span class="savings-label" id="savingsMonthLabel">February</span>
-              <span class="savings-values">
-                <span id="savingsMonthActual">€0</span>
-                <span class="savings-separator">/</span>
-                <span id="savingsMonthGoal">€0</span>
-              </span>
-              <span class="savings-percent" id="savingsMonthPercent">0%</span>
-            </div>
-            <div class="savings-progress-bar">
-              <div class="savings-progress-fill" id="savingsMonthProgress" style="width: 0%"></div>
-            </div>
+        <div class="savings-monthly">
+          <div class="savings-row">
+            <span class="savings-label">Goal</span>
+            <span class="savings-values">
+              <span id="savingsMonthGoal" class="budget-value savings-goal-value" data-category="Savings 💵" data-value="0">€0</span>
+            </span>
           </div>
+          <div class="savings-row savings-row-sub">
+            <span class="savings-subtext" id="savingsMonthLabel">February</span>
+          </div>
+        </div>
 
           <div class="savings-longterm" id="savingsLongtermSection" style="display: none;">
             <div class="savings-divider"></div>
@@ -278,6 +275,11 @@ body, .dashboard-container {
   grid-template-columns: minmax(300px, 1fr) minmax(520px, 1.6fr) minmax(320px, 1fr) !important;
 }
 
+/* Keep 3-column layout when expense chart is hidden (savings stays left) */
+#budgetView:not(.show-expense-chart) .dashboard-container {
+  grid-template-columns: minmax(300px, 1fr) minmax(520px, 1.6fr) minmax(320px, 1fr) !important;
+}
+
 /* DESKTOP IMPROVEMENT: Increased padding for 2-column layout */
 @media screen and (min-width: 1200px) {
   .dashboard-container {
@@ -299,7 +301,7 @@ body, .dashboard-container {
 
 @media screen and (min-width: 1600px) {
   #budgetView:not(.show-expense-chart) .dashboard-container {
-    padding: 40px 300px 200px 300px !important;
+    padding: 40px 200px 200px 150px !important;
   }
 }
 
@@ -349,6 +351,13 @@ body, .dashboard-container {
   grid-column: 3 / 4 !important;
 }
 
+#budgetView:not(.show-expense-chart) .budget-data-card {
+  grid-column: 2 / 3 !important;
+}
+
+#budgetView:not(.show-expense-chart) .col-right {
+  grid-column: 3 / 4 !important;
+}
 
 
 /* ======================
@@ -637,7 +646,7 @@ body.dark-mode .chart-container .chart-label {
 /* 2-COLUMN LAYOUT (no expense chart class - hide chart and savings goes below budget) */
 #budgetView:not(.show-expense-chart) .dashboard-left-stack {
   grid-column: 1 / 2 !important;
-  grid-row: 2 !important;
+  grid-row: 1 !important;
   align-self: start !important;
 }
 
@@ -695,6 +704,16 @@ body.dark-mode .chart-container .chart-label {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 8px;
+}
+
+.savings-row.savings-row-sub {
+  margin-bottom: 0;
+}
+
+.savings-subtext {
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .savings-label {
