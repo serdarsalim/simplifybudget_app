@@ -18,49 +18,49 @@
     <ul class="sb-nav-list">
       <li class="sb-nav-item active" data-view="budget">
         <a href="#budget" class="sb-nav-link">
-          <i class="material-icons">account_balance_wallet</i>
+          <i class="material-icons-outlined">dashboard</i>
           <span class="sb-nav-text" data-translate="budget">Dashboard</span>
         </a>
       </li>
       <li class="sb-nav-item" data-view="expense">
         <a href="#expense" class="sb-nav-link">
-          <i class="material-icons">receipt_long</i>
+          <i class="material-icons-outlined">receipt_long</i>
           <span class="sb-nav-text" data-translate="expenses">Expenses</span>
         </a>
       </li>
       <li class="sb-nav-item" data-view="income">
         <a href="#income" class="sb-nav-link">
-          <i class="material-icons">payments</i>
+          <i class="material-icons-outlined">payments</i>
           <span class="sb-nav-text" data-translate="income_title">Income</span>
         </a>
       </li>
       <li class="sb-nav-item" data-view="recurring">
         <a href="#recurring" class="sb-nav-link">
-          <i class="material-icons">repeat</i>
+          <i class="material-icons-outlined">repeat</i>
           <span class="sb-nav-text" data-translate="recurring">Fixed Payments</span>
         </a>
       </li>
       <li class="sb-nav-item" data-view="netWorth">
         <a href="#netWorth" class="sb-nav-link">
-          <i class="material-icons">trending_up</i>
+          <i class="material-icons-outlined">trending_up</i>
           <span class="sb-nav-text" data-translate="net_worth_title">Net Worth</span>
         </a>
       </li>
       <li class="sb-nav-item" data-view="categories">
         <a href="#categories" class="sb-nav-link">
-          <i class="material-icons">category</i>
+          <i class="material-icons-outlined">category</i>
           <span class="sb-nav-text" data-translate="categories">Categories</span>
         </a>
       </li>
       <li class="sb-nav-item" data-view="reports" style="display: none;">
         <a href="#reports" class="sb-nav-link">
-          <i class="material-icons">bar_chart</i>
+          <i class="material-icons-outlined">bar_chart</i>
           <span class="sb-nav-text" data-translate="reports">Yearly View</span>
         </a>
       </li>
       <li class="sb-nav-item" data-view="settings">
         <a href="#settings" class="sb-nav-link">
-          <i class="material-icons">settings</i>
+          <i class="material-icons-outlined">settings</i>
           <span class="sb-nav-text" data-translate="settings">Settings</span>
         </a>
       </li>
@@ -144,15 +144,11 @@
   --sb-text-secondary: rgba(44, 62, 80, 0.6);
   --sb-border: rgba(44, 62, 80, 0.12);
   
-  /* Icon Colors - Professional Palette */
-  --sb-icon-budget: #007AFF;      /* Apple Blue */
-  --sb-icon-expense: #FF3B30;     /* Apple Red */
-  --sb-icon-recurring: #5856D6;   /* Apple Purple */
-  --sb-icon-networth: #34C759;    /* Apple Green */
-  --sb-icon-income: #FF9500;      /* Apple Orange */
-  --sb-icon-reports: #5AC8FA;     /* Apple Light Blue */
-  --sb-icon-categories: #AF52DE;  /* Apple Violet */
-  --sb-icon-settings: #8E8E93;    /* Apple Gray */
+  /* Sidebar background */
+  --sb-sidebar-bg: #ffffff;
+
+  /* Icon color - unified muted tone */
+  --sb-icon-color: #6b7280;
   
   /* Dark mode colors */
   --sb-dark-background: #1e1e1e;
@@ -162,7 +158,7 @@
   --sb-dark-border: rgba(255, 255, 255, 0.12);
   
   /* Layout */
-  --sb-sidebar-width: 200px;
+  --sb-sidebar-width: 220px;
   --sb-header-height: 60px;
   
   /* Animation */
@@ -175,13 +171,14 @@
   height: 100vh; /* Explicit height */
   width: var(--sb-sidebar-width);
   max-width: 85vw;
-  background-color: var(--sb-surface);
+  background-color: var(--sb-sidebar-bg);
   color: var(--sb-text-primary);
   display: flex;
   flex-direction: column;
   z-index: 1000;
   border-radius: 0px;
-  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.08);
+  border-right: none;
   overflow: hidden !important; /* Force hide ALL scrollbars */
   flex: 0 0 auto;
   position: relative; /* Ensure proper stacking context */
@@ -243,7 +240,7 @@
   justify-content: space-between;
   padding: 0 20px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  background-color: var(--sb-surface);
+  background-color: var(--sb-sidebar-bg);
   flex-shrink: 0;
 }
 
@@ -259,7 +256,7 @@
 
 .sb-logo i {
   margin-right: 10px;
-  color: var(--sb-icon-budget);
+  color: var(--sb-icon-color);
 }
 
 .sb-toggle-btn {
@@ -284,7 +281,7 @@
 /* Sidebar Navigation */
 .sb-sidebar-nav {
   flex: 1;
-  padding: 8px 0;
+  padding: 12px 0;
   overflow-y: auto; /* Allow scrolling only in nav if needed */
   overflow-x: hidden;
   min-height: 0; /* Important for flex children */
@@ -308,17 +305,17 @@
 }
 
 .sb-nav-item {
-  margin: 1px 0;
+  margin: 2px 0;
 }
 
 .sb-nav-link {
   display: flex;
   align-items: center;
-  padding: 10px 16px;
+  padding: 14px 18px;
   text-decoration: none !important;
-  color: var(--sb-text-primary) !important;
+  color: var(--sb-text-secondary) !important;
   transition: all var(--sb-transition-fast) ease;
-  border-radius: 8px;
+  border-radius: 12px;
   margin: 0 12px;
   font-size: 0.875rem;
   font-weight: 500;
@@ -326,27 +323,31 @@
 }
 
 .sb-nav-link:visited {
-  color: var(--sb-text-primary) !important;
+  color: var(--sb-text-secondary) !important;
 }
 
 .sb-nav-link:hover {
-  background-color: rgba(0, 0, 0, 0.04);
+  background-color: #f5f5f5;
+  color: var(--sb-text-primary) !important;
 }
 
 .sb-nav-item.active .sb-nav-link {
-  background-color: rgb(0 127 255 / 14%);
-  color: var(--sb-text-primary) !important;
+  background-color: #eceff1;
+  box-shadow: none;
+  color: var(--sb-primary) !important;
   font-weight: 600;
 }
 
 .sb-nav-link i {
-  margin-right: 12px;
-  font-size: 20px;
-  width: 20px;
-  height: 20px;
+  margin-right: 14px;
+  font-size: 22px;
+  width: 22px;
+  height: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
+  color: var(--sb-icon-color);
+  transition: color var(--sb-transition-fast);
 }
 
 .sb-nav-text {
@@ -354,18 +355,15 @@
   font-weight: inherit;
 }
 
-/* Colorful Icons */
-.sb-nav-item[data-view="budget"] .material-icons { color: var(--sb-icon-budget); }
-.sb-nav-item[data-view="expense"] .material-icons { color: var(--sb-icon-expense); }
-.sb-nav-item[data-view="recurring"] .material-icons { color: var(--sb-icon-recurring); }
-.sb-nav-item[data-view="netWorth"] .material-icons { color: var(--sb-icon-networth); }
-.sb-nav-item[data-view="income"] .material-icons { color: var(--sb-icon-income); }
-.sb-nav-item[data-view="reports"] .material-icons { color: var(--sb-icon-reports); }
-.sb-nav-item[data-view="categories"] .material-icons { color: var(--sb-icon-categories); }
-.sb-nav-item[data-view="settings"] .material-icons { color: var(--sb-icon-settings); }
+/* Active icon gets primary color */
+.sb-nav-item.active .sb-nav-link i {
+  color: var(--sb-primary);
+}
 
-/* Also color the Reports (spreadsheet) link */
-.sb-nav-item:has(a[onclick*="openSpreadsheet"]) .material-icons { color: var(--sb-icon-reports); }
+/* Hover icon gets darker */
+.sb-nav-link:hover i {
+  color: var(--sb-text-primary);
+}
 
 /* Sidebar Footer */
 .sb-sidebar-footer {
@@ -425,7 +423,7 @@
   margin-left: 0 !important; /* Ensure no margin on mobile */
 }
 
-/* Toggle Button in Main Content for Mobile - Professional Design */
+/* Toggle Button in Main Content for Mobile */
 .sb-mobile-toggle {
   position: fixed;
   bottom: 20px;
@@ -433,49 +431,31 @@
   width: 48px;
   height: 48px;
   border-radius: 24px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: var(--sb-primary);
+  color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   cursor: pointer;
   z-index: 998;
   transition: all var(--sb-transition-fast);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  overflow: hidden;
-}
-
-.sb-mobile-toggle::before {
-  content: '';
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.sb-mobile-toggle:hover::before {
-  opacity: 1;
+  border: none;
 }
 
 .sb-mobile-toggle:hover {
-  transform: scale(1.05) translateY(-2px);
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.16);
 }
 
 .sb-mobile-toggle:active {
-  transform: scale(0.98);
+  transform: scale(0.95);
 }
 
 /* Dark Mode - Professional Style */
 body.dark-mode .sb-sidebar {
   background-color: #1C1C1E !important;
   color: var(--sb-dark-text-primary);
-  border-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.06);
 }
 
 /* Header stays minimal in dark mode */
@@ -488,31 +468,36 @@ body.dark-mode .sb-logo {
   color: var(--sb-dark-text-primary) !important;
 }
 
-body.dark-mode .sb-logo i {
-  color: var(--sb-icon-budget) !important;
-}
-
 body.dark-mode .sb-toggle-btn {
   color: var(--sb-dark-text-primary) !important;
 }
 
 body.dark-mode .sb-nav-link {
-  color: rgba(255, 255, 255, 0.9) !important;
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+body.dark-mode .sb-nav-link i {
+  color: rgba(255, 255, 255, 0.45);
 }
 
 body.dark-mode .sb-nav-link:hover {
-  background-color: rgba(255, 255, 255, 0.08);
+  background-color: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+body.dark-mode .sb-nav-link:hover i {
+  color: rgba(255, 255, 255, 0.8);
 }
 
 /* Active nav items in dark mode */
 body.dark-mode .sb-nav-item.active .sb-nav-link {
   background-color: rgba(255, 255, 255, 0.1);
+  box-shadow: none;
   color: #FFFFFF !important;
 }
 
-/* Keep colorful icons in dark mode */
-body.dark-mode .sb-nav-item .material-icons {
-  opacity: 0.9;
+body.dark-mode .sb-nav-item.active .sb-nav-link i {
+  color: #FFFFFF;
 }
 
 body.dark-mode .sb-sidebar-header,
@@ -530,14 +515,14 @@ body.dark-mode .sb-app-info a:hover {
 
 /* Mobile toggle dark mode */
 body.dark-mode .sb-mobile-toggle {
-  background: linear-gradient(135deg, #434343 0%, #1a1a1a 100%);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #ffffff;
+  color: #1C1C1E;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  border: none;
 }
 
 body.dark-mode .sb-mobile-toggle:hover {
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
-  background: linear-gradient(135deg, #4a4a4a 0%, #1a1a1a 100%);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.4);
 }
 
 /* Desktop Styles (Media Queries) */
@@ -595,7 +580,7 @@ body.dark-mode .sb-mobile-toggle:hover {
 
 /* Center icons and adjust padding when collapsed */
 .sb-sidebar.sb-collapsed .sb-nav-link {
-  padding: 10px 0;
+  padding: 14px 0;
   margin: 0 8px;
   justify-content: center;
 }
