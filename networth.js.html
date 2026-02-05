@@ -308,13 +308,12 @@ var NetWorthManager = (function() {
     }
   };
   
-  // FIX BUG 1: Updated color palette with exact colors provided
   const ASSET_TYPE_COLORS_PALETTE = [
-  '#F8CBA8', '#FF6F61', '#FFD166', '#06D6A0', '#00FFBF', '#ffc6ff',
-   '#2ECC71', '#83D0C9', '#38A3A5', '#F08080', 
-  '#FFB74D', '#FFD54F', '#4FC3F7', '#4DD0E1', '#81C784', '#A5D6A7',
-  '#FF8A65', '#FFCC80', '#BA68C8', '#CE93D8', '#FFF176', '#FFEB3B'
- ];
+    '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316', '#eab308',
+    '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6', '#a855f7', '#d946ef',
+    '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#64748b',
+    '#2dd4bf', '#fb923c', '#a78bfa', '#34d399'
+  ];
   
   // Asset type to color mapping (will be dynamically assigned)
   let ASSET_TYPE_COLORS = {};
@@ -760,15 +759,6 @@ function init(containerId, cachedData) {
           const label = totalElement.querySelector('[data-translate="net_worth"]');
           const labelText = label ? label.outerHTML : '<span data-translate="net_worth">Net Worth</span>';
           totalElement.innerHTML = `${labelText}: ${formatCurrency(totalNetWorth)}`;
-        }
-
-        // Update Debts in chart header - find element with debts translate attribute
-        const debtsLabel = chartSummary.querySelector('[data-translate="debts"]');
-        if (debtsLabel) {
-          const debtsElement = debtsLabel.closest('.nw-summary-item');
-          if (debtsElement) {
-            debtsElement.innerHTML = `<span data-translate="debts">Debts</span>: ${formatCurrency(_netWorthData.summary.totalDebts)}`;
-          }
         }
 
         // Update Change indicator - find the element inside summary-line that's not the total
@@ -1360,8 +1350,13 @@ function init(containerId, cachedData) {
         }
       });
       
-      netWorthData.push(totalAssets - totalDebts);
-      
+      // Push null for future months with no entries, actual value otherwise
+      if (monthEntries.length === 0) {
+        netWorthData.push(null);
+      } else {
+        netWorthData.push(totalAssets - totalDebts);
+      }
+
       // Store amounts for each asset type
       Object.keys(typeAmounts).forEach(type => {
         if (!assetTypeData[type]) {
@@ -1378,20 +1373,10 @@ function init(containerId, cachedData) {
       }
     });
     
-    // Add projections if viewing 'thisyear' timespan
-    const projections = calculateProjections(timespan);
-    const allLabels = [...labels, ...projections.projectedLabels];
-    const allNetWorthData = [...netWorthData, ...projections.projectedValues];
-    
-    // Mark where projections start for visual styling
-    const projectionStartIndex = labels.length;
-    
     return {
-      labels: allLabels,
-      netWorthData: allNetWorthData,
-      assetTypeData,
-      projectionStartIndex: projectionStartIndex,
-      hasProjections: projections.projectedLabels.length > 0
+      labels,
+      netWorthData,
+      assetTypeData
     };
   }
   
@@ -1430,7 +1415,8 @@ function init(containerId, cachedData) {
     }
     
     const currentDate = new Date(startDate);
-    while (currentDate <= now) {
+    const endDate = timespan === 'thisyear' ? new Date(now.getFullYear(), 11, 31) : now;
+    while (currentDate <= endDate) {
       const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       months.push({
         month: currentDate.getMonth(),
@@ -1441,89 +1427,6 @@ function init(containerId, cachedData) {
     }
     
     return months;
-  }
-  
-  function calculateProjections(timespan) {
-    // Only calculate projections for 'thisyear' timespan
-    if (timespan !== 'thisyear') {
-      return { projectedLabels: [], projectedValues: [] };
-    }
-    
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth();
-    
-    // Get historical data for trend calculation (last 3-6 months)
-    const historicalMonths = Math.min(6, currentMonth + 1); // Don't go beyond current year
-    const trendData = [];
-    
-    for (let i = Math.max(0, currentMonth - historicalMonths + 1); i <= currentMonth; i++) {
-      const monthEntries = getEntriesForMonth(i, currentYear);
-      let totalNetWorth = 0;
-      
-      monthEntries.forEach(entry => {
-        const category = ASSET_CATEGORIES[entry.asset];
-        if (!category) return;
-        
-        const amount = parseFloat(entry.amount) || 0;
-        if (Math.abs(amount) < 1) return;
-        
-        if (category.isDebt) {
-          totalNetWorth -= Math.abs(amount);
-        } else {
-          totalNetWorth += amount;
-        }
-      });
-      
-      trendData.push(totalNetWorth);
-    }
-    
-    // Calculate average monthly change
-    let totalChange = 0;
-    let changeCount = 0;
-    
-    for (let i = 1; i < trendData.length; i++) {
-      totalChange += trendData[i] - trendData[i - 1];
-      changeCount++;
-    }
-    
-    const avgMonthlyChange = changeCount > 0 ? totalChange / changeCount : 0;
-    
-    // Generate projections for remaining months of the year
-    const projectedLabels = [];
-    const projectedValues = [];
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    
-    if (trendData.length > 0) {
-      // Get the current month's actual net worth value as starting point
-      const currentMonthEntries = getEntriesForMonth(currentMonth, currentYear);
-      let currentMonthValue = 0;
-      
-      currentMonthEntries.forEach(entry => {
-        const category = ASSET_CATEGORIES[entry.asset];
-        if (!category) return;
-        
-        const amount = parseFloat(entry.amount) || 0;
-        if (Math.abs(amount) < 1) return;
-        
-        if (category.isDebt) {
-          currentMonthValue -= Math.abs(amount);
-        } else {
-          currentMonthValue += amount;
-        }
-      });
-      
-      // Start projections from NEXT month, using current month's value as base
-      let lastValue = currentMonthValue;
-      
-      for (let month = currentMonth + 1; month <= 11; month++) {
-        lastValue += avgMonthlyChange;
-        projectedLabels.push(`${monthNames[month]} ${currentYear}`);
-        projectedValues.push(lastValue);
-      }
-    }
-    
-    return { projectedLabels, projectedValues };
   }
   
   // Track chart collapsed state - load from localStorage or default to collapsed
@@ -1550,10 +1453,6 @@ function init(containerId, cachedData) {
               <span data-translate="net_worth">Net Worth</span>: ${formatCurrency(summary.totalNetWorth)}
             </span>
             <span class="nw-summary-item ${changeClass}">${changeDisplay}</span>
-          </span>
-          <span class="nw-summary-separator">|</span>
-          <span class="nw-summary-item">
-            <span data-translate="debts">Debts</span>: ${formatCurrency(summary.totalDebts)}
           </span>
         </div>
         <button class="nw-chart-toggle" id="nwChartToggleBtn" title="Toggle chart visibility">
@@ -1592,9 +1491,7 @@ function init(containerId, cachedData) {
             <div class="nw-timespan-controls ${_chartMode === 'timeline' ? '' : 'hidden'}" id="timelineTimespanControls">
               <button class="nw-timespan-btn ${_chartTimespan === 'thisyear' ? 'active' : ''}" data-timespan="thisyear">${currentYear}</button>
               <button class="nw-timespan-btn ${_chartTimespan === '12m' ? 'active' : ''}" data-timespan="12m">12m</button>
-              <button class="nw-timespan-btn ${_chartTimespan === '2yr' ? 'active' : ''}" data-timespan="2yr">2yr</button>
               <button class="nw-timespan-btn ${_chartTimespan === '3yr' ? 'active' : ''}" data-timespan="3yr">3yr</button>
-              <button class="nw-timespan-btn ${_chartTimespan === '5yr' ? 'active' : ''}" data-timespan="5yr">5yr</button>
               <button class="nw-timespan-btn nw-all-btn ${_chartTimespan === 'all' ? 'active' : ''}" data-timespan="all" data-translate="all_button">All</button>
             </div>
           </div>
@@ -1798,70 +1695,22 @@ function init(containerId, cachedData) {
     }
   });
   
-  // Add net worth line - separate datasets for historical and projected
-  if (chartData.hasProjections) {
-    // Historical data only (no future values)
-    const historicalData = new Array(chartData.labels.length).fill(null);
-    for (let i = 0; i < chartData.projectionStartIndex; i++) {
-      historicalData[i] = chartData.netWorthData[i];
-    }
-    
-    datasets.push({
-      label: 'Net Worth',
-      data: historicalData,
-      borderColor: '#2c3e50',
-      backgroundColor: 'transparent',
-      type: 'line',
-      tension: 0.4,
-      pointBackgroundColor: '#2c3e50',
-      pointBorderColor: '#fff',
-      pointBorderWidth: 2,
-      pointRadius: 4,
-      pointHoverRadius: 6,
-      borderWidth: 3,
-      order: 1
-    });
-    
-    // Projected data only (no historical values)
-    const projectionData = new Array(chartData.labels.length).fill(null);
-    for (let i = chartData.projectionStartIndex; i < chartData.netWorthData.length; i++) {
-      projectionData[i] = chartData.netWorthData[i];
-    }
-    
-    datasets.push({
-      label: 'Projected Net Worth',
-      data: projectionData,
-      borderColor: 'rgba(231, 76, 60, 0.7)',
-      backgroundColor: 'transparent',
-      type: 'line',
-      tension: 0.4,
-      pointBackgroundColor: 'rgba(231, 76, 60, 0.7)',
-      pointBorderColor: '#fff',
-      pointBorderWidth: 2,
-      pointRadius: 3,
-      pointHoverRadius: 5,
-      borderWidth: 2,
-      borderDash: [8, 4], // Dashed line for projections
-      order: 1
-    });
-  } else {
-    // No projections, show regular line
-    datasets.push({
-      label: 'Net Worth',
-      data: chartData.netWorthData,
-      borderColor: '#2c3e50',
-      backgroundColor: 'transparent',
-      type: 'line',
-      tension: 0.4,
-      pointBackgroundColor: '#2c3e50',
-      pointBorderColor: '#fff',
-      pointBorderWidth: 2,
-      pointRadius: 4,
-      pointHoverRadius: 6,
-      borderWidth: 3,
-      order: 1
-    });
-  }
+  // Add net worth line
+  datasets.push({
+    label: 'Net Worth',
+    data: chartData.netWorthData,
+    borderColor: '#2c3e50',
+    backgroundColor: 'transparent',
+    type: 'line',
+    tension: 0.4,
+    pointBackgroundColor: '#2c3e50',
+    pointBorderColor: '#fff',
+    pointBorderWidth: 2,
+    pointRadius: 4,
+    pointHoverRadius: 6,
+    borderWidth: 3,
+    order: 1
+  });
   
   // Detect mobile
   const isMobile = window.innerWidth < 768;
@@ -5546,6 +5395,10 @@ body.dark-mode #netWorthView .networth-banner-summary {
   overflow-wrap: break-word;
 }
 
+.nw-table tr:last-child td {
+  border-bottom: none;
+}
+
 .nw-table th {
   font-weight: 600;
   color: #64748b;
@@ -6415,8 +6268,7 @@ body.dark-mode .nw-btn-delete:hover {
   }
   
    
-  .nw-timespan-btn.nw-all-btn,
-  .nw-timespan-btn[data-timespan="5yr"] {
+  .nw-timespan-btn.nw-all-btn {
     display: none !important;
   }
 
@@ -6953,6 +6805,10 @@ body.dark-mode .nw-table tr.nw-zero-value .nw-value-cell {
 /* Add this to your dark mode section in networth.js.html */
 body.dark-mode .nw-table td {
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+body.dark-mode .nw-table tr:last-child td {
+  border-bottom: none;
 }
 
 body.dark-mode .nw-table th {
