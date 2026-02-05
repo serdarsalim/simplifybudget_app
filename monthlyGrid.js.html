@@ -409,10 +409,12 @@ function loadRealExpenseData(month = _currentMonth, year = _currentYear) {
     });
   }
 
-  const monthExpenses = getCachedExpenses(month, year);
+  const monthExpenses = getCachedExpenses(month, year) || [];
+  const unifiedCache = window.CacheManager?.get?.('expenses_with_timestamp');
+  const hasUnifiedCache = unifiedCache && Array.isArray(unifiedCache.expenses);
   
-  // If we have cached data, show it immediately
-  if (monthExpenses && monthExpenses.length > 0) {
+  // If we have cached data (even if empty), show it immediately
+  if (hasUnifiedCache) {
     
     // Only process cached data if we don't already have data for this month
     if (_transactions.length === 0) {
