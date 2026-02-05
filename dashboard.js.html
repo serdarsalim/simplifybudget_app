@@ -1540,29 +1540,22 @@ function updateSavingsCard(data) {
   displayGoals.forEach(goalInfo => {
     const { status, amount, amountAtDate, accountName, target, end, percent, isDebt } = goalInfo;
 
-    // Format status badge
-    const statusClasses = {
-      active: 'savings-status-active',
-      upcoming: 'savings-status-upcoming',
-      achieved: 'savings-status-achieved',
-      expired: 'savings-status-expired'
+    // Map status to CSS class
+    const statusClassMap = {
+      active: 'active',
+      upcoming: 'active',
+      achieved: 'achieved',
+      expired: 'expired'
     };
-    const statusLabels = {
-      active: 'Active',
-      upcoming: 'Upcoming',
-      achieved: 'Achieved',
-      expired: 'Expired'
-    };
-    const statusClass = statusClasses[status] || '';
-    const statusLabel = statusLabels[status] || '';
+    const statusClass = statusClassMap[status] || 'active';
 
-    // Format deadline with date label if showing historical amount
-    let deadlineDisplay = '';
+    // Format deadline
+    let deadlineText = '';
     if (end) {
       const endDate = parseMonthInput(end);
       if (endDate) {
-        const endLabel = `${monthNamesShort[endDate.getMonth()]} ${endDate.getFullYear()}`;
-        deadlineDisplay = `Target: ${Utils.formatCurrency(target)} ${amountAtDate ? 'at' : 'by'} ${endLabel}`;
+        const year = endDate.getFullYear().toString().slice(-2);
+        deadlineText = `by ${monthNamesShort[endDate.getMonth()]} ${year}`;
       }
     }
 
@@ -1570,29 +1563,23 @@ function updateSavingsCard(data) {
     const displayAmount = isDebt ? Math.max(0, amount) : amount;
 
     const item = document.createElement('div');
-    item.className = 'savings-longterm-goal';
-    const primaryLabel = isDebt ? 'Remaining:' : 'Saved:';
-    const amountDisplay = `<span class="savings-label-inline">${primaryLabel}</span>
-          <span>${Utils.formatCurrency(displayAmount)}</span>`;
+    item.className = 'longterm-goal-item';
 
     item.innerHTML = `
-      <div class="savings-divider"></div>
-      <div class="savings-row savings-row-title">
-        <div class="savings-title-group">
-          <span class="savings-label">${accountName || 'Long-term Goal'}</span>
-          <span class="savings-status ${statusClass}">${statusLabel}</span>
-        </div>
-      </div>
-      <div class="savings-row savings-row-sub">
-        <span class="savings-values savings-values-inline">
-          ${amountDisplay}
+      <div class="longterm-goal-header">
+        <span class="longterm-goal-name">
+          <span class="longterm-goal-status ${statusClass}"></span>
+          ${accountName || 'Long-term Goal'}
         </span>
-        <span class="savings-percent ${statusClass}">${percent}%</span>
+        <span class="longterm-goal-deadline">${deadlineText}</span>
       </div>
-      <div class="savings-progress-bar longterm ${statusClass}">
-        <div class="savings-progress-fill ${statusClass}" style="width: ${percent}%"></div>
+      <div class="longterm-goal-progress">
+        <div class="longterm-goal-progress-fill" style="width: ${percent}%"></div>
       </div>
-      ${deadlineDisplay ? `<div class="savings-deadline">${deadlineDisplay}</div>` : ''}
+      <div class="longterm-goal-amounts">
+        <span class="longterm-goal-current">${Utils.formatCurrency(displayAmount)}</span>
+        <span class="longterm-goal-target">${Utils.formatCurrency(target)}</span>
+      </div>
     `;
     longtermList.appendChild(item);
   });

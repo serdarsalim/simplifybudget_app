@@ -161,15 +161,9 @@
         </div>
 
         <!-- Long-term Goals Card -->
-        <div class="dashboard-card savings-card savings-longterm-card" id="savingsLongtermSection" style="display: none;">
-          <div class="savings-header savings-longterm-header">
-            <div class="savings-title">
-              <h3>Long-term Goals</h3>
-            </div>
-          </div>
-          <div class="savings-longterm">
-            <div id="savingsLongtermList"></div>
-          </div>
+        <div class="dashboard-card longterm-goals-card" id="savingsLongtermSection" style="display: none;">
+          <h3 class="longterm-goals-title">Long-term Goals</h3>
+          <div class="longterm-goals-list" id="savingsLongtermList"></div>
         </div>
 
         <!-- Expense Breakdown -->
@@ -632,8 +626,149 @@ body.dark-mode .chart-container .chart-label {
   border-radius: 8px 8px 0 0;
 }
 
-.savings-longterm-header {
-  background: linear-gradient(135deg, #7c6ed6 0%, #8f84ac 100%);
+/* ========================================
+   LONG-TERM GOALS CARD - Modern App Style
+   ======================================== */
+.longterm-goals-card {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 20px;
+  border: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.longterm-goals-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0 0 16px 0;
+}
+
+.longterm-goals-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.longterm-goal-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.longterm-goal-item + .longterm-goal-item {
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+body.dark-mode .longterm-goal-item + .longterm-goal-item {
+  border-top-color: #334155;
+}
+
+.longterm-goal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.longterm-goal-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.longterm-goal-status {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.longterm-goal-status.active {
+  background: #10b981;
+}
+
+.longterm-goal-status.expired {
+  background: #f59e0b;
+}
+
+.longterm-goal-status.achieved {
+  background: #3b82f6;
+}
+
+.longterm-goal-deadline {
+  font-size: 12px;
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+.longterm-goal-progress {
+  height: 6px;
+  background: #e5e7eb;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 2px;
+}
+
+.longterm-goal-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #6366f1 0%, #8b5cf6 100%);
+  transition: width 0.4s ease;
+}
+
+.longterm-goal-amounts {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.longterm-goal-current {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.longterm-goal-target {
+  font-size: 14px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+/* Dark mode */
+body.dark-mode .longterm-goals-card {
+  background: #1e293b;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+body.dark-mode .longterm-goals-title {
+  color: #94a3b8;
+}
+
+body.dark-mode .longterm-goal-name {
+  color: #f1f5f9;
+}
+
+body.dark-mode .longterm-goal-deadline {
+  color: #64748b;
+}
+
+body.dark-mode .longterm-goal-progress {
+  background: #334155;
+}
+
+body.dark-mode .longterm-goal-current {
+  color: #f1f5f9;
+}
+
+body.dark-mode .longterm-goal-target {
+  color: #94a3b8;
 }
 
 .savings-title {
