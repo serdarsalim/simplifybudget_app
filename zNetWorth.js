@@ -513,6 +513,8 @@ function clearNetWorthRow(identifier) {
     
     // Update timestamp
     updateDataTimestamp('netWorth');
+
+    const timestamp = getNetWorthTimestamp_();
     
     return {
       success: true,
