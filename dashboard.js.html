@@ -1562,11 +1562,7 @@ function updateSavingsCard(data) {
       const endDate = parseMonthInput(end);
       if (endDate) {
         const endLabel = `${monthNamesShort[endDate.getMonth()]} ${endDate.getFullYear()}`;
-        if (amountAtDate) {
-          deadlineDisplay = `at ${endLabel}`;
-        } else {
-          deadlineDisplay = `by ${endLabel}`;
-        }
+        deadlineDisplay = `Target: ${Utils.formatCurrency(target)} ${amountAtDate ? 'at' : 'by'} ${endLabel}`;
       }
     }
 
@@ -1575,7 +1571,9 @@ function updateSavingsCard(data) {
 
     const item = document.createElement('div');
     item.className = 'savings-longterm-goal';
-    const primaryLabel = isDebt ? 'Owed:' : 'Saved:';
+    const primaryLabel = isDebt ? 'Remaining:' : 'Saved:';
+    const amountDisplay = `<span class="savings-label-inline">${primaryLabel}</span>
+          <span>${Utils.formatCurrency(displayAmount)}</span>`;
 
     item.innerHTML = `
       <div class="savings-divider"></div>
@@ -1587,10 +1585,7 @@ function updateSavingsCard(data) {
       </div>
       <div class="savings-row savings-row-sub">
         <span class="savings-values savings-values-inline">
-          <span class="savings-label-inline">${primaryLabel}</span>
-          <span>${Utils.formatCurrency(displayAmount)}</span>
-          <span class="savings-label-inline">· Goal:</span>
-          <span>${Utils.formatCurrency(target)}</span>
+          ${amountDisplay}
         </span>
         <span class="savings-percent ${statusClass}">${percent}%</span>
       </div>
