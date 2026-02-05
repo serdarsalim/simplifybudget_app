@@ -385,10 +385,12 @@ function updateSortIndicators() {
       }
     }, 100);
 
-      // Load fresh data in background after a delay ONLY when loading from cache
-      setTimeout(() => {
-        loadRealIncomeData(true); // true = background refresh
-      }, 2000);
+      // Load fresh data in background after a delay ONLY when loading from cache with data
+      if (cachedData.length > 0) {
+        setTimeout(() => {
+          loadRealIncomeData(true); // true = background refresh
+        }, 2000);
+      }
       
     } else if (!_initialized || _incomeData.length === 0) {
       // No data yet, load fresh
@@ -581,9 +583,13 @@ function updateSortIndicators() {
         if (result && result.success && Array.isArray(result.income)) {
           _incomeData = processIncomeData(result.income);
           
-          // Cache the data in CacheManager
-          if (window.CacheManager && typeof CacheManager.set === 'function') {
-            CacheManager.set('income', result.income);
+          // Cache the data in CacheManager (with timestamp when available)
+          if (window.CacheManager) {
+            if (typeof CacheManager.setIncomeWithTimestamp === 'function' && result.timestamp) {
+              CacheManager.setIncomeWithTimestamp(result.income, result.timestamp);
+            } else if (typeof CacheManager.set === 'function') {
+              CacheManager.set('income', result.income);
+            }
           }
           
           if (!isBackgroundRefresh) {
@@ -1028,7 +1034,6 @@ function updateIncomeTable() {
     const emptyRow = document.createElement('tr');
     emptyRow.innerHTML = `
       <td colspan="${colspan}" class="inc-empty-message" data-translate="no_income_found">
-        Recurring income might be loading. Just wait. Nothing loads = no recurring income found.
       </td>
     `;
     tbody.appendChild(emptyRow);

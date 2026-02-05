@@ -3311,8 +3311,8 @@ loadIncomeData: function() {
     }
   };
 
-  // Render immediately from cache if available
-  if (Array.isArray(cachedData) && cachedData.length > 0) {
+  // Render immediately from cache if available (even if empty)
+  if (Array.isArray(cachedData)) {
     applyIncomeData(cachedData);
   }
 
