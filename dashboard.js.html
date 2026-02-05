@@ -1331,26 +1331,24 @@ function updateSavingsCard(data) {
       if (incomeTotal > 0) {
         const savingsRate = (actualSaved / incomeTotal) * 100;
         outcomeValue.textContent = `${savingsRate.toFixed(1)}% of income`;
+        outcomeValue.classList.remove('is-positive', 'is-negative');
+        outcomeValue.classList.add(actualSaved >= 0 ? 'is-positive' : 'is-negative');
       } else {
         outcomeValue.textContent = '—';
+        outcomeValue.classList.remove('is-positive', 'is-negative');
       }
     }
 
     if (detailsRow) detailsRow.style.display = 'flex';
 
-    // Show streak on past months too
-    if (streakRow && streakLabel && streakCount >= 1) {
-      streakLabel.textContent = `Hit target ${streakCount} month${streakCount === 1 ? '' : 's'} in a row`;
-      streakRow.style.display = 'block';
-    } else if (streakRow) {
-      streakRow.style.display = 'none';
-    }
+    // Hide streak on past months
+    if (streakRow) streakRow.style.display = 'none';
   } else {
     // Current month: hide details, show only streak
     if (detailsRow) detailsRow.style.display = 'none';
 
     if (streakRow && streakLabel && streakCount >= 1) {
-      streakLabel.textContent = `Hit target ${streakCount} month${streakCount === 1 ? '' : 's'} in a row`;
+      streakLabel.textContent = `${streakCount} month streak`;
       streakRow.style.display = 'block';
     } else if (streakRow) {
       streakRow.style.display = 'none';
@@ -1854,8 +1852,7 @@ function showSavingsHelp() {
       <div class="help-content">
         <p>Your savings goal is part of your monthly budget. You allocate income across expense categories and set a savings goal for the month.</p>
         <p>At the end of the month, your actual savings is calculated from total income minus expenses. That's how we determine how much you actually saved.</p>
-        <p>This budgeting method is treating all money left from income by the end of month a saving instead of a rollover money that can be spent next month.</p>
-        <p class="help-note">Editing the savings goal only changes your budget plan, it doesn’t move any money.</p>
+        <p>We're all money left from income by the end of month a saving instead of a rollover money that can be spent next month.</p>
       </div>
       <button onclick="this.closest('.help-dialog-overlay').remove()">Got it</button>
     </div>
