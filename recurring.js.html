@@ -3389,7 +3389,7 @@ function showRecurringHelp(type) {
   const overlay = document.createElement('div');
   overlay.className = 'help-dialog-overlay';
   overlay.innerHTML = `
-    <div class="help-dialog">
+    <div class="help-dialog help-dialog-large">
       <h3>${content.title}</h3>
       <div class="help-content">${content.html}</div>
       <button onclick="this.closest('.help-dialog-overlay').remove()">Got it</button>
@@ -4837,8 +4837,8 @@ body.dark-mode .rec-calc-value {
 /* Header */
 .rec-popup-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 8px;
   padding: 16px 20px;
   background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
   border-bottom: 1px solid #eee;
@@ -4853,6 +4853,10 @@ body.dark-mode .rec-calc-value {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.rec-popup-header .rec-popup-close {
+  margin-left: auto;
 }
 
 .rec-help-icon {
