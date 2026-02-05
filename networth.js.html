@@ -3479,6 +3479,12 @@ function init(containerId, cachedData) {
     setTimeout(() => nameInput.focus(), 100);
   }
   
+  function getCurrentMonthInputValue() {
+    const now = new Date();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    return `${now.getFullYear()}-${month}`;
+  }
+
   function showAssetDetailsModal(id) {
     const entry = _netWorthData.entries.find(e => e.id === id);
     if (!entry) return;
@@ -3531,7 +3537,7 @@ function init(containerId, cachedData) {
         const amountInput = document.getElementById('assetAmount');
 
         targetInput.value = goal?.target || '';
-        startInput.value = goal?.start || '';
+        startInput.value = goal?.start || getCurrentMonthInputValue();
         endInput.value = goal?.end || '';
 
         // Calculate and display status + progress
