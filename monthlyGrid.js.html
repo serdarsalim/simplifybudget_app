@@ -2360,7 +2360,18 @@ function getNextMonth(month, year) {
   // Clear totalValue and add our custom elements
   totalValue.textContent = '';
   totalValue.appendChild(spentAmount);
-  totalValue.appendChild(remainingBudget);
+  // Only show remaining budget (with triangle) for past months
+  if (!isCurrentMonth && !isFutureMonth) {
+    totalValue.appendChild(remainingBudget);
+  } else {
+    // Add empty placeholder to keep header height consistent
+    const placeholder = document.createElement('div');
+    placeholder.style.fontSize = '12px';
+    placeholder.style.lineHeight = '1.2';
+    placeholder.style.marginTop = '2px';
+    placeholder.innerHTML = '&nbsp;';
+    totalValue.appendChild(placeholder);
+  }
   
   totalHeaderContent.appendChild(totalEmoji);
   totalHeaderContent.appendChild(totalName);
