@@ -1740,6 +1740,11 @@ body.dark-mode .subscription-title {
   color: rgba(44, 62, 80, 0.7);
 }
 
+/* Remove bottom border on the last listed payment row */
+.subscription-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
 /* No border on chevron column and end spacer */
 .subscription-table tbody td.indicator-column,
 .subscription-table tbody td.end-spacer {
@@ -1777,6 +1782,10 @@ body.dark-mode .subscription-table th,
 body.dark-mode .subscription-table td {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
   color: rgba(255, 255, 255, 0.7) !important;
+}
+
+body.dark-mode .subscription-table tbody tr:last-child td {
+  border-bottom: none !important;
 }
 
 body.dark-mode .subscription-table tbody td.indicator-column,
