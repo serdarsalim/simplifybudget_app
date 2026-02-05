@@ -2449,6 +2449,12 @@ function saveEditedRecurringIncome(originalItem, overlay) {
     // Update UI immediately
     updateSummaryCards();
     updateIncomeTable();
+
+    // ✅ UPDATE CACHE IMMEDIATELY (optimistically) - Don't wait for API
+    if (window.CacheManager && typeof CacheManager.setIncomeWithTimestamp === 'function') {
+      const currentTimestamp = CacheManager.getTimestamp('income') || new Date().toISOString();
+      CacheManager.setIncomeWithTimestamp(_incomeData, currentTimestamp);
+    }
     
     // Close popup immediately
     removeAllOverlays();
