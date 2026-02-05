@@ -912,6 +912,10 @@ const Views = {
             // Update data silently without loading overlay
             RecurringManager.updateDataSilently(result.recurring);
           }
+        } else if (currentView === 'income') {
+          if (window.IncomeManager && typeof IncomeManager.updateRecurringDataSilently === 'function') {
+            IncomeManager.updateRecurringDataSilently(result.recurring);
+          }
         } else if (currentView === 'budget') {
           _dashboardRefreshAwaitingRender = true;
           this.loadBudgetData();

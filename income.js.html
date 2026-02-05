@@ -3499,6 +3499,18 @@ function saveEditedRecurringIncome(originalItem, overlay) {
           
           // Update summary cards after silent refresh
           updateSummaryCards();
+        },
+
+        updateRecurringDataSilently: function(recurringEntries) {
+          if (!recurringEntries || !Array.isArray(recurringEntries)) return;
+
+          const incomeRecurring = recurringEntries.filter(item =>
+            item.category && item.category.toLowerCase().includes('income')
+          );
+          _recurringIncomeData = processRecurringIncomeData(incomeRecurring);
+
+          updateIncomeTable();
+          updateSummaryCards();
         }
       };
 })();

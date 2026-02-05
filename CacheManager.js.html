@@ -584,7 +584,6 @@ function setBudgetData(data) {
 
         recurringCache.entries.forEach(item => {
           if (!item) return;
-          if (item.category && item.category.toLowerCase().includes('income')) return;
           const status = item.status ? item.status.toString().toLowerCase() : 'active';
           if (status === 'ended') return;
 
