@@ -1191,6 +1191,10 @@ function createIncomeRow(item, isRecurringView = false) {
     // Create popup
     const popup = document.createElement('div');
     popup.className = 'inc-add-popup inc-popup-grid';
+    const accountOptions = getAccountOptionsForIncome();
+    const accountHelp = accountOptions.length === 0
+      ? `<button type="button" class="account-help-icon" aria-label="Account help">?</button>`
+      : '';
 
     // Format dates for input fields
     const startDateValue = item.originalRecurringData.startDate ?
@@ -1229,8 +1233,11 @@ function createIncomeRow(item, isRecurringView = false) {
             <input type="date" id="editStartDate" class="inc-input" value="${startDateValue}" required>
           </div>
           <div class="inc-grid-item">
-            <label data-translate="account">Account</label>
-            ${buildAccountField(item.account || '', 'editAccount', 'inc-input')}
+            <div class="inc-label-row">
+              <label data-translate="account">Account</label>
+              ${accountHelp}
+            </div>
+            ${buildAccountField(item.account || '', 'editAccount', 'inc-input', accountOptions)}
           </div>
           <div class="inc-grid-item">
             <label data-translate="source">Source</label>
@@ -1278,6 +1285,8 @@ function createIncomeRow(item, isRecurringView = false) {
     if (window.SimBudget && SimBudget.applyTranslations) {
       SimBudget.applyTranslations();
     }
+
+    bindAccountHelp(popup);
 
     // Notes toggle
     const notesToggle = document.getElementById('editRecNotesToggleBtn');
@@ -1573,6 +1582,10 @@ function saveEditedRecurringIncome(originalItem, overlay) {
 
       // Check if notes exist to show/hide notes area
       const hasNotes = item.notes && item.notes.trim() !== '';
+      const accountOptions = getAccountOptionsForIncome();
+      const accountHelp = accountOptions.length === 0
+        ? `<button type="button" class="account-help-icon" aria-label="Account help">?</button>`
+        : '';
 
       popup.innerHTML = `
         <div class="inc-popup-header">
@@ -1598,8 +1611,11 @@ function saveEditedRecurringIncome(originalItem, overlay) {
               <input type="date" id="editNormalDate" class="inc-input" value="${dateValue}" required>
             </div>
             <div class="inc-grid-item">
-              <label data-translate="account">Account</label>
-              ${buildAccountField(item.account || '', 'editNormalAccount', 'inc-input')}
+              <div class="inc-label-row">
+                <label data-translate="account">Account</label>
+                ${accountHelp}
+              </div>
+              ${buildAccountField(item.account || '', 'editNormalAccount', 'inc-input', accountOptions)}
             </div>
             <div class="inc-grid-item">
               <label data-translate="source">Source</label>
@@ -1629,6 +1645,7 @@ function saveEditedRecurringIncome(originalItem, overlay) {
       if (window.SimBudget && SimBudget.applyTranslations) {
         SimBudget.applyTranslations();
       }
+
 
       // Notes toggle
       const notesToggle = document.getElementById('editNotesToggleBtn');
@@ -1820,6 +1837,10 @@ function saveEditedRecurringIncome(originalItem, overlay) {
     // Create popup
     const popup = document.createElement('div');
     popup.className = 'rec-add-popup';
+    const accountOptions = getAccountOptionsForIncome();
+    const accountHelp = accountOptions.length === 0
+      ? `<button type="button" class="account-help-icon" aria-label="Account help">?</button>`
+      : '';
     
     popup.innerHTML = `
       <div class="rec-add-header">
@@ -1862,8 +1883,11 @@ function saveEditedRecurringIncome(originalItem, overlay) {
             </select>
           </div>
              <div class="rec-add-row">
-        <label data-translate="account">Account</label>
-               ${buildAccountField('', 'addAccount', 'rec-add-input')}
+        <div class="inc-label-row">
+          <label data-translate="account">Account</label>
+          ${accountHelp}
+        </div>
+               ${buildAccountField('', 'addAccount', 'rec-add-input', accountOptions)}
       </div>
           <div class="rec-add-row">
             <label data-translate="source">Source</label>
@@ -1888,6 +1912,8 @@ function saveEditedRecurringIncome(originalItem, overlay) {
     if (window.SimBudget && SimBudget.applyTranslations) {
       SimBudget.applyTranslations();
     }
+
+    bindAccountHelp(popup);
     
     // Set default start date to today
     const today = new Date().toISOString().split('T')[0];
@@ -2001,10 +2027,6 @@ function saveEditedRecurringIncome(originalItem, overlay) {
     // Add all generated payments to local array immediately
     _recurringIncomeData = [...generatedPayments, ..._recurringIncomeData];
 
-    // Update UI immediately
-    updateSummaryCards();
-    updateIncomeTable();
-
     // ✅ UPDATE CACHE IMMEDIATELY (optimistically) - Don't wait for API
     if (window.CacheManager && typeof CacheManager.setRecurringWithTimestamp === 'function') {
       const recurringCache = CacheManager.getRecurringWithTimestamp();
@@ -2053,6 +2075,10 @@ function saveEditedRecurringIncome(originalItem, overlay) {
         }
       }
     }
+
+    // Update UI immediately (after cache updates)
+    updateSummaryCards();
+    updateIncomeTable();
 
     // Close popup immediately
     removeAllOverlays();
@@ -2122,6 +2148,10 @@ function saveEditedRecurringIncome(originalItem, overlay) {
     // Create popup
     const popup = document.createElement('div');
     popup.className = 'inc-add-popup inc-popup-grid';
+    const accountOptions = getAccountOptionsForIncome();
+    const accountHelp = accountOptions.length === 0
+      ? `<button type="button" class="account-help-icon" aria-label="Account help">?</button>`
+      : '';
 
     popup.innerHTML = `
       <div class="inc-popup-header">
@@ -2147,8 +2177,11 @@ function saveEditedRecurringIncome(originalItem, overlay) {
             <input type="date" id="addDate" class="inc-input" required>
           </div>
           <div class="inc-grid-item">
-            <label data-translate="account">Account</label>
-            ${buildAccountField('', 'addAccount', 'inc-input')}
+            <div class="inc-label-row">
+              <label data-translate="account">Account</label>
+              ${accountHelp}
+            </div>
+            ${buildAccountField('', 'addAccount', 'inc-input', accountOptions)}
           </div>
           <div class="inc-grid-item">
             <label data-translate="source">Source</label>
@@ -2204,6 +2237,8 @@ function saveEditedRecurringIncome(originalItem, overlay) {
     if (window.SimBudget && SimBudget.applyTranslations) {
       SimBudget.applyTranslations();
     }
+
+    bindAccountHelp(popup);
 
     // Set default date
     const today = new Date().toISOString().split('T')[0];
@@ -2323,8 +2358,32 @@ function saveEditedRecurringIncome(originalItem, overlay) {
       }
     }
 
-    // ✅ INVALIDATE DASHBOARD CACHE - Force recalculation on next view
+    // ✅ ALSO UPDATE MASTER DATABASE CACHE - Add recurring income to expenses_with_timestamp
     if (window.CacheManager) {
+      const masterCache = CacheManager.get('expenses_with_timestamp');
+      if (masterCache && masterCache.expenses) {
+        generatedPayments.forEach(payment => {
+          const expenseFormat = {
+            transactionId: payment.id,
+            date: new Date(payment.date),
+            category: 'Income 💵',
+            description: payment.name,
+            amount: Math.abs(payment.amount),
+            account: payment.account || '',
+            notes: payment.notes || '',
+            source: payment.source || ''
+          };
+
+          masterCache.expenses.push(expenseFormat);
+        });
+
+        masterCache.timestamp = Date.now();
+        masterCache.cached_at = new Date().toISOString();
+        masterCache.totalRows = masterCache.expenses.length;
+        CacheManager.set('expenses_with_timestamp', masterCache);
+      }
+
+      // ✅ INVALIDATE DASHBOARD CACHE - Force recalculation on next view
       const currentDate = new Date();
       const currentMonth = currentDate.getMonth();
       const currentYear = currentDate.getFullYear();
@@ -2499,25 +2558,50 @@ function saveEditedRecurringIncome(originalItem, overlay) {
     return accountOptions;
   }
 
-    function buildAccountField(currentValue = '', fieldId = 'addAccount', className = 'inc-add-input') {
-    const accountOptions = getAccountOptionsForIncome();
+    function buildAccountField(currentValue = '', fieldId = 'addAccount', className = 'inc-add-input', accountOptions = null) {
+    const options = Array.isArray(accountOptions) ? accountOptions : getAccountOptionsForIncome();
+    const hasOptions = options.length > 0;
+    const selectDisabled = !hasOptions && !currentValue;
+    const uniqueOptions = hasOptions ? [...new Set(options)] : [];
 
-    if (accountOptions.length > 0) {
-      return `
-        <select id="${fieldId}" class="${className}">
-          <option value="" data-translate="select_account">Select Account</option>
-          ${accountOptions.map(accountName =>
-            `<option value="${accountName}" ${accountName === currentValue ? 'selected' : ''}>${accountName}</option>`
-          ).join('')}
-        </select>
+    if (currentValue && !uniqueOptions.includes(currentValue)) {
+      uniqueOptions.unshift(currentValue);
+    }
+
+    let optionsHtml = '';
+    if (uniqueOptions.length > 0) {
+      optionsHtml += `<option value="" data-translate="select_account">Select Account</option>`;
+      optionsHtml += uniqueOptions.map(accountName =>
+        `<option value="${accountName}" ${accountName === currentValue ? 'selected' : ''}>${accountName}</option>`
+      ).join('');
+    } else if (currentValue) {
+      optionsHtml = `
+        <option value="${currentValue}" selected>${currentValue}</option>
+        <option value="" disabled>No accounts for this month</option>
       `;
     } else {
-      return `
-        <input type="text" id="${fieldId}" class="${className}"
-          value="${currentValue}"
-          placeholder="Account/Card">
-      `;
+      optionsHtml = `<option value="" selected disabled>No accounts for this month</option>`;
     }
+
+    return `
+      <div class="account-select-wrapper">
+        <select id="${fieldId}" class="${className}" ${selectDisabled ? 'disabled' : ''}>
+          ${optionsHtml}
+        </select>
+      </div>
+    `;
+  }
+
+  function bindAccountHelp(container) {
+    const helpBtn = container.querySelector('.account-help-icon');
+    if (!helpBtn) return;
+    helpBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (window.Utils && typeof Utils.showAccountHelpModal === 'function') {
+        Utils.showAccountHelpModal();
+      }
+    });
   }
 
   /**
@@ -2786,10 +2870,12 @@ function saveEditedRecurringIncome(originalItem, overlay) {
     overlay.appendChild(dialog);
     document.body.appendChild(overlay);
     
-    // Apply translations to the dynamically created modal
-    if (window.SimBudget && SimBudget.applyTranslations) {
-      SimBudget.applyTranslations();
-    }
+      // Apply translations to the dynamically created modal
+      if (window.SimBudget && SimBudget.applyTranslations) {
+        SimBudget.applyTranslations();
+      }
+
+    
     
     // Focus the delete button
     const deleteBtn = dialog.querySelector('.inc-delete-btn');
@@ -3557,6 +3643,12 @@ body.dark-mode .inc-notes-popup {
 .inc-grid-item {
   display: flex;
   flex-direction: column;
+  gap: 6px;
+}
+
+.inc-label-row {
+  display: flex;
+  align-items: center;
   gap: 6px;
 }
 
