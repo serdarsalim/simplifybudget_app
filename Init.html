@@ -916,6 +916,10 @@ const Views = {
           if (window.IncomeManager && typeof IncomeManager.updateRecurringDataSilently === 'function') {
             IncomeManager.updateRecurringDataSilently(result.recurring);
           }
+          if (_incomeRefreshInProgress) {
+            setIncomeRefreshLoading(false);
+            updateIncomeLastRefreshTime();
+          }
         } else if (currentView === 'budget') {
           _dashboardRefreshAwaitingRender = true;
           this.loadBudgetData();
@@ -1282,6 +1286,9 @@ handleInitializationFailure: function(error) {
         if (stale.some((type) => budgetDependencies.includes(type))) {
           setDashboardRefreshLoading(true);
         }
+      }
+      if (currentView === 'income' && (stale.includes('income') || stale.includes('recurring'))) {
+        setIncomeRefreshLoading(true);
       }
       if (currentView === 'recurring' && stale.includes('recurring')) {
         if (window.RecurringManager && typeof RecurringManager.showLoadingState === 'function') {

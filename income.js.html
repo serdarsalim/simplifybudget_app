@@ -3509,6 +3509,46 @@ function saveEditedRecurringIncome(originalItem, overlay) {
           );
           _recurringIncomeData = processRecurringIncomeData(incomeRecurring);
 
+          if (window.CacheManager) {
+            const masterCache = CacheManager.get('expenses_with_timestamp');
+            if (masterCache && Array.isArray(masterCache.expenses)) {
+              const recurringIds = new Set(
+                incomeRecurring
+                  .map(item => item.id || item.transactionId || '')
+                  .filter(id => id)
+                  .map(id => String(id))
+              );
+
+              const filtered = masterCache.expenses.filter(exp => {
+                const cat = (exp.category || '').toLowerCase();
+                if (!cat.includes('income')) return true;
+                if (exp.isRecurringIncome) return false;
+                const txId = exp.transactionId || exp.id || '';
+                if (txId && String(txId).startsWith('REC-')) return false;
+                if (txId && recurringIds.has(String(txId))) return false;
+                return true;
+              });
+
+              const recurringExpenses = _recurringIncomeData.map(payment => ({
+                transactionId: payment.id || payment.transactionId || '',
+                date: payment.date,
+                category: 'Income 💵',
+                description: payment.name || '',
+                amount: Math.abs(payment.amount || 0),
+                account: payment.account || '',
+                notes: payment.notes || '',
+                source: payment.source || '',
+                isRecurringIncome: true
+              }));
+
+              masterCache.expenses = filtered.concat(recurringExpenses);
+              masterCache.timestamp = Date.now();
+              masterCache.cached_at = new Date().toISOString();
+              masterCache.totalRows = masterCache.expenses.length;
+              CacheManager.set('expenses_with_timestamp', masterCache);
+            }
+          }
+
           updateIncomeTable();
           updateSummaryCards();
         }
