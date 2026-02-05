@@ -347,7 +347,7 @@ function init(containerId, cachedData) {
   _chartMode = getDefaultChartMode();
   
   // Process whatever data we receive
-  if (cachedData && Array.isArray(cachedData) && cachedData.length > 0) {
+  if (cachedData && Array.isArray(cachedData)) {
     _netWorthData = {
       entries: cachedData,
       summary: {

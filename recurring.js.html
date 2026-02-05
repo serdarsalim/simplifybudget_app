@@ -1535,7 +1535,7 @@ var RecurringManager = (function() {
     }
     
     // Close popup
-    overlay.remove();
+    removeAllOverlays();
     
     if (window.Utils && Utils.showToast) {
       Utils.showToast('Subscription added successfully', 'success');
