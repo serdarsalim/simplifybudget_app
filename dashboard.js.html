@@ -1021,23 +1021,21 @@ SimBudget.reorderDashboardForMobile = function() {
     
     if (!container) return;
     
-    // Get all elements (keep your existing selectors)
+    // Get top-level elements only (don't pull inner elements out of their cards)
     const incomeBox = container.querySelector('.income-spent-box, .budget-summary-card');
     const budgetCard = container.querySelector('.dashboard-card.budget-data-card');
-    const subscriptionText = container.querySelector('.subscription-header, .subscription-text');
-    const subscriptionSummary = container.querySelector('.subscription-summary');
+    const subscriptionCard = container.querySelector('.subscription-list-card');
     const chartCard = container.querySelector('.donut-chart-card, .dashboard-card.chart-card');
-    
+
     // Use document fragment for batch DOM operations
     const fragment = document.createDocumentFragment();
-    
+
     // Add elements to fragment in desired order
     if (incomeBox) fragment.appendChild(incomeBox);
     if (budgetCard) fragment.appendChild(budgetCard);
-    if (subscriptionText) fragment.appendChild(subscriptionText);
-    if (subscriptionSummary) fragment.appendChild(subscriptionSummary);
+    if (subscriptionCard) fragment.appendChild(subscriptionCard);
     if (chartCard) fragment.appendChild(chartCard);
-    
+
     // Append all at once
     container.appendChild(fragment);
     
