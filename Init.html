@@ -3359,7 +3359,7 @@ loadRecurringData: function() {
     
 
     
-    if (cachedData?.entries && Array.isArray(cachedData.entries) && cachedData.entries.length > 0) {
+    if (cachedData && Array.isArray(cachedData.entries)) {
       RecurringManager.init('recurringContent', cachedData.entries);
     } else {
       RecurringManager.init('recurringContent', null);
