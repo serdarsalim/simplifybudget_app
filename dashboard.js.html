@@ -1299,29 +1299,32 @@ function updateSavingsCard(data) {
     monthGoal.dataset.value = safeGoal;
   }
 
-  const actualRow = document.getElementById('savingsActualRow');
-  const outcomeRow = document.getElementById('savingsOutcomeRow');
-  const actualLabel = document.getElementById('savingsActualLabel');
+  const detailsRow = document.getElementById('savingsDetailsRow');
   const actualValue = document.getElementById('savingsActualValue');
   const outcomeValue = document.getElementById('savingsOutcomeValue');
   const streakRow = document.getElementById('savingsStreakRow');
   const streakLabel = document.getElementById('savingsStreakLabel');
-  const goalMetRow = document.getElementById('savingsGoalMetRow');
   const goalMetValue = document.getElementById('savingsGoalMetValue');
 
+  // Calculate streak for both views
+  const streakCount = computeSavingsGoalStreak();
+
   if (!isCurrentMonth) {
+    // Past month: show saved amount, check, percentage, and streak
     const actualSaved = (data.summary.income || 0) - (data.summary.spent || 0);
     const incomeTotal = data.summary.income || 0;
-
-    if (actualLabel) {
-      actualLabel.textContent = actualSaved >= 0 ? 'Actually saved' : 'Actually overspent';
-    }
+    const goalMet = actualSaved >= savingsGoal && savingsGoal > 0;
 
     if (actualValue) {
-      actualValue.textContent = Utils.formatCurrency(Math.abs(actualSaved));
+      const label = actualSaved >= 0 ? 'saved' : 'overspent';
+      actualValue.textContent = `${Utils.formatCurrency(Math.abs(actualSaved))} ${label}`;
       actualValue.classList.remove('is-positive', 'is-negative');
       actualValue.classList.add(actualSaved >= 0 ? 'is-positive' : 'is-negative');
-      actualValue.classList.add('savings-actual-value');
+    }
+
+    if (goalMetValue) {
+      goalMetValue.textContent = goalMet ? '✓' : '✕';
+      goalMetValue.style.display = savingsGoal > 0 ? 'inline' : 'none';
     }
 
     if (outcomeValue) {
@@ -1333,26 +1336,22 @@ function updateSavingsCard(data) {
       }
     }
 
-    if (goalMetRow && goalMetValue) {
-      if (savingsGoal > 0) {
-        goalMetValue.textContent = actualSaved >= savingsGoal ? '✓' : '✕';
-        goalMetRow.style.display = 'flex';
-      } else {
-        goalMetRow.style.display = 'none';
-      }
-    }
+    if (detailsRow) detailsRow.style.display = 'flex';
 
-    if (actualRow) actualRow.style.display = 'flex';
-    if (outcomeRow) outcomeRow.style.display = 'flex';
-    if (streakRow) streakRow.style.display = 'none';
-  } else {
-    if (actualRow) actualRow.style.display = 'none';
-    if (outcomeRow) outcomeRow.style.display = 'none';
-    if (goalMetRow) goalMetRow.style.display = 'none';
-    const streakCount = computeSavingsGoalStreak();
+    // Show streak on past months too
     if (streakRow && streakLabel && streakCount >= 1) {
-      streakLabel.textContent = `Streak: ${streakCount} month${streakCount === 1 ? '' : 's'}`;
-      streakRow.style.display = 'flex';
+      streakLabel.textContent = `Hit target ${streakCount} month${streakCount === 1 ? '' : 's'} in a row`;
+      streakRow.style.display = 'block';
+    } else if (streakRow) {
+      streakRow.style.display = 'none';
+    }
+  } else {
+    // Current month: hide details, show only streak
+    if (detailsRow) detailsRow.style.display = 'none';
+
+    if (streakRow && streakLabel && streakCount >= 1) {
+      streakLabel.textContent = `Hit target ${streakCount} month${streakCount === 1 ? '' : 's'} in a row`;
+      streakRow.style.display = 'block';
     } else if (streakRow) {
       streakRow.style.display = 'none';
     }
