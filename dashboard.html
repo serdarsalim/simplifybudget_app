@@ -111,11 +111,9 @@
       <div class="col-right">
         <!-- Integrated: Subscription List Card with Summary -->
         <div class="dashboard-card subscription-list-card clickable-subscription-card" onclick="navigateToSubscriptions()" title="Click to view all subscriptions">
-          <!-- Subscription Summary integrated here -->
-          <div class="subscription-summary-integrated">
-            <div class="subscription-info">
-              <!-- Will be populated dynamically -->
-            </div>
+          <!-- Subscription Header -->
+          <div class="subscription-header">
+            <span class="subscription-title">Fixed Payments</span>
           </div>
           
           <div class="subscription-list-container">
@@ -332,14 +330,17 @@ body, .dashboard-container {
 
 /* Modern subscription card */
 .subscription-list-card {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  background: #ffffff;
+  border-radius: 12px;
+  border: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   transition: all 0.3s ease;
   height: fit-content !important;
   align-self: start !important;
+}
+
+body.dark-mode .subscription-list-card {
+  background: #1e293b;
 }
 
 .subscription-list-card:not(.clickable-subscription-card):hover {
@@ -526,11 +527,19 @@ body.dark-mode .chart-container .chart-label {
 }
 
 /* ======================
-   DONUT CHART 
+   DONUT CHART
    ====================== */
 .donut-chart-card {
   padding: 0;
   overflow: hidden;
+  background: #ffffff;
+  border-radius: 12px;
+  border: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+body.dark-mode .donut-chart-card {
+  background: #1e293b;
 }
 
 #budgetView.show-expense-chart .donut-chart-card {
@@ -557,17 +566,22 @@ body.dark-mode .chart-container .chart-label {
 }
 
 .donut-chart-header {
-  background: linear-gradient(135deg, #9d6bff 0%, #8f84ac 100%);
-  color: #ffffff;
-  padding: 14px 30px;
+  background: none;
+  color: #374151;
+  padding: 16px 20px 12px 20px;
   margin: 0;
   text-align: left;
-  font-size: 15px;
-  font-family: 'Lato', sans-serif;
-  font-weight: 700;
+  font-size: 14px;
+  font-family: var(--font-family);
+  font-weight: 600;
   border-bottom: none;
-  border-radius: 8px 8px 0 0;
-  box-shadow: 0 4px 12px rgba(88, 71, 178, 0.15);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+body.dark-mode .donut-chart-header {
+  color: #f1f5f9 !important;
+  background: none !important;
 }
 
 /* ======================
@@ -1622,7 +1636,24 @@ body.dark-mode .progress-bar-placeholder {
   justify-content: center;
 }
 
+/* New flat header style for Fixed Payments */
+.subscription-header {
+  padding: 16px 20px 12px 20px;
+}
+
+.subscription-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+}
+
+body.dark-mode .subscription-title {
+  color: #f1f5f9;
+}
+
+/* Keep old styles for backwards compatibility but hide them */
 .subscription-summary-integrated {
+  display: none;
   background: linear-gradient(135deg, #9d6bff 0%, #8f84ac 100%);
   color: #ffffff;
   padding: 14px 30px;
@@ -2225,11 +2256,6 @@ body.dark-mode .subscription-list-card {
   position: relative;
 }
 
-.subscription-table tr.due-today td:first-child::before {
-  content: '🕐';
-  margin-right: 6px;
-  font-size: 12px;
-}
 
 /* Highlight subscriptions due soon (within 3 days) */
 .subscription-table tr.due-soon {
