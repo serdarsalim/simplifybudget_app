@@ -418,7 +418,34 @@ function init(containerId, cachedData) {
   
 
   
-  function fetchFreshNetWorthData() {
+  function getGoalIdForMatch(goal) {
+    if (!goal) return '';
+    if (goal.id) return goal.id;
+    const asset = goal.asset || goal.accountAsset || (goal.type === 'debt' ? 'Debts' : (goal.type === 'asset' ? 'Liquid Assets' : ''));
+    const account = goal.account || goal.accountName || '';
+    if (!asset || !account) return '';
+    return `${asset}|${account}`;
+  }
+
+  function pruneOrphanedGoals(entries, goals) {
+    const validIds = new Set((entries || []).map(e => `${e.asset}|${e.name}`));
+    const list = Array.isArray(goals) ? goals : [];
+    const pruned = [];
+    let removed = 0;
+
+    list.forEach(goal => {
+      const id = getGoalIdForMatch(goal);
+      if (id && validIds.has(id)) {
+        pruned.push(goal);
+      } else {
+        removed += 1;
+      }
+    });
+
+    return { goals: pruned, removed: removed };
+  }
+
+  function fetchFreshNetWorthData(options = {}) {
     if (!window.API || typeof API.getNetWorthData !== 'function') {
       console.error('NetWorthManager: API.getNetWorthData not available');
       showErrorState(getTranslation('api_not_available'));
@@ -445,7 +472,16 @@ function init(containerId, cachedData) {
               notes: entry.notes || ''
             };
           });
-          
+          const rawGoals = Array.isArray(result.goals) ? result.goals : [];
+          let goalsToStore = rawGoals;
+          let removedOrphans = 0;
+
+          if (options && options.pruneGoals) {
+            const pruned = pruneOrphanedGoals(cleanedEntries, rawGoals);
+            goalsToStore = pruned.goals;
+            removedOrphans = pruned.removed;
+          }
+
           processNetWorthData(cleanedEntries);
           
           // Update last refresh time and hide loading indicator
@@ -453,7 +489,19 @@ function init(containerId, cachedData) {
           hideLoadingIndicator();
           
           if (window.CacheManager && typeof CacheManager.setNetWorthWithTimestamp === 'function') {
-            CacheManager.setNetWorthWithTimestamp({ entries: cleanedEntries, goals: result.goals }, result.timestamp);
+            CacheManager.setNetWorthWithTimestamp({ entries: cleanedEntries, goals: goalsToStore }, result.timestamp);
+          }
+
+          if (removedOrphans > 0 && window.API && typeof API.saveNetWorthGoals === 'function') {
+            API.saveNetWorthGoals({ goals: goalsToStore }, function(saveResult) {
+              if (window.CacheManager && typeof CacheManager.setNetWorthWithTimestamp === 'function') {
+                const timestamp = saveResult && saveResult.timestamp ? saveResult.timestamp : result.timestamp;
+                CacheManager.setNetWorthWithTimestamp({ entries: cleanedEntries, goals: goalsToStore }, timestamp);
+              }
+              document.dispatchEvent(new CustomEvent('networth-goals-updated', { detail: { goals: goalsToStore } }));
+            }, function(error) {
+              console.error('NetWorthManager: Error pruning orphaned goals:', error);
+            });
           }
         } else {
           console.error('NetWorthManager: Invalid server response:', result);
@@ -4026,6 +4074,7 @@ function init(containerId, cachedData) {
           () => {
             // Delete directly without calling deleteEntry to avoid double confirmation
             _netWorthData.entries = _netWorthData.entries.filter(e => e.id !== entry.id);
+            removeGoalForEntry(entry);
             assignColorsToAssetTypes();
             calculateSummary();
             renderNetWorthView();
@@ -4091,6 +4140,8 @@ function init(containerId, cachedData) {
     const entryId = modal.getAttribute('data-entry-id');
     const entry = _netWorthData.entries.find(e => e.id === entryId);
     if (!entry) return;
+    const prevName = entry.name;
+    const prevAsset = entry.asset;
     
     // Get form values
     const name = document.getElementById('assetName').value.trim();
@@ -4131,6 +4182,7 @@ function init(containerId, cachedData) {
     if (entry.asset === 'Liquid Assets' || entry.asset === 'Debts') {
       const goalsState = getSavingsGoalsState();
       const goals = Array.isArray(goalsState.goals) ? goalsState.goals.slice() : [];
+      const prevGoalId = `${prevAsset}|${prevName}`;
       const goalId = `${entry.asset}|${name}`;
       const nextGoal = {
         id: goalId,
@@ -4140,6 +4192,13 @@ function init(containerId, cachedData) {
         start: goalStart,
         end: goalEnd
       };
+
+      if (prevGoalId !== goalId) {
+        const prevIndex = goals.findIndex(g => g.id === prevGoalId);
+        if (prevIndex >= 0) {
+          goals.splice(prevIndex, 1);
+        }
+      }
 
       const index = goals.findIndex(g => g.id === goalId);
       // For debts, target 0 is valid (payoff goal). For savings, target must be > 0
@@ -4315,12 +4374,27 @@ function init(containerId, cachedData) {
     });
   }
   
+        function removeGoalForEntry(entry) {
+      if (!entry) return;
+
+      const goalsState = getSavingsGoalsState();
+      const goals = Array.isArray(goalsState.goals) ? goalsState.goals.slice() : [];
+      const goalId = `${entry.asset}|${entry.name}`;
+      const index = goals.findIndex(g => g.id === goalId);
+
+      if (index >= 0) {
+        goals.splice(index, 1);
+        saveSavingsGoalsState({ goals });
+      }
+    }
+
         function deleteEntry(id) {
       const entry = _netWorthData.entries.find(e => e.id === id);
       if (!entry) return;
       
       showDeleteConfirmDialog(entry, function() {
         _netWorthData.entries = _netWorthData.entries.filter(e => e.id !== id);
+        removeGoalForEntry(entry);
         assignColorsToAssetTypes();
         calculateSummary();
         renderNetWorthView();
@@ -4463,7 +4537,7 @@ function init(containerId, cachedData) {
     }
     
     showLoadingState();
-    fetchFreshNetWorthData();
+    fetchFreshNetWorthData({ pruneGoals: true });
   }
   
   function setupAutocomplete(inputElement, suggestions, container) {
