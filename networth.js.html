@@ -2407,6 +2407,7 @@ function init(containerId, cachedData) {
                 <button type="button" class="nw-goal-toggle" id="goalToggleBtn">
                   <span class="nw-goal-toggle-icon"></span>
                   <span class="nw-goal-toggle-text" id="goalToggleText">Savings Goal</span>
+                  <span class="nw-goal-help-btn" id="goalHelpBtn" onclick="event.stopPropagation(); showGoalHelp()">?</span>
                 </button>
                 <div class="nw-goal-content" id="goalContent">
                   <div class="nw-goal-layout">
@@ -4707,6 +4708,34 @@ function init(containerId, cachedData) {
 
 // Expose globally
 window.NetWorthManager = NetWorthManager;
+
+function showGoalHelp() {
+  const goalText = document.getElementById('goalToggleText');
+  const title = goalText ? goalText.textContent : 'Savings Goal';
+
+  const overlay = document.createElement('div');
+  overlay.className = 'help-dialog-overlay';
+  overlay.innerHTML = `
+    <div class="help-dialog help-dialog-large">
+      <h3>${title}</h3>
+      <div class="help-content">
+        <p>Set a target amount for this account over a period of months. The system tracks your progress from the start month to the end month.</p>
+        <p>This goal will appear on your dashboard under Long-term Goals with a progress bar showing how far along you are.</p>
+      </div>
+      <button onclick="this.closest('.help-dialog-overlay').remove()">Got it</button>
+    </div>
+  `;
+
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) {
+      overlay.remove();
+    }
+  });
+
+  document.body.appendChild(overlay);
+}
+
+window.showGoalHelp = showGoalHelp;
 </script>
 
 <style>
@@ -7287,10 +7316,45 @@ body.dark-mode .nw-modal-footer {
   border-top: 1px solid #e1e5e9;
   padding-top: 16px;
   margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0px 8px;
+}
+
+.nw-goal-help-btn {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid #d1d5db;
+  background: #f3f4f6;
+  color: #9ca3af;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.nw-goal-help-btn:hover {
+  background: #e5e7eb;
+}
+
+body.dark-mode .nw-goal-help-btn {
+  background: #374151;
+  border-color: #4b5563;
+  color: #9ca3af;
+}
+
+body.dark-mode .nw-goal-help-btn:hover {
+  background: #4b5563;
 }
 
 .nw-goal-toggle {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
   background: none;
@@ -7303,7 +7367,6 @@ body.dark-mode .nw-modal-footer {
   color: #10b981;
   border-radius: 6px;
   transition: background-color 0.15s;
-  width: calc(100% + 24px);
   text-align: left;
 }
 
@@ -7328,6 +7391,7 @@ body.dark-mode .nw-modal-footer {
 .nw-goal-content {
   display: none;
   padding-top: 16px;
+  width: 100%;
 }
 
 .nw-goal-section.expanded .nw-goal-content {
