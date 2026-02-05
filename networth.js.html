@@ -130,6 +130,68 @@ var NetWorthManager = (function() {
       ],
       color: '#3498db'
     },
+    'Debts': {
+      name: 'Debts',
+      singularName: 'Debt',
+      isDebt: true,
+      suggestedTypes: [
+        'Mortgage',
+        'Home Equity Loan',
+        'HELOC',
+        'Second Mortgage',
+        'Reverse Mortgage',
+        'Car Loan',
+        'Auto Lease',
+        'Motorcycle Loan',
+        'Boat Loan',
+        'RV Loan',
+        'Personal Loan',
+        'Credit Card',
+        'Store Credit Card',
+        'Charge Card',
+        'Student Loan',
+        'Parent PLUS Loan',
+        'Private Student Loan',
+        'Medical Debt',
+        'Dental Loan',
+        'Payday Loan',
+        'Title Loan',
+        'Pawn Shop Loan',
+        'Business Loan',
+        'SBA Loan',
+        'Equipment Financing',
+        'Invoice Financing',
+        'Merchant Cash Advance',
+        'Tax Debt',
+        'IRS Payment Plan',
+        'State Tax Debt',
+        'Property Tax Debt',
+        'Family Loan',
+        'Friend Loan',
+        'Overdraft',
+        'Bank Line of Credit',
+        'Margin Loan',
+        'Securities Loan',
+        'Crypto Loan',
+        'DeFi Loan',
+        'Microfinance Loan',
+        'Peer-to-Peer Loan',
+        'Consolidation Loan',
+        'Bridge Loan',
+        'Hard Money Loan',
+        'Construction Loan',
+        'Land Loan',
+        'Vacation Loan',
+        'Wedding Loan',
+        'Legal Fees Owed',
+        'Child Support',
+        'Alimony',
+        'Buy Now Pay Later',
+        'Installment Plan',
+        'Deferred Payment'
+      ],
+      color: '#e74c3c'
+    },
     'Investments': {
       name: 'Investments',
       singularName: 'Investment',
@@ -243,68 +305,6 @@ var NetWorthManager = (function() {
         'Domain Names'
       ],
       color: '#f39c12'
-    },
-    'Debts': {
-      name: 'Debts',
-      singularName: 'Debt',
-      isDebt: true,
-      suggestedTypes: [
-        'Mortgage',
-        'Home Equity Loan',
-        'HELOC',
-        'Second Mortgage',
-        'Reverse Mortgage',
-        'Car Loan',
-        'Auto Lease',
-        'Motorcycle Loan',
-        'Boat Loan',
-        'RV Loan',
-        'Personal Loan',
-        'Credit Card',
-        'Store Credit Card',
-        'Charge Card',
-        'Student Loan',
-        'Parent PLUS Loan',
-        'Private Student Loan',
-        'Medical Debt',
-        'Dental Loan',
-        'Payday Loan',
-        'Title Loan',
-        'Pawn Shop Loan',
-        'Business Loan',
-        'SBA Loan',
-        'Equipment Financing',
-        'Invoice Financing',
-        'Merchant Cash Advance',
-        'Tax Debt',
-        'IRS Payment Plan',
-        'State Tax Debt',
-        'Property Tax Debt',
-        'Family Loan',
-        'Friend Loan',
-        'Overdraft',
-        'Bank Line of Credit',
-        'Margin Loan',
-        'Securities Loan',
-        'Crypto Loan',
-        'DeFi Loan',
-        'Microfinance Loan',
-        'Peer-to-Peer Loan',
-        'Consolidation Loan',
-        'Bridge Loan',
-        'Hard Money Loan',
-        'Construction Loan',
-        'Land Loan',
-        'Vacation Loan',
-        'Wedding Loan',
-        'Legal Fees Owed',
-        'Child Support',
-        'Alimony',
-        'Buy Now Pay Later',
-        'Installment Plan',
-        'Deferred Payment'
-      ],
-      color: '#e74c3c'
     }
   };
   
@@ -2738,10 +2738,8 @@ function init(containerId, cachedData) {
     const categoryTotal = calculateCategoryTotal(categoryKey);
     const categoryChange = calculateCategoryChange(categoryKey);
     
-    // Format total for badge (show negative for debts)
-    const formattedTotal = category.isDebt && categoryTotal > 0 
-      ? `-${formatCurrency(categoryTotal)}` 
-      : formatCurrency(Math.abs(categoryTotal));
+    // Format total for badge
+    const formattedTotal = formatCurrency(Math.abs(categoryTotal));
     
     // Create combined badge with total and change
     const badgeClass = category.isDebt ? 'nw-total-badge-debt' : 'nw-total-badge-asset';
