@@ -532,13 +532,9 @@ function init(containerId, cachedData) {
     updateBannerNetWorth(null);
     setupSummaryObserver();
     
-    // Check if this is a first-time user (no spreadsheet connected)
+    // First-time user (no spreadsheet) — welcome screen shows on main view
     if (message && message.includes('No spreadsheet ID found')) {
-      if (typeof window.renderNoSpreadsheetWelcome === 'function') {
-        window.renderNoSpreadsheetWelcome(container);
-      } else {
-        container.innerHTML = '<div class="grid-welcome" style="text-align:center;padding:60px 20px;">No spreadsheet connected.</div>';
-      }
+      container.innerHTML = '';
     } else {
       // Show regular error state for other errors
       container.innerHTML = `

@@ -799,14 +799,9 @@ async function calculateSavingRateAsync() {
   function showErrorState(error) {
     const container = getElement('incomeContent');
     if (container) {
-      // Check if this is a first-time user error (no spreadsheet ID)
+      // First-time user (no spreadsheet) — welcome screen shows on main view
       if (error && error.includes && error.includes('No spreadsheet ID found')) {
-        console.log('First-time user detected in IncomeManager - showing unified welcome message');
-        if (typeof window.renderNoSpreadsheetWelcome === 'function') {
-          window.renderNoSpreadsheetWelcome(container);
-        } else {
-          container.innerHTML = '<div class="grid-welcome" style="text-align:center;padding:60px 20px;">No spreadsheet connected.</div>';
-        }
+        container.innerHTML = '';
         return;
       }
       

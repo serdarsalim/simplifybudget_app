@@ -1266,15 +1266,10 @@ function fetchFreshExpenseData(month, year) {
  */
 function showErrorMessage(message) {
   // Check if this is a first-time user error (no spreadsheet ID)
+  // First-time user (no spreadsheet) — welcome screen shows on main view
   if (message && message.includes && message.includes('No spreadsheet ID found')) {
     const container = getElement('yearly-grid-container');
-    if (container) {
-      if (typeof window.renderNoSpreadsheetWelcome === 'function') {
-        window.renderNoSpreadsheetWelcome(container);
-      } else {
-        container.innerHTML = '<div class="grid-welcome" style="text-align:center;padding:60px 20px;">No spreadsheet connected.</div>';
-      }
-    }
+    if (container) container.innerHTML = '';
     return;
   }
     

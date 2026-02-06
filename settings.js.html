@@ -915,7 +915,14 @@ function applySettingsToForm(settings) {
             if (statusEl) {
               statusEl.innerHTML = `<span style="color: #006600">Sheet connected: <a href="${sheetUrl}" target="_blank" style="color: #006600; text-decoration: underline;">${fileName}</a></span>`;
             }
-            
+
+            // Clear no-spreadsheet lock and restore sidebar
+            window._noSpreadsheetConnected = false;
+            document.querySelectorAll('.sb-nav-item').forEach(function(item) {
+              item.style.opacity = '';
+              item.style.pointerEvents = '';
+            });
+
             if (window.CacheManager && CacheManager.invalidateAll) {
               CacheManager.invalidateAll();
             }
@@ -1533,7 +1540,12 @@ function createNewBudgetSheet() {
             newBtn.textContent = 'New Spreadsheet';
           }
           
-          // Switch to the expense view to show the new budget data
+          // Clear no-spreadsheet lock, restore sidebar, switch to expense view
+          window._noSpreadsheetConnected = false;
+          document.querySelectorAll('.sb-nav-item').forEach(function(item) {
+            item.style.opacity = '';
+            item.style.pointerEvents = '';
+          });
           if (window.SimBudget && SimBudget.Views) {
             SimBudget.Views.switchTo('expense');
           }

@@ -1455,6 +1455,21 @@ function renderNoSpreadsheetWelcome(containerOrId) {
     : containerOrId;
   if (!container) return false;
 
+  // Flag so sidebar can block navigation to empty views
+  window._noSpreadsheetConnected = true;
+
+  // Dim sidebar tabs except settings and the active view (which shows the welcome screen)
+  var activeView = (window.SimBudget && SimBudget.Views && SimBudget.Views.getCurrent)
+    ? SimBudget.Views.getCurrent() : 'expense';
+  window._welcomeView = activeView;
+  document.querySelectorAll('.sb-nav-item').forEach(function(item) {
+    var view = item.getAttribute('data-view');
+    if (view !== 'settings' && view !== activeView) {
+      item.style.opacity = '0.35';
+      item.style.pointerEvents = 'none';
+    }
+  });
+
   // Auto-detect user's language
   let detectedLang = 'en';
 
@@ -1462,6 +1477,56 @@ function renderNoSpreadsheetWelcome(containerOrId) {
     detectedLang = detectBrowserLanguage();
   }
 
+  // Render welcome screen once with an empty permission slot
+  _renderWelcomeContent(container);
+
+  // Only run permission check once across all callers
+  if (typeof window._welcomePermissionChecked === 'undefined') {
+    window._welcomePermissionChecked = 'pending';
+    if (typeof API !== 'undefined' && API.checkSheetsPermission) {
+      API.checkSheetsPermission(
+        function(result) {
+          window._welcomePermissionChecked = result.hasPermission ? 'granted' : 'missing';
+          if (!result.hasPermission) {
+            _showPermissionBlock();
+          }
+        },
+        function() {
+          window._welcomePermissionChecked = 'missing';
+          _showPermissionBlock();
+        }
+      );
+    }
+  } else if (window._welcomePermissionChecked === 'missing') {
+    // Already know permissions are missing, show immediately
+    _showPermissionBlock();
+  }
+
+  // Auto-save the detected language to user settings
+  if (detectedLang !== 'en') {
+    // Set the detected language as default for new users
+    if (window.SimBudget && SimBudget.Settings) {
+      const autoSettings = {
+        language: detectedLang,
+        currencySymbol: '$',
+        dateFormat: 'MM/DD/YYYY',
+        darkMode: false,
+        showRemaining: true,
+        enableAlerts: true,
+        showDecimals: true
+      };
+      SimBudget.Settings.saveAll(autoSettings);
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Render welcome screen shell once (with empty permission slot)
+ * @param {HTMLElement} container
+ */
+function _renderWelcomeContent(container) {
   container.innerHTML = `
     <div
       class="grid-welcome"
@@ -1490,26 +1555,7 @@ function renderNoSpreadsheetWelcome(containerOrId) {
         </div>
       </div>
 
-      <div style="
-        background: #f8f9fa;
-        border-radius: 12px;
-        padding: 20px 24px;
-        margin-bottom: 32px;
-        text-align: left;
-        max-width: 400px;
-        margin-left: auto;
-        margin-right: auto;
-      ">
-        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
-          <span style="font-size: 18px;">🔒</span>
-          <span style="font-weight: 600; color: #333;">Your data stays in YOUR Google Drive</span>
-        </div>
-        <ul style="margin: 0; padding-left: 28px; color: #555; font-size: 14px; line-height: 1.8;">
-          <li>We never see your financial data</li>
-          <li>No ads, no data selling, no third-party tracking</li>
-          <li>Access your spreadsheet anytime from Settings</li>
-        </ul>
-      </div>
+      <div id="welcome-permission-slot"></div>
 
       <div style="margin: 32px 0;">
         <button
@@ -1529,36 +1575,50 @@ function renderNoSpreadsheetWelcome(containerOrId) {
           onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 16px rgba(76, 175, 80, 0.4)';"
           onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(76, 175, 80, 0.3)';"
         >
-          Set Up My Budget
+          Create My Budget Sheet
         </button>
       </div>
 
       <p style="margin-bottom: 0; font-size: 14px;">
         📺 <a href="https://www.youtube.com/watch?v=Xu_jhx9h_-Q" target="_blank" rel="noopener" style="color: #1a73e8;">
-          Watch the tutorial: How to use the app
+          How to use the app
         </a>
       </p>
     </div>
   `;
+}
 
-  // Auto-save the detected language to user settings
-  if (detectedLang !== 'en') {
-    // Set the detected language as default for new users
-    if (window.SimBudget && SimBudget.Settings) {
-      const autoSettings = {
-        language: detectedLang,
-        currencySymbol: '$',
-        dateFormat: 'MM/DD/YYYY',
-        darkMode: false,
-        showRemaining: true,
-        enableAlerts: true,
-        showDecimals: true
-      };
-      SimBudget.Settings.saveAll(autoSettings);
-    }
-  }
-
-  return true;
+/**
+ * Inject permission info into the slot (called only when permissions are missing)
+ */
+function _showPermissionBlock() {
+  var slot = document.getElementById('welcome-permission-slot');
+  if (!slot || slot.hasChildNodes()) return;
+  slot.innerHTML = `
+    <div style="
+      background: #f0f4ff;
+      border: 1px solid #d0daf0;
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-bottom: 32px;
+      text-align: left;
+      max-width: 480px;
+      margin-left: auto;
+      margin-right: auto;
+      font-size: 14px;
+      color: #444;
+      line-height: 1.7;
+    ">
+      <p style="margin: 0 0 4px 0;">Your settings and transactions are saved in a Google Sheets spreadsheet on your Drive.</p>
+      <p style="margin: 0 0 4px 0;">Simplify Budget needs permission to create and edit this spreadsheet.</p>
+      <p style="margin: 0 0 16px 0;">We never see your financial information.</p>
+      <p style="margin: 0 0 8px 0; font-weight: 600; color: #333;">To get started:</p>
+      <ol style="margin: 0; padding-left: 20px; line-height: 2;">
+        <li>Click <strong>"Create My Budget Sheet"</strong> below</li>
+        <li>Grant spreadsheet permissions when prompted</li>
+        <li>Click <strong>"Create My Budget Sheet"</strong> again</li>
+      </ol>
+    </div>`;
 }
 
 /**

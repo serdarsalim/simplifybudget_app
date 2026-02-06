@@ -363,6 +363,31 @@ setUserSettings: function(settings, successCallback, errorCallback) {
   },
 
   /**
+   * Check if spreadsheet scope is already authorized
+   * @param {Function} successCallback - Called with { hasPermission: boolean }
+   * @param {Function} errorCallback - Called on error
+   */
+  checkSheetsPermission: function(successCallback, errorCallback) {
+    try {
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result && result.success) {
+            successCallback(result);
+          } else {
+            var error = result && result.error ? result.error : "Unknown error";
+            errorCallback(error);
+          }
+        })
+        .withFailureHandler(function(error) {
+          errorCallback(error);
+        })
+        .checkSheetsPermission();
+    } catch (e) {
+      errorCallback(e.message || String(e));
+    }
+  },
+
+  /**
    * Force spreadsheet authorization (triggers consent dialog when needed)
    * @param {Function} successCallback - Called on success
    * @param {Function} errorCallback - Called on error

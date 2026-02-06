@@ -2105,6 +2105,9 @@ document.addEventListener("click", function(e) {
         const viewName = this.getAttribute("data-view");
         if (!viewName) return;
 
+        // Block navigation when no spreadsheet is connected (allow settings + welcome view)
+        if (window._noSpreadsheetConnected && viewName !== 'settings' && viewName !== window._welcomeView) return;
+
         // Update active state
         document.querySelectorAll(".sb-nav-item").forEach((navItem) => {
           navItem.classList.remove("active");

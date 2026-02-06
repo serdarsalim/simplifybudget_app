@@ -916,6 +916,24 @@ function requireDriveAuthorization() {
 }
 
 /**
+ * Check if spreadsheet scope is already authorized.
+ * Attempts to get an OAuth token scoped to spreadsheets.
+ * @return {Object} { success: true, hasPermission: boolean }
+ */
+function checkSheetsPermission() {
+  try {
+    const authInfo = ScriptApp.getAuthorizationInfo(ScriptApp.AuthMode.FULL);
+    const status = authInfo.getAuthorizationStatus();
+    return {
+      success: true,
+      hasPermission: status !== ScriptApp.AuthorizationStatus.REQUIRED
+    };
+  } catch (error) {
+    return { success: true, hasPermission: false };
+  }
+}
+
+/**
  * Get authorization URL for required scopes, if needed.
  * @return {Object} Result with optional authorization URL
  */
