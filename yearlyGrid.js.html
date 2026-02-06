@@ -2069,20 +2069,26 @@ function getNextMonth(month, year) {
     if (transactionsList) {
       transactionsList.innerHTML = '';
       
-      // First, add existing transactions if any
+      // First, add existing transactions as compact cards
       if (transactions.length > 0) {
         transactions.forEach(tx => {
           const item = createTransactionItem(tx);
+          if (tx.amount > 0) {
+            item._setCompact(true);
+          } else {
+            item._setCompact(false);
+          }
           transactionsList.appendChild(item);
         });
       }
-      
+
       // ALWAYS add an empty transaction row for quick entry
       const emptyTransaction = createEmptyTransaction(day, categoryId);
       const emptyItem = createTransactionItem(emptyTransaction);
       emptyItem.classList.add('new-transaction', 'ready-for-input');
+      emptyItem._setCompact(false);
       transactionsList.appendChild(emptyItem);
-      
+
       // Auto-focus the description field for natural workflow
       setTimeout(() => {
         const descriptionField = emptyItem.querySelector('.transaction-description');
@@ -2187,22 +2193,29 @@ function openYearlyTransactionModal(month, categoryId) {
   if (transactionsList) {
     transactionsList.innerHTML = '';
     
-    // Add existing transactions
+    // Add existing transactions as compact cards
     transactions.forEach(tx => {
       const item = createTransactionItem(tx);
+      if (tx.amount > 0) {
+        item._setCompact(true);
+      } else {
+        item._setCompact(false);
+      }
       transactionsList.appendChild(item);
     });
-    
+
     // Add new transaction form (will be saved to 1st of month)
     const newTx = createNewYearlyTransaction(month, categoryId);
     const newItem = createTransactionItem(newTx);
+    newItem.classList.add('new-transaction', 'ready-for-input');
+    newItem._setCompact(false);
     transactionsList.appendChild(newItem);
   }
-  
+
   // Set modal attributes for compatibility with existing add-more functionality
   modal.setAttribute('data-day', '1'); // Always use 1st day for monthly view
   modal.setAttribute('data-category', categoryId);
-  
+
   // Show modal with proper positioning
   modal.style.display = 'flex';
   modal.style.position = 'fixed';
@@ -2214,12 +2227,13 @@ function openYearlyTransactionModal(month, categoryId) {
   modal.style.alignItems = 'center';
   modal.style.zIndex = '1000';
   modal.classList.add('visible');
-  
-  // Focus on the first input
+
+  // Focus on the new empty row
   setTimeout(() => {
-    const firstInput = modal.querySelector('.transaction-item[data-id^="new-"] input');
-    if (firstInput) {
-      firstInput.focus();
+    const descriptionField = newItem.querySelector('.transaction-description');
+    if (descriptionField) {
+      descriptionField.focus();
+      descriptionField.select();
     }
   }, 100);
 }
@@ -2263,7 +2277,7 @@ function createTransactionItem(tx) {
   const amountValue = tx.amount && tx.amount > 0 ? tx.amount : '';
   const amountPlaceholder = _currencySymbol;
   const descriptionValue = tx.description || '';
-  const descriptionPlaceholder = 'Expense name';
+  const descriptionPlaceholder = 'Description';
   
   const row = document.createElement('div');
   row.className = 'transaction-row';
@@ -2420,12 +2434,63 @@ function createTransactionItem(tx) {
   
   // Add the row to the item
   item.appendChild(row);
-  
+
   // Only set up event handlers for non-special transactions
   if (!isSpecialTransaction) {
     setupTransactionItemEvents(item, tx);
   }
-  
+
+  // Store a reference to make the item compact or editable
+  item._setCompact = function(compact) {
+    if (compact) {
+      item.classList.add('compact-card');
+      item.classList.remove('editable-card');
+      const inputs = item.querySelectorAll('input, select');
+      inputs.forEach(inp => inp.setAttribute('tabindex', '-1'));
+    } else {
+      item.classList.remove('compact-card');
+      item.classList.add('editable-card');
+      const inputs = item.querySelectorAll('input, select');
+      inputs.forEach(inp => inp.removeAttribute('tabindex'));
+    }
+  };
+
+  // Click handler: clicking a compact card makes it editable
+  if (!isSpecialTransaction) {
+    item.addEventListener('click', function(e) {
+      if (!item.classList.contains('compact-card')) return;
+      if (e.target.closest('.transaction-delete')) return;
+
+      const transactionsList = getElement('transactions-list');
+      if (transactionsList) {
+        transactionsList.querySelectorAll('.transaction-item.editable-card:not(.new-transaction)').forEach(other => {
+          if (other !== item) {
+            const otherAmount = parseFloat(other.querySelector('.transaction-amount')?.value) || 0;
+            if (otherAmount > 0) {
+              other._setCompact(true);
+            }
+          }
+        });
+        // Also compact the new-transaction row if it has data
+        const newRow = transactionsList.querySelector('.transaction-item.new-transaction');
+        if (newRow) {
+          const newRowAmount = parseFloat(newRow.querySelector('.transaction-amount')?.value) || 0;
+          if (newRowAmount > 0) {
+            newRow.classList.remove('new-transaction', 'ready-for-input');
+            newRow._setCompact(true);
+          }
+        }
+      }
+
+      item._setCompact(false);
+
+      setTimeout(() => {
+        const desc = item.querySelector('.transaction-description');
+        if (desc) { desc.focus(); desc.select(); }
+      }, 50);
+    });
+  }
+
   return item;
 }
 
@@ -2606,15 +2671,28 @@ function setupTransactionItemEvents(item, tx) {
   // Add a listener for the forceSave event (used in addTransactionRow)
   // KEEP THIS but we'll remove the forceSave dispatch from addTransactionRow
   item.addEventListener('forceSave', function() {
-    if (parseFloat(amountInput.value) > 0 && descriptionInput.value.trim()) {
+    if (parseFloat(amountInput.value) > 0) {
       updateTransactionQueue();
     }
+  });
+
+  // Blur-to-compact: when focus leaves this item entirely, compact it if it has data
+  // Only for non-new-transaction items (existing expenses)
+  item.addEventListener('focusout', function(e) {
+    if (item.classList.contains('new-transaction')) return;
+    setTimeout(() => {
+      if (item.contains(document.activeElement)) return;
+      const amount = parseFloat(amountInput?.value) || 0;
+      if (amount > 0 && item._setCompact) {
+        item._setCompact(true);
+      }
+    }, 100);
   });
 }
 
 
 
-  
+
         function updateTransactionTotal() {
           const transactionsList = getElement('transactions-list');
           const modalTitle = getElement('modal-title');
@@ -2677,10 +2755,9 @@ function closeYearlyTransactionModal() {
         const descriptionInput = item.querySelector('.transaction-description');
         const wasModified = item.getAttribute('data-modified') === 'true';
         
-        // Only save transactions that were modified AND have valid data
-        if (wasModified && amountInput && descriptionInput && 
-            parseFloat(amountInput.value) > 0 && 
-            descriptionInput.value.trim()) {
+        // Only save transactions that were modified AND have valid data (description optional)
+        if (wasModified && amountInput &&
+            parseFloat(amountInput.value) > 0) {
           // We need to trigger the save in the item's context
           if (item._updateTransactionQueue) {
             try {
@@ -2734,38 +2811,58 @@ function closeYearlyTransactionModal() {
 function addYearlyTransactionRow() {
   const transactionsList = getElement('transactions-list');
   const modal = getElement('yearly-transaction-modal');
-   
+
   if (!transactionsList || !modal) {
     console.error('Required elements not found');
     return;
   }
-  
-  // REMOVED: Force save logic for existing transactions
-  
+
   const day = modal.getAttribute('data-day');
   const categoryId = modal.getAttribute('data-category');
-  
+
   if (!day || !categoryId) {
     console.error('Missing day or category information');
     return;
   }
-  
-  // Create another empty transaction
+
+  // Convert any existing new-transaction rows — compact if they have data, keep editable otherwise
+  const currentNewRows = transactionsList.querySelectorAll('.transaction-item.new-transaction');
+  currentNewRows.forEach(row => {
+    const amount = parseFloat(row.querySelector('.transaction-amount')?.value) || 0;
+    if (amount > 0) {
+      row.classList.remove('new-transaction', 'ready-for-input');
+      row._setCompact(true);
+    } else {
+      row.classList.remove('new-transaction', 'ready-for-input');
+      row._setCompact(false);
+    }
+  });
+
+  // Also compact any other editable existing items
+  transactionsList.querySelectorAll('.transaction-item.editable-card:not(.new-transaction)').forEach(other => {
+    const otherAmount = parseFloat(other.querySelector('.transaction-amount')?.value) || 0;
+    if (otherAmount > 0) {
+      other._setCompact(true);
+    }
+  });
+
+  // Create a fresh empty transaction row
   const newTx = createEmptyTransaction(day, categoryId);
   const item = createTransactionItem(newTx);
   item.classList.add('new-transaction');
-  
+  item._setCompact(false);
+
   // Add to DOM
   transactionsList.appendChild(item);
-  
-  // Auto-focus the description field (new workflow)
+
+  // Auto-focus the description field
   setTimeout(() => {
     const descriptionField = item.querySelector('.transaction-description');
     if (descriptionField) {
       descriptionField.focus();
     }
   }, 100);
-  
+
   updateTransactionTotal();
 }
 
