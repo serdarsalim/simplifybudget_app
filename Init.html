@@ -2018,6 +2018,19 @@ if (refreshIncomeBtn) {
   });
 }
 
+const incomeAnalyticsBtn = document.getElementById('incomeAnalytics');
+if (incomeAnalyticsBtn) {
+  incomeAnalyticsBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (typeof window.showFinancialDashboard === 'function') {
+      window.showFinancialDashboard();
+    } else {
+      console.warn('Income: showFinancialDashboard not available');
+    }
+  });
+}
+
 
 // Note: Refresh expenses button is handled by MonthlyGrid module directly
 

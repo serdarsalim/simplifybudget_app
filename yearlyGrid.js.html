@@ -3449,6 +3449,8 @@ function notifyYearlyGridOfCategoryChange() {
 function populateMonthlyBreakdownTable(popup, viewYear) {
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth();
+  const isCurrentYearView = viewYear === currentYear;
+  const isPastYearView = viewYear < currentYear;
   
   // Get all income cells
   const incomeCells = popup.querySelectorAll('.income-cell');
@@ -3458,6 +3460,8 @@ function populateMonthlyBreakdownTable(popup, viewYear) {
   // Variables to track totals
   let totalIncome = 0;
   let totalSpending = 0;
+  let savingsRateIncome = 0;
+  let savingsRateSpending = 0;
   
   // Populate each month's data
   for (let month = 0; month <= 11; month++) {
@@ -3473,6 +3477,17 @@ function populateMonthlyBreakdownTable(popup, viewYear) {
     // Add to totals
     totalIncome += monthlyIncome;
     totalSpending += monthlySpending;
+
+    // Completed months are:
+    // - all months for past years
+    // - only months before current month for current year
+    // - none for future years
+    const isCompletedMonth = isPastYearView || (isCurrentYearView && month < currentMonth);
+    const includeInSavingsRate = isCompletedMonth;
+    if (includeInSavingsRate) {
+      savingsRateIncome += monthlyIncome;
+      savingsRateSpending += monthlySpending;
+    }
     
     // Update income cell (don't show 0 values)
     if (incomeCells[month]) {
@@ -3486,7 +3501,7 @@ function populateMonthlyBreakdownTable(popup, viewYear) {
     
     // Update savings cell (don't show 0 values) - use +/- prefix
     if (savingsCells[month]) {
-      if (monthlyIncome > 0 || monthlySpending > 0) {
+      if (isCompletedMonth && (monthlyIncome > 0 || monthlySpending > 0)) {
         const prefix = monthlySavings >= 0 ? '+' : '-';
         savingsCells[month].textContent = prefix + YearlyGrid.formatCurrency(Math.abs(monthlySavings));
 
@@ -3505,8 +3520,8 @@ function populateMonthlyBreakdownTable(popup, viewYear) {
   }
 
   // Update totals
-  const totalSavings = totalIncome - totalSpending;
-  const savingsRate = totalIncome > 0 ? ((totalSavings / totalIncome) * 100).toFixed(1) : 0;
+  const savingsRateSavings = savingsRateIncome - savingsRateSpending;
+  const savingsRate = savingsRateIncome > 0 ? ((savingsRateSavings / savingsRateIncome) * 100).toFixed(1) : 0;
 
   // Update total cells
   const incomeTotal = popup.querySelector('.income-total');
@@ -3522,14 +3537,14 @@ function populateMonthlyBreakdownTable(popup, viewYear) {
   }
 
   if (savingsTotal) {
-    if (totalIncome > 0 || totalSpending > 0) {
+    if (savingsRateIncome > 0 || savingsRateSpending > 0) {
       // Show amount on first line, percentage + arrow below
-      const arrow = totalSavings >= 0 ? '▲' : '▼';
-      savingsTotal.innerHTML = `${YearlyGrid.formatCurrency(Math.abs(totalSavings))}<span class="savings-rate">${Math.abs(savingsRate)}% ${arrow}</span>`;
+      const arrow = savingsRateSavings >= 0 ? '▲' : '▼';
+      savingsTotal.innerHTML = `${YearlyGrid.formatCurrency(Math.abs(savingsRateSavings))}<span class="savings-rate">${Math.abs(savingsRate)}% ${arrow}</span>`;
 
       // Add positive/negative class
       savingsTotal.classList.remove('positive', 'negative');
-      if (totalSavings >= 0) {
+      if (savingsRateSavings >= 0) {
         savingsTotal.classList.add('positive');
       } else {
         savingsTotal.classList.add('negative');
