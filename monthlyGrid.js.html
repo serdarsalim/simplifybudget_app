@@ -1537,8 +1537,7 @@ function _renderWelcomeContent(container) {
         margin: 0 auto;
       "
     >
-      <h2 style="margin-bottom: 8px; font-weight: 600; font-size: 24px;">Welcome to Simplify Budget!</h2>
-      <p style="margin-bottom: 32px; color: #666; font-size: 16px;">Google Sheets budgeting, without the hassle</p>
+      <h2 style="margin-bottom: 32px; font-weight: 600; font-size: 24px;">Welcome to Simplify Budget!</h2>
 
       <div style="display: flex; justify-content: center; gap: 24px; flex-wrap: wrap; margin-bottom: 32px;">
         <div style="text-align: center; min-width: 100px;">
@@ -1609,8 +1608,8 @@ function _showPermissionBlock() {
       color: #444;
       line-height: 1.7;
     ">
-      <p style="margin: 0 0 4px 0;">Your settings and transactions are saved in a Google Sheets spreadsheet on your Drive.</p>
-      <p style="margin: 0 0 4px 0;">Simplify Budget needs permission to create and edit this spreadsheet.</p>
+      <p style="margin: 0 0 4px 0;">Your settings and transactions are saved in a spreadsheet on your Google Drive.</p>
+      <p style="margin: 0 0 4px 0;">Simplify Budget needs permission to create and edit it.</p>
       <p style="margin: 0 0 16px 0;">We never see your financial information.</p>
       <p style="margin: 0 0 8px 0; font-weight: 600; color: #333;">To get started:</p>
       <ol style="margin: 0; padding-left: 20px; line-height: 2;">
@@ -2612,20 +2611,27 @@ function getNextMonth(month, year) {
     if (transactionsList) {
       transactionsList.innerHTML = '';
       
-      // First, add existing transactions if any
+      // First, add existing transactions as compact cards
       if (transactions.length > 0) {
         transactions.forEach(tx => {
           const item = createTransactionItem(tx);
+          // Start as compact card if has amount
+          if (tx.amount > 0) {
+            item._setCompact(true);
+          } else {
+            item._setCompact(false);
+          }
           transactionsList.appendChild(item);
         });
       }
-      
+
       // ALWAYS add an empty transaction row for quick entry
       const emptyTransaction = createEmptyTransaction(day, categoryId);
       const emptyItem = createTransactionItem(emptyTransaction);
       emptyItem.classList.add('new-transaction', 'ready-for-input');
+      emptyItem._setCompact(false); // New row always editable
       transactionsList.appendChild(emptyItem);
-      
+
       // Auto-focus the description field for natural workflow
       setTimeout(() => {
         const descriptionField = emptyItem.querySelector('.transaction-description');
@@ -2695,7 +2701,7 @@ function createTransactionItem(tx) {
   const isCompactAmount = window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
   const amountPlaceholder = isCompactAmount ? (_currencySymbol || '') : '0';
   const descriptionValue = tx.description || '';
-  const descriptionPlaceholder = 'Expense name';
+  const descriptionPlaceholder = 'Description';
   
   const row = document.createElement('div');
   row.className = 'transaction-row';
@@ -2863,12 +2869,68 @@ function createTransactionItem(tx) {
   
   // Add the row to the item
   item.appendChild(row);
-  
+
   // Only set up event handlers for non-special transactions
   if (!isSpecialTransaction) {
     setupTransactionItemEvents(item, tx);
   }
-  
+
+  // Store a reference to make the item compact or editable
+  item._setCompact = function(compact) {
+    if (compact) {
+      item.classList.add('compact-card');
+      item.classList.remove('editable-card');
+      // Make inputs non-interactive in compact mode
+      const inputs = item.querySelectorAll('input, select');
+      inputs.forEach(inp => inp.setAttribute('tabindex', '-1'));
+    } else {
+      item.classList.remove('compact-card');
+      item.classList.add('editable-card');
+      const inputs = item.querySelectorAll('input, select');
+      inputs.forEach(inp => inp.removeAttribute('tabindex'));
+    }
+  };
+
+  // Click handler: clicking a compact card makes it editable
+  if (!isSpecialTransaction) {
+    item.addEventListener('click', function(e) {
+      if (!item.classList.contains('compact-card')) return;
+      // Don't activate if clicking delete button
+      if (e.target.closest('.transaction-delete')) return;
+
+      // Compact any other editable existing item
+      const transactionsList = getElement('transactions-list');
+      if (transactionsList) {
+        transactionsList.querySelectorAll('.transaction-item.editable-card:not(.new-transaction)').forEach(other => {
+          if (other !== item) {
+            const otherAmount = parseFloat(other.querySelector('.transaction-amount')?.value) || 0;
+            if (otherAmount > 0) {
+              other._setCompact(true);
+            }
+          }
+        });
+        // Also compact the new-transaction row if it has data
+        const newRow = transactionsList.querySelector('.transaction-item.new-transaction');
+        if (newRow) {
+          const newRowAmount = parseFloat(newRow.querySelector('.transaction-amount')?.value) || 0;
+          if (newRowAmount > 0) {
+            newRow.classList.remove('new-transaction', 'ready-for-input');
+            newRow._setCompact(true);
+          }
+        }
+      }
+
+      // Make this card editable
+      item._setCompact(false);
+
+      // Focus the description field
+      setTimeout(() => {
+        const desc = item.querySelector('.transaction-description');
+        if (desc) { desc.focus(); desc.select(); }
+      }, 50);
+    });
+  }
+
   return item;
 }
 
@@ -3040,9 +3102,24 @@ function setupTransactionItemEvents(item, tx) {
   // Add a listener for the forceSave event (used in addTransactionRow)
   // KEEP THIS but we'll remove the forceSave dispatch from addTransactionRow
   item.addEventListener('forceSave', function() {
-    if (parseFloat(amountInput.value) > 0 && descriptionInput.value.trim()) {
+    if (parseFloat(amountInput.value) > 0) {
       updateTransactionQueue();
     }
+  });
+
+  // Blur-to-compact: when focus leaves this item entirely, compact it if it has data
+  // Only for non-new-transaction items (existing expenses)
+  item.addEventListener('focusout', function(e) {
+    // Skip for new-transaction rows
+    if (item.classList.contains('new-transaction')) return;
+    // Check if focus moved to another element within this same item
+    setTimeout(() => {
+      if (item.contains(document.activeElement)) return;
+      const amount = parseFloat(amountInput?.value) || 0;
+      if (amount > 0 && item._setCompact) {
+        item._setCompact(true);
+      }
+    }, 100);
   });
 }
 
@@ -3115,10 +3192,9 @@ function closeTransactionModal() {
         const descriptionInput = item.querySelector('.transaction-description');
         const wasModified = item.getAttribute('data-modified') === 'true';
         
-        // Only save transactions that were modified AND have valid data
-        if (wasModified && amountInput && descriptionInput && 
-            parseFloat(amountInput.value) > 0 && 
-            descriptionInput.value.trim()) {
+        // Only save transactions that were modified AND have valid data (description optional)
+        if (wasModified && amountInput &&
+            parseFloat(amountInput.value) > 0) {
           // We need to trigger the save in the item's context
           if (item._updateTransactionQueue) {
             try {
@@ -3163,38 +3239,59 @@ function closeTransactionModal() {
 function addTransactionRow() {
   const transactionsList = getElement('transactions-list');
   const modal = getElement('transaction-modal');
-   
+
   if (!transactionsList || !modal) {
     console.error('Required elements not found');
     return;
   }
-  
-  // REMOVED: Force save logic for existing transactions
-  
+
   const day = modal.getAttribute('data-day');
   const categoryId = modal.getAttribute('data-category');
-  
+
   if (!day || !categoryId) {
     console.error('Missing day or category information');
     return;
   }
-  
-  // Create another empty transaction
+
+  // Convert any existing new-transaction rows — compact if they have data, keep editable otherwise
+  const currentNewRows = transactionsList.querySelectorAll('.transaction-item.new-transaction');
+  currentNewRows.forEach(row => {
+    const amount = parseFloat(row.querySelector('.transaction-amount')?.value) || 0;
+    if (amount > 0) {
+      row.classList.remove('new-transaction', 'ready-for-input');
+      row._setCompact(true);
+    } else {
+      // Keep as editable but remove new-transaction class so it's just a regular editable row
+      row.classList.remove('new-transaction', 'ready-for-input');
+      row._setCompact(false);
+    }
+  });
+
+  // Also compact any other editable existing items
+  transactionsList.querySelectorAll('.transaction-item.editable-card:not(.new-transaction)').forEach(other => {
+    const otherAmount = parseFloat(other.querySelector('.transaction-amount')?.value) || 0;
+    if (otherAmount > 0) {
+      other._setCompact(true);
+    }
+  });
+
+  // Create a fresh empty transaction row
   const newTx = createEmptyTransaction(day, categoryId);
   const item = createTransactionItem(newTx);
   item.classList.add('new-transaction');
-  
+  item._setCompact(false);
+
   // Add to DOM
   transactionsList.appendChild(item);
-  
-  // Auto-focus the description field (new workflow)
+
+  // Auto-focus the description field
   setTimeout(() => {
     const descriptionField = item.querySelector('.transaction-description');
     if (descriptionField) {
       descriptionField.focus();
     }
   }, 100);
-  
+
   updateTransactionTotal();
 }
 
@@ -4378,6 +4475,106 @@ body.dark-mode .amount-max { background-color: #823200 !important; }
 
 .transaction-item:focus-within {
   background-color: #e8eaed;
+}
+
+/* ===== COMPACT CARD STATE ===== */
+/* Same dimensions as editable, but inputs look like plain text */
+.transaction-item.compact-card {
+  cursor: pointer;
+  background-color: #f3f4f6;
+}
+
+.transaction-item.compact-card:hover {
+  background-color: #eef0f2;
+}
+
+.transaction-item.compact-card:focus-within {
+  background-color: #f3f4f6;
+}
+
+/* Hide input styling in compact mode — same padding/size, no borders/bg */
+.transaction-item.compact-card .transaction-description,
+.transaction-item.compact-card .transaction-amount,
+.transaction-item.compact-card .transaction-account {
+  border-color: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  pointer-events: none;
+  color: #374151;
+}
+
+.transaction-item.compact-card .amount-input-wrapper {
+  border-color: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  pointer-events: none;
+}
+
+/* Hide placeholder text in compact mode */
+.transaction-item.compact-card .transaction-description::placeholder,
+.transaction-item.compact-card .transaction-amount::placeholder {
+  color: transparent;
+}
+
+/* Hide the dropdown arrow in compact mode */
+.transaction-item.compact-card .transaction-account {
+  background-image: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Hide delete button in compact mode, but keep recurring icon visible */
+.transaction-item.compact-card .transaction-actions {
+  visibility: hidden;
+}
+
+.transaction-item.compact-card.fixed-transaction .transaction-actions {
+  visibility: visible;
+}
+
+/* Editable card state — show everything normally */
+.transaction-item.editable-card {
+  background-color: #f8f9fa;
+}
+
+.transaction-item.editable-card:focus-within {
+  background-color: #e8eaed;
+}
+
+/* Dark mode compact card */
+body.dark-mode .transaction-item.compact-card {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+body.dark-mode .transaction-item.compact-card:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+body.dark-mode .transaction-item.compact-card:focus-within {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+body.dark-mode .transaction-item.compact-card .transaction-description,
+body.dark-mode .transaction-item.compact-card .transaction-amount,
+body.dark-mode .transaction-item.compact-card .transaction-account {
+  background-color: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  color: rgba(255, 255, 255, 0.87);
+}
+
+body.dark-mode .transaction-item.compact-card .amount-input-wrapper {
+  background-color: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+body.dark-mode .transaction-item.compact-card .transaction-actions {
+  visibility: hidden;
+}
+
+body.dark-mode .transaction-item.compact-card.fixed-transaction .transaction-actions {
+  visibility: visible;
 }
 
 .move-transaction-modal {
