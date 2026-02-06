@@ -473,7 +473,7 @@ const TURKISH_TRANSLATIONS = {
   "error_saving": "Kaydetme hatası",
   
   // Income summary metrics
-  "saving_rate": "Tasarruf Oranı (12A)",
+  "saving_rate": "Tasarruf Oranı",
   "year_total": "Yıllık Toplam",
   "monthly_average": "Aylık Ortalama",
   "this_month": "Bu Ay",
@@ -827,7 +827,7 @@ const FRENCH_TRANSLATIONS = {
   "error_saving": "Erreur lors de la sauvegarde",
   
   // Income summary metrics
-  "saving_rate": "Taux d'Épargne (12M)",
+  "saving_rate": "Taux d'Épargne",
   "year_total": "Total Annuel",
   "monthly_average": "Moyenne Mensuelle",
   "this_month": "Ce Mois",
@@ -1194,7 +1194,7 @@ const GERMAN_TRANSLATIONS = {
   "error_saving": "Fehler beim Speichern",
   
   // Income summary metrics
-  "saving_rate": "Sparquote (12M)",
+  "saving_rate": "Sparquote",
   "year_total": "Jahresgesamt",
   "monthly_average": "Monatlicher Durchschnitt",
   "this_month": "Dieser Monat",
@@ -1603,7 +1603,7 @@ const SPANISH_TRANSLATIONS = {
   "error_saving": "Error al guardar",
   
   // Income summary metrics
-  "saving_rate": "Tasa de Ahorro (12M)",
+  "saving_rate": "Tasa de Ahorro",
   "year_total": "Total del Año",
   "monthly_average": "Promedio Mensual",
   "this_month": "Este Mes",
@@ -1973,7 +1973,7 @@ const MALAY_TRANSLATIONS = {
   "error_saving": "Ralat menyimpan",
   
   // Income summary metrics
-  "saving_rate": "Kadar Simpanan (12B)",
+  "saving_rate": "Kadar Simpanan",
   "year_total": "Jumlah Tahun",
   "monthly_average": "Purata Bulanan",
   "this_month": "Bulan Ini",
@@ -2425,7 +2425,7 @@ const PORTUGUESE_TRANSLATIONS = {
   "monthly_average": "Média Mensal",
   "year_total": "Total Anual",
   "this_month": "Este Mês",
-  "saving_rate": "Taxa de Poupança (12M)",
+  "saving_rate": "Taxa de Poupança",
   
   // Chart and Display
   "chart_library_not_available": "Biblioteca de gráficos não disponível",
@@ -2878,7 +2878,7 @@ const JAPANESE_TRANSLATIONS = {
   "monthly_average": "月平均",
   "year_total": "年間合計",
   "this_month": "今月",
-  "saving_rate": "貯蓄率（12ヶ月）",
+  "saving_rate": "貯蓄率",
   
   // Chart and Display
   "chart_library_not_available": "チャートライブラリが利用できません",
@@ -3299,7 +3299,7 @@ const ENGLISH_TRANSLATIONS = {
   "recurring-income": "Recurring Income",
   
   // Income summary metrics
-  "saving_rate": "Saving Rate (12M)",
+  "saving_rate": "Saving Rate",
   "year_total": "Year Total",
   "monthly_average": "Monthly Average",
   "this_month": "This Month",
