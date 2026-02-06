@@ -671,6 +671,7 @@ SimBudget.makeEditableBudgetValues = function() {
       if (e.key === 'Enter') {
         e.preventDefault();
         this.blur();
+        setTimeout(() => focusNextGoalInput(this), 0);
       }
 
       if (e.key === 'Escape') {
@@ -817,6 +818,29 @@ SimBudget.makeEditableBudgetValues = function() {
     });
   });
 };
+
+function focusNextGoalInput(currentEl) {
+  const budgetInputs = Array.from(document.querySelectorAll('.budget-table .budget-value[contenteditable="true"]'));
+  const savingsGoal = document.getElementById('savingsMonthGoal');
+  if (!budgetInputs.length) return;
+  const index = budgetInputs.indexOf(currentEl);
+  if (index === -1) return;
+
+  if (index < budgetInputs.length - 1) {
+    const next = budgetInputs[index + 1];
+    next.focus();
+    const range = document.createRange();
+    range.selectNodeContents(next);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    return;
+  }
+
+  if (savingsGoal) {
+    savingsGoal.focus();
+  }
+}
 
 
 /**
