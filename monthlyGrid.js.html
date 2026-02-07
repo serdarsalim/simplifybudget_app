@@ -101,8 +101,8 @@ function showDayDetailsPopup(day) {
   closeBtn.addEventListener('click', closePopup);
   backdrop.addEventListener('click', closePopup);
   
-  // Show popup
-  setTimeout(() => popup.classList.add('visible'), 10);
+  // Show popup immediately
+  popup.classList.add('visible');
 }
 
    /**
@@ -1861,6 +1861,7 @@ if (window.CacheManager) {
         if (_isClosingModal) return;
 
         const cell = e.target.closest('.grid-cell[data-day][data-category]');
+        const totalCell = e.target.closest('.total-cell[data-day]');
         if (cell) {
           e.stopPropagation();
 
@@ -1873,6 +1874,12 @@ if (window.CacheManager) {
           setTimeout(() => {
             _isOpeningModal = false;
           }, 300);
+        } else if (totalCell) {
+          e.stopPropagation();
+          const day = parseInt(totalCell.getAttribute('data-day'), 10);
+          if (!isNaN(day)) {
+            showDayDetailsPopup(day);
+          }
         }
       });
 
@@ -1887,6 +1894,8 @@ if (window.CacheManager) {
 
         gridContainer.addEventListener('mouseover', function(e) {
           const cell = e.target.closest('.grid-cell[data-day][data-category]');
+          const totalCell = e.target.closest('.total-cell[data-day]');
+
           if (cell) {
             const day = parseInt(cell.getAttribute('data-day'));
             const categoryId = cell.getAttribute('data-category');
@@ -1912,12 +1921,30 @@ if (window.CacheManager) {
               }
               tooltip.classList.add('visible');
             }
+          } else if (totalCell) {
+            const day = parseInt(totalCell.getAttribute('data-day'));
+            const today = new Date();
+            const isToday = day === today.getDate() &&
+                            _currentMonth === today.getMonth() &&
+                            _currentYear === today.getFullYear();
+
+            if (isToday) {
+              tooltip.textContent = 'Today';
+              tooltip.classList.add('today-tooltip');
+            } else {
+              const dateObj = new Date(_currentYear, _currentMonth, day);
+              const dayName = dateObj.toLocaleString('en-US', { weekday: 'short' });
+              tooltip.textContent = `${dayName} ${day}`;
+              tooltip.classList.remove('today-tooltip');
+            }
+            tooltip.classList.add('visible');
           }
         });
 
         gridContainer.addEventListener('mousemove', function(e) {
           const cell = e.target.closest('.grid-cell[data-day][data-category]');
-          if (cell && tooltip.classList.contains('visible')) {
+          const totalCell = e.target.closest('.total-cell[data-day]');
+          if ((cell || totalCell) && tooltip.classList.contains('visible')) {
             tooltip.style.left = (e.clientX + 12) + 'px';
             tooltip.style.top = (e.clientY + 12) + 'px';
           }
@@ -1925,8 +1952,10 @@ if (window.CacheManager) {
 
         gridContainer.addEventListener('mouseout', function(e) {
           const cell = e.target.closest('.grid-cell[data-day][data-category]');
+          const totalCell = e.target.closest('.total-cell[data-day]');
           const relatedCell = e.relatedTarget?.closest?.('.grid-cell[data-day][data-category]');
-          if (cell && !relatedCell) {
+          const relatedTotalCell = e.relatedTarget?.closest?.('.total-cell[data-day]');
+          if ((cell || totalCell) && !relatedCell && !relatedTotalCell) {
             tooltip.classList.remove('visible');
           }
         });
@@ -2515,16 +2544,7 @@ function getNextMonth(month, year) {
             )
           );
           
-          // Determine color based on amount ranges
-                    // Replace the existing color class logic in createTableBody:
-          let colorClass = 'amount-0';
-          if (amount > 0) {
-            const bracket = Math.min(Math.floor(amount / 10) * 10, 110);
-            colorClass = bracket === 0 ? 'amount-10' : `amount-${bracket}`;
-            if (amount > 110) colorClass = 'amount-max';
-          }
-          
-          cell.innerHTML = `<div class="cell-content ${colorClass}${hasRecurring ? ' recurring-cell' : ''}">
+          cell.innerHTML = `<div class="cell-content has-amount${hasRecurring ? ' recurring-cell' : ''}">
           <span class="amount">${formatCurrency(amount)}</span>
           ${dayTransactions.length > 1 ? `<span class="cell-meta"><span class="transaction-count">${dayTransactions.length}</span></span>` : ''}
         </div>`;
@@ -2536,10 +2556,12 @@ function getNextMonth(month, year) {
       // Daily total cell
       const totalCell = document.createElement('td');
       totalCell.className = 'total-cell';
+      totalCell.setAttribute('data-day', day);
       if (isWeekend) totalCell.classList.add('weekend-cell');
       if (isToday) totalCell.classList.add('today-cell');
       
       if (dayTotal > 0) {
+        totalCell.classList.add(getAmountHeatClass(dayTotal));
         totalCell.innerHTML = `<div class="total-amount">${formatCurrency(dayTotal)}</div>`;
       }
       
@@ -2550,6 +2572,13 @@ function getNextMonth(month, year) {
     }
     
     return tbody;
+  }
+
+  function getAmountHeatClass(amount) {
+    if (!amount || amount <= 0) return 'amount-0';
+    if (amount < 50) return 'amount-50';
+    if (amount <= 100) return 'amount-100';
+    return 'amount-max';
   }
 
   /**
@@ -4114,6 +4143,10 @@ function refresh(forceServerRefresh) {
   border-radius: 6px;
 }
 
+.cell-content.has-amount {
+  background-color: rgb(255 241 241);
+}
+
 .cell-meta {
   position: absolute;
   right: 4px;
@@ -4161,35 +4194,17 @@ function refresh(forceServerRefresh) {
 /* SPENDING HEAT MAP - Reversed: Light cream to deep pink */
 /* Replace lines 3565-3577 with this improved gradient: */
 
-/* SPENDING HEAT MAP - Better contrast for low spending */
-.amount-0 { background-color: #ffffff; } /* No spending - white */
-.amount-10 { background-color: #fff8f2; } /* $0-10 - Very light cream */
-.amount-20 { background-color: #fff5ed; } /* $10-20 - Light cream */
-.amount-30 { background-color: #ffefe0; } /* $20-30 - Slightly warmer cream */
-.amount-40 { background-color: #ffe8d4; } /* $30-40 - Warmer peach transition */
-.amount-50 { background-color: #ffd5a7; } /* $40-50 - Peach */
-.amount-60 { background-color: #ffcc9f; } /* $50-60 */
-.amount-70 { background-color: #ffbf94; } /* $60-70 */
-.amount-80 { background-color: #ffb18e; } /* $70-80 */
-.amount-90 { background-color: #ffa790; } /* $80-90 */
-.amount-100 { background-color: #ffa095; } /* $90-100 */
-.amount-110 { background-color: #ff9c99; } /* $100-110 */
-.amount-max { background-color: #fe9a9c; } /* $110+ - Deep pink */
+/* SPENDING HEAT MAP (Spent column): 0-49, 50-100, 100+ */
+.total-cell.amount-0 { background-color: #ffffff; }
+.total-cell.amount-50 { background-color: rgb(255 241 241); }
+.total-cell.amount-100 { background-color: #ffd3d3; }
+.total-cell.amount-max { background-color: #ffb7b7; }
 
-/* DARK MODE: Spending heat map - Darker versions of the gradient */
-body.dark-mode .amount-0 { background-color: #1e1e1e !important; }
-body.dark-mode .amount-10 { background-color: #2d2520 !important; }
-body.dark-mode .amount-20 { background-color: #332418 !important; }
-body.dark-mode .amount-30 { background-color: #3a2512 !important; }
-body.dark-mode .amount-40 { background-color: #42260f !important; }
-body.dark-mode .amount-50 { background-color: #4a280c !important; }
-body.dark-mode .amount-60 { background-color: #52290a !important; }
-body.dark-mode .amount-70 { background-color: #5a2a08 !important; }
-body.dark-mode .amount-80 { background-color: #622c06 !important; }
-body.dark-mode .amount-90 { background-color: #6a2d04 !important; }
-body.dark-mode .amount-100 { background-color: #722e02 !important; }
-body.dark-mode .amount-110 { background-color: #7a3000 !important; }
-body.dark-mode .amount-max { background-color: #823200 !important; }
+/* DARK MODE: Spending heat map buckets for Spent column */
+body.dark-mode .total-cell.amount-0 { background-color: #1e1e1e !important; }
+body.dark-mode .total-cell.amount-50 { background-color: #3f2d2d !important; }
+body.dark-mode .total-cell.amount-100 { background-color: #523434 !important; }
+body.dark-mode .total-cell.amount-max { background-color: #664040 !important; }
 
 .recurring-icon {
   font-size: 14px !important;
@@ -4235,7 +4250,7 @@ body.dark-mode .amount-max { background-color: #823200 !important; }
   font-weight: 600;
   color: #2c3e50;
   text-align: center;
-  background-color: rgba(244, 67, 54, 0.06);
+  background-color: #ffffff;
 }
 
 .total-amount {
@@ -5671,7 +5686,7 @@ body.dark-mode .weekend-row {
 /* Dark mode weekend row hover disabled */
 
 body.dark-mode .total-cell {
-  background-color: rgba(244, 67, 54, 0.1);
+  background-color: #2a2a2a;
 }
 
 /* Values get golden color */
@@ -5712,6 +5727,10 @@ body.dark-mode .monthly-grid td {
 
 body.dark-mode .notes-content:focus {
   background-color: rgba(40, 40, 40, 0.9);
+}
+
+body.dark-mode .cell-content.has-amount {
+  background-color: rgba(138, 94, 45, 0.34);
 }
 
 /* Enhanced color coding in dark mode */

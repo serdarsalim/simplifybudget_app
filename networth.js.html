@@ -60,6 +60,17 @@ var NetWorthManager = (function() {
     return key;
   }
 
+  function getCopyFromPrevMonthLabel(prevMonthName, prevYear) {
+    const template = getTranslation('copy_data_from_prev_month');
+    const safeTemplate = template && template !== 'copy_data_from_prev_month'
+      ? template
+      : 'Copy data from {prevMonthName} {prevYear}';
+
+    return safeTemplate
+      .replace('{prevMonthName}', prevMonthName)
+      .replace('{prevYear}', prevYear);
+  }
+
   function normalizeChartMode(mode) {
     return VALID_CHART_MODES.includes(mode) ? mode : 'allocation';
   }
@@ -867,6 +878,69 @@ function init(containerId, cachedData) {
     // FIX BUG 2: Use proper date comparison
     return getEntriesForMonth(_currentMonth, _currentYear);
   }
+
+  function parseEntryMonthYear(dateStr) {
+    if (!dateStr || typeof dateStr !== 'string') return null;
+
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const parts = dateStr.split(' ');
+    if (parts.length !== 2) return null;
+
+    const monthIndex = monthNames.indexOf(parts[0]);
+    const year = parseInt(parts[1], 10);
+    if (monthIndex === -1 || isNaN(year)) return null;
+
+    return { month: monthIndex, year: year };
+  }
+
+  function getLastAvailableMonthForCategory(categoryKey) {
+    if (!_netWorthData || !_netWorthData.entries || !_netWorthData.entries.length) {
+      return null;
+    }
+
+    const currentIndex = _currentYear * 12 + _currentMonth;
+    const monthBuckets = new Map();
+    let bestKey = null;
+    let bestIndex = -Infinity;
+
+    _netWorthData.entries.forEach(entry => {
+      if (!entry || entry.asset !== categoryKey) return;
+
+      const parsed = parseEntryMonthYear(entry.date);
+      if (!parsed) return;
+
+      const monthIndex = parsed.year * 12 + parsed.month;
+      if (monthIndex >= currentIndex) return;
+
+      const key = `${parsed.month}|${parsed.year}`;
+      if (!monthBuckets.has(key)) {
+        monthBuckets.set(key, {
+          month: parsed.month,
+          year: parsed.year,
+          entries: []
+        });
+      }
+      monthBuckets.get(key).entries.push(entry);
+
+      if (monthIndex > bestIndex) {
+        bestIndex = monthIndex;
+        bestKey = key;
+      }
+    });
+
+    if (!bestKey) return null;
+
+    const best = monthBuckets.get(bestKey);
+    if (!best || !best.entries || best.entries.length === 0) return null;
+
+    return {
+      month: best.month,
+      year: best.year,
+      monthName: getMonthName(best.month),
+      entries: best.entries
+    };
+  }
   
   // FIX BUG 2: New robust function for filtering entries by month/year
   function getEntriesForMonth(month, year) {
@@ -1027,7 +1101,7 @@ function init(containerId, cachedData) {
         <h3>${Utils.translateCategory('no_data_exists_for_month').replace('{monthName}', monthName).replace('{year}', _currentYear)}</h3>
         <p>${Utils.translateCategory('can_only_record_current_next_month')}</p>
         <button id="copyFromPrevBtn" class="nw-btn nw-btn-primary">
-          <i class="material-icons">content_copy</i> ${Utils.translateCategory('copy_data_from_prev_month').replace('{prevMonthName}', prevMonthName).replace('{prevYear}', prevYear)}
+          ${getCopyFromPrevMonthLabel(prevMonthName, prevYear)}
         </button>
       </div>
     `;
@@ -2737,9 +2811,17 @@ function init(containerId, cachedData) {
 
   function renderAssetTable(categoryKey, entries) {
     if (entries.length === 0) {
+      const lastAvailable = getLastAvailableMonthForCategory(categoryKey);
+      const copyAction = lastAvailable
+        ? `<button type="button" class="nw-copy-last-month-link" data-category="${categoryKey}">
+             ${getCopyFromPrevMonthLabel(lastAvailable.monthName, lastAvailable.year)}
+           </button>`
+        : '';
+
       return `
         <div class="nw-empty-state">
           <p>No ${categoryKey.toLowerCase()} found. Click ${Utils.translateCategory('add')} to create one.</p>
+          ${copyAction}
         </div>
       `;
     }
@@ -2795,8 +2877,6 @@ function init(containerId, cachedData) {
       const changeClass = isPositiveChange ? 'nw-positive-change' : 'nw-negative-change';
       const arrow = change > 0 ? '▲' : '▼';
       changeDisplay = `<span class="${changeClass}">${formatCurrency(Math.abs(change))} ${arrow}</span>`;
-    } else if (!previousEntry) {
-      changeDisplay = '<span class="nw-new-entry">New</span>';
     } else {
       changeDisplay = '';
     }
@@ -2929,6 +3009,13 @@ function init(containerId, cachedData) {
         showAddAssetModal(category);
       });
     });
+
+    document.querySelectorAll('.nw-copy-last-month-link').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const category = this.getAttribute('data-category');
+        copyCategoryFromLastAvailableMonth(category);
+      });
+    });
     
     // Remove toggle buttons
     document.querySelectorAll('.nw-remove-toggle').forEach(btn => {
@@ -2995,6 +3082,72 @@ function init(containerId, cachedData) {
         handleSortClick(column, categoryKey);
       });
     });
+  }
+
+  function copyCategoryFromLastAvailableMonth(categoryKey) {
+    try {
+      if (!categoryKey || !ASSET_CATEGORIES[categoryKey]) {
+        showMessage(getTranslation('invalid_server_response'), 'error');
+        return;
+      }
+
+      const source = getLastAvailableMonthForCategory(categoryKey);
+      if (!source || !source.entries || source.entries.length === 0) {
+        showMessage(getTranslation('no_valid_entries_to_copy').replace('{prevMonthName}', getPreviousMonthName()), 'warning');
+        return;
+      }
+
+      const currentMonthEntries = getCurrentMonthEntries().filter(entry => entry.asset === categoryKey);
+      const existingKeys = new Set(currentMonthEntries.map(entry => `${entry.asset}|${entry.name}|${entry.type || ''}`));
+      const seenCopyKeys = new Set(existingKeys);
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                         'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const currentMonthDate = `${monthNames[_currentMonth]} ${_currentYear}`;
+
+      const newEntries = [];
+      source.entries.forEach(entry => {
+        if (!entry || !entry.asset || !entry.name) return;
+        const key = `${entry.asset}|${entry.name}|${entry.type || ''}`;
+        if (seenCopyKeys.has(key)) return;
+
+        newEntries.push({
+          ...entry,
+          date: currentMonthDate,
+          id: `copy-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          notes: entry.notes || '',
+          amount: entry.amount !== undefined && entry.amount !== null && entry.amount !== ''
+            ? parseFloat(entry.amount) || 0
+            : 0
+        });
+        seenCopyKeys.add(key);
+      });
+
+      if (newEntries.length === 0) {
+        showMessage(
+          getTranslation('all_entries_already_exist')
+            .replace('{count}', source.entries.length)
+            .replace('{prevMonthName}', `${source.monthName} ${source.year}`),
+          'info'
+        );
+        return;
+      }
+
+      _netWorthData.entries = _netWorthData.entries.concat(newEntries);
+      saveNetWorthEntries(newEntries);
+      assignColorsToAssetTypes();
+      calculateSummary();
+      renderNetWorthView();
+
+      showMessage(
+        getTranslation('automatically_copied_assets')
+          .replace('{count}', newEntries.length)
+          .replace('{prevMonthName}', `${source.monthName} ${source.year}`),
+        'success'
+      );
+    } catch (error) {
+      console.error('NetWorth: Error copying category from last available month:', error);
+      showMessage(getTranslation('error_copying_data_from_previous_month'), 'error');
+    }
   }
   
   function makeFieldEditable(element) {
@@ -3139,8 +3292,6 @@ function init(containerId, cachedData) {
               const changeClass = isPositiveChange ? 'nw-positive-change' : 'nw-negative-change';
               const arrow = change > 0 ? '▲' : '▼';
               changeCell.innerHTML = `<span class="${changeClass}">${formatCurrency(Math.abs(change))} ${arrow}</span>`;
-            } else if (!previousEntry) {
-              changeCell.innerHTML = '<span class="nw-new-entry">New</span>';
             } else {
               changeCell.innerHTML = '';
             }
@@ -5471,9 +5622,36 @@ body.dark-mode #netWorthView .networth-banner-summary {
 .nw-empty-state {
   padding: 40px 20px;
   text-align: center;
-  color: var(--text-secondary, #666);
-  font-size: 14px;
+  color: rgba(102, 102, 102, 0.82);
+  font-size: 13px;
   font-style: italic;
+}
+
+.nw-empty-state p {
+  margin: 0;
+}
+
+.nw-copy-last-month-link {
+  margin-top: 10px;
+  border: none;
+  background: none;
+  color: #1976d2;
+  font-size: 13px;
+  font-style: normal;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.nw-copy-last-month-link i {
+  font-size: 16px;
+}
+
+.nw-copy-last-month-link:hover {
+  color: #125aa3;
+  text-decoration: none;
 }
 
 /* ======== TABLES - UPDATED FOR 5 COLUMNS ======== */
@@ -6845,6 +7023,14 @@ body.dark-mode .nw-remove-toggle {
 
 body.dark-mode .nw-add-btn:hover {
   background-color: rgba(171, 188, 205, 0.08);
+}
+
+body.dark-mode .nw-copy-last-month-link {
+  color: #64b5f6;
+}
+
+body.dark-mode .nw-copy-last-month-link:hover {
+  color: #90caf9;
 }
 
 body.dark-mode .nw-modal-close:hover {
