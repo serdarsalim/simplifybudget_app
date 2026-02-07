@@ -7,6 +7,16 @@
       <!-- Unified Month/Year Banner -->
       <div class="month-banner">
         <div class="month-banner-inner">
+          <a
+            href="https://docs.google.com/forms/d/e/1FAIpQLSd04w5oDz6xazcHDLRLam3UputcFhwl5RzuG8UTgItuj_7cDQ/viewform"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="feedback-icon-link"
+            aria-label="Send feedback"
+            title="Send feedback"
+          >
+            <i class="material-icons">rate_review</i>
+          </a>
           <div class="month-selector">
             <button id="dashboardAnalytics" class="analytics-btn" data-translate-title="analytics" aria-label="Analytics">
               <i class="material-icons">insights</i>
@@ -26,16 +36,6 @@
             <button id="refreshBudget" class="btn refresh-btn" title="Refresh Budget Data">
               <i class="material-icons">refresh</i>
             </button>
-            <a
-              href="https://docs.google.com/forms/d/e/1FAIpQLSd04w5oDz6xazcHDLRLam3UputcFhwl5RzuG8UTgItuj_7cDQ/viewform"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="feedback-icon-link feedback-icon-right"
-              aria-label="Send feedback"
-              title="Send feedback"
-            >
-              <i class="material-icons">rate_review</i>
-            </a>
           </div>
         </div>
       </div>
@@ -2079,13 +2079,13 @@ body.dark-mode .subscription-list-card {
     display: table-cell !important;
     vertical-align: middle !important;
     margin: 0 !important;
-    padding: 0 !important;
+    padding: 0 4px 0 0 !important;
     white-space: nowrap !important;
     overflow: visible !important;
     text-overflow: ellipsis !important;
   }
 
-  /* Mobile inset divider - border on all data cells */
+  /* Mobile inset divider - keep previous behavior */
   .budget-table tbody td.category-name::after {
     display: none !important;
   }
@@ -2169,20 +2169,20 @@ body.dark-mode .subscription-list-card {
   /* Column widths - ADJUSTED */
   .budget-table th:first-child,
   .budget-table td:first-child {
-    width: 35% !important;
-    min-width: 90px !important;
+    width: 39% !important;
+    min-width: 102px !important;
   }
   
   .budget-table th:nth-child(2),
   .budget-table td:nth-child(2),
   .budget-table th:nth-child(3),
   .budget-table td:nth-child(3) {
-    width: 20% !important;
+    width: 19% !important;
   }
   
   .budget-table th:nth-child(4),
   .budget-table td:nth-child(4) {
-    width: 25% !important;
+    width: 23% !important;
     min-width: 80px !important;
   }
 }
@@ -2197,6 +2197,12 @@ body.dark-mode .subscription-list-card {
 
   .category-name {
     font-size: 12px !important;
+  }
+
+  .budget-table th:first-child,
+  .budget-table td:first-child {
+    width: 40% !important;
+    min-width: 104px !important;
   }
 
   .budget-summary-integrated {

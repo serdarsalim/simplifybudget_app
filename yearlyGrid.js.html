@@ -1848,21 +1848,17 @@ function getNextMonth(month, year) {
   const totalHeaderContent = document.createElement('div');
   totalHeaderContent.className = 'category-header-content';
   
-  // Calculate yearly totals
-  const yearlyIncome = getYearlyIncome();
-  const yearlySpent = getYearlySpent();
-  const yearlySaved = yearlyIncome - yearlySpent;
-  
   // Create header label
   const headerLabel = document.createElement('div');
   const isDarkMode = document.body.classList.contains('dark-mode');
+  const yearlySpent = getYearlySpent();
   headerLabel.style.color = isDarkMode ? '#ffffff' : '#000000';
   headerLabel.style.fontSize = '12px';
   headerLabel.style.lineHeight = '1.2';
   headerLabel.style.fontWeight = '600';
   headerLabel.style.textAlign = 'center';
-  headerLabel.innerHTML = 'Totals<br>&<br>Savings';
-  headerLabel.title = 'Monthly spending totals with savings/overspending below';
+  headerLabel.innerHTML = `Spent:<br>${formatCurrency(yearlySpent)}`;
+  headerLabel.title = 'Monthly spent totals with yearly total context';
   
   totalHeaderContent.appendChild(headerLabel);
   totalHeader.appendChild(totalHeaderContent);
@@ -1878,6 +1874,7 @@ function getNextMonth(month, year) {
   
   function createTableBody(categories, monthsInYear) {
     const tbody = document.createElement('tbody');
+    const isDarkMode = document.body.classList.contains('dark-mode');
     
     // Get current month for highlighting
     const today = new Date();
@@ -1960,18 +1957,7 @@ function getNextMonth(month, year) {
             )
           );
           
-          // Determine color based on amount ranges
-                    // Replace the existing color class logic in createTableBody:
-          let colorClass = 'amount-0';
-          if (amount > 0) {
-            // Map 100-1000 range to existing 10-110 CSS classes
-            const scaledAmount = amount / 10; // Scale down by 10x
-            const bracket = Math.min(Math.floor(scaledAmount / 10) * 10, 110);
-            colorClass = bracket === 0 ? 'amount-10' : `amount-${bracket}`;
-            if (scaledAmount > 110) colorClass = 'amount-max';
-          }
-          
-          cell.innerHTML = `<div class="cell-content ${colorClass} ${hasRecurring ? 'yearly-recurring' : ''}">
+          cell.innerHTML = `<div class="cell-content ${hasRecurring ? 'yearly-recurring' : ''}" style="background-color: ${isDarkMode ? '#373737' : 'rgb(255 241 241)'}; border-radius: 6px;">
           <span class="amount">${formatCurrency(amount)}</span>
           ${monthTransactions.length > 1 ? `<span class="transaction-count">${monthTransactions.length}</span>` : ''}
         </div>`;
@@ -1987,14 +1973,13 @@ function getNextMonth(month, year) {
       
       // Only show if there's any financial activity
       if (monthlySpent > 0 || monthlyIncome > 0) {
-        const isDarkMode = document.body.classList.contains('dark-mode');
         const incomeColor = isDarkMode ? '#64b5f6' : '#1976d2'; // Lighter blue for dark mode
         const spentColor = isDarkMode ? '#ef5350' : '#d32f2f';  // Lighter red for dark mode
         const savedColor = monthlySaved >= 0 ? 'rgb(46, 125, 50)' : (isDarkMode ? '#f87171' : '#d32f2f'); // Same green for both light and dark modes
         const savedArrow = monthlySaved >= 0 ? '▲' : '▼';
         
         totalCell.innerHTML = `
-          <div class="financial-summary">
+          <div class="financial-summary" style="background-color: ${isDarkMode ? '#373737' : 'rgb(255 241 241)'}; border-radius: 6px;">
             <div class="spent-line" style="color: ${isDarkMode ? '#e0e0e0' : '#333333'}; font-size: 14px; line-height: 1.2; font-weight: 600;">
               ${formatCurrency(monthlySpent)}
             </div>
@@ -3295,6 +3280,15 @@ function showMonthDetailsPopup(month, currentYear) {
   
   
   try {
+    const isDarkMode = document.body.classList.contains('dark-mode');
+    const popupSurface = isDarkMode ? '#1a3148' : 'white';
+    const popupText = isDarkMode ? '#e6edf4' : '#333';
+    const popupMuted = isDarkMode ? '#b0c2d4' : '#666';
+    const popupBorder = isDarkMode ? 'rgb(22 53 83 / 45%)' : '#eee';
+    const popupRowBorder = isDarkMode ? 'rgb(22 53 83 / 35%)' : '#f0f0f0';
+    const popupAmount = isDarkMode ? '#c9b9a9' : '#2e7d32';
+    const popupExpenseAmount = isDarkMode ? '#c9b9a9' : '#2c3e50';
+
     const popup = document.createElement('div');
     popup.className = 'yearly-month-details-popup';
     popup.id = 'yearly-month-popup-' + Date.now();
@@ -3305,14 +3299,14 @@ function showMonthDetailsPopup(month, currentYear) {
     popup.style.left = '0';
     popup.style.width = '100%';
     popup.style.height = '100%';
-    popup.style.backgroundColor = 'rgba(0,0,0,0.5)';
+    popup.style.backgroundColor = isDarkMode ? 'rgba(0,0,0,0.65)' : 'rgba(0,0,0,0.5)';
     popup.style.display = 'flex';
     popup.style.justifyContent = 'center';
     popup.style.alignItems = 'center';
     popup.style.zIndex = '10000';
   popup.innerHTML = `
     <div class="yearly-popup-backdrop" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></div>
-    <div class="yearly-popup-content" style="background: white; border-radius: 8px; padding: 20px; width: 600px; max-width: 90vw; max-height: 80vh; overflow-y: auto; position: relative; z-index: 1; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+    <div class="yearly-popup-content" style="background: ${popupSurface}; color: ${popupText}; border: 1px solid ${popupBorder}; border-radius: 8px; padding: 20px; width: 600px; max-width: 90vw; max-height: 80vh; overflow-y: auto; position: relative; z-index: 1; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
       <style>
         @media (max-width: 768px) {
           .transaction-detail {
@@ -3333,31 +3327,31 @@ function showMonthDetailsPopup(month, currentYear) {
           }
         }
       </style>
-      <div class="yearly-popup-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
-        <h3 style="margin: 0; color: #333;">${monthName} ${currentYear}</h3>
-        <button class="yearly-popup-close" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">&times;</button>
+      <div class="yearly-popup-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid ${popupBorder}; padding-bottom: 10px;">
+        <h3 style="margin: 0; color: ${popupText};">${monthName} ${currentYear}</h3>
+        <button class="yearly-popup-close" style="background: none; border: none; font-size: 24px; cursor: pointer; color: ${popupMuted};">&times;</button>
       </div>
       <div class="yearly-popup-body" style="max-height: 400px; overflow-y: auto;">
         ${monthTransactions.length === 0 ? 
-          '<p style="padding: 20px; text-align: center; color: #666;">No transactions found for this month.</p>' :
+          `<p style="padding: 20px; text-align: center; color: ${popupMuted};">No transactions found for this month.</p>` :
           `
           ${incomeTransactions.length > 0 ? `
             <div class="income-section" style="margin-bottom: 30px;">
               <div class="section-header" style="margin-bottom: 15px;">
-                <strong style="color: #333;">Income ${formatCurrency(monthlyIncome)}</strong>
+                <strong style="color: ${popupAmount};">Income ${formatCurrency(monthlyIncome)}</strong>
               </div>
               ${incomeTransactions
                 .sort((a, b) => new Date(a.date) - new Date(b.date))
                 .map(tx => `
-                  <div class="transaction-detail" style="display: grid; grid-template-columns: 55px 160px 90px 70px 80px; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid #f0f0f0;">
-                    <div class="detail-date" style="font-size: 12px; color: #666; font-weight: 500;">${tx.date.getDate()} ${monthName.substring(0, 3)}</div>
+                  <div class="transaction-detail" style="display: grid; grid-template-columns: 55px 160px 90px 70px 80px; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid ${popupRowBorder};">
+                    <div class="detail-date" style="font-size: 12px; color: ${popupMuted}; font-weight: 500;">${tx.date.getDate()} ${monthName.substring(0, 3)}</div>
                     <div class="detail-name" style="font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${tx.description || 'Income'}</div>
-                    <div class="detail-category" style="color: #2e7d32; font-size: 13px; overflow: hidden; text-overflow: ellipsis;">
+                    <div class="detail-category" style="color: ${popupMuted}; font-size: 13px; overflow: hidden; text-overflow: ellipsis;">
                       <span class="category-desktop">${tx.category || 'Income'}</span>
                       <span class="category-mobile" style="display: none;">${getCategoryEmojiForMobile(tx.category, allCategories) || '💰'}</span>
                     </div>
-                    <div class="detail-amount" style="font-weight: bold; color: #2e7d32;">+${formatCurrency(tx.amount)}</div>
-                    <div class="detail-account" style="font-size: 12px; color: #888; text-align: left; padding-right: 10px;">${tx.account || ''}</div>
+                    <div class="detail-amount" style="font-weight: bold; color: ${popupAmount};">+${formatCurrency(tx.amount)}</div>
+                    <div class="detail-account" style="font-size: 12px; color: ${popupMuted}; text-align: left; padding-right: 10px;">${tx.account || ''}</div>
                   </div>
                 `).join('')}
             </div>
@@ -3366,20 +3360,20 @@ function showMonthDetailsPopup(month, currentYear) {
           ${expenseTransactions.length > 0 ? `
             <div class="expenses-section">
               <div class="section-header" style="margin-bottom: 15px;">
-                <strong style="color: #333;">Total spending ${formatCurrency(monthlySpending)}</strong>
+                <strong style="color: ${popupExpenseAmount};">Total spending ${formatCurrency(monthlySpending)}</strong>
               </div>
               ${expenseTransactions
                 .sort((a, b) => new Date(a.date) - new Date(b.date))
                 .map(tx => `
-                  <div class="transaction-detail" style="display: grid; grid-template-columns: 55px 160px 90px 70px 80px; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid #f0f0f0;">
-                    <div class="detail-date" style="font-size: 12px; color: #666; font-weight: 500;">${tx.date.getDate()} ${monthName.substring(0, 3)}</div>
+                  <div class="transaction-detail" style="display: grid; grid-template-columns: 55px 160px 90px 70px 80px; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid ${popupRowBorder};">
+                    <div class="detail-date" style="font-size: 12px; color: ${popupMuted}; font-weight: 500;">${tx.date.getDate()} ${monthName.substring(0, 3)}</div>
                     <div class="detail-name" style="font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${tx.description || 'Expense'}</div>
-                    <div class="detail-category" style="color: #666; font-size: 13px; overflow: hidden; text-overflow: ellipsis;">
+                    <div class="detail-category" style="color: ${popupMuted}; font-size: 13px; overflow: hidden; text-overflow: ellipsis;">
                       <span class="category-desktop">${tx.category || 'Other'}</span>
                       <span class="category-mobile" style="display: none;">${getCategoryEmojiForMobile(tx.category, allCategories) || '💸'}</span>
                     </div>
-                    <div class="detail-amount" style="font-weight: bold;">${formatCurrency(tx.amount)}</div>
-                    <div class="detail-account" style="font-size: 12px; color: #888; text-align: left; padding-right: 10px;">${tx.account || ''}</div>
+                    <div class="detail-amount" style="font-weight: bold; color: ${popupExpenseAmount};">${formatCurrency(tx.amount)}</div>
+                    <div class="detail-account" style="font-size: 12px; color: ${popupMuted}; text-align: left; padding-right: 10px;">${tx.account || ''}</div>
                   </div>
                 `).join('')}
             </div>
@@ -4786,14 +4780,14 @@ body.dark-mode .yearly-grid-container .month-year-display {
 
 /* Table headers */
 body.dark-mode .yearly-grid th {
-  background-color: #1F618D !important;
+  background-color: #2c5282 !important;
   color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
   border-bottom: 1px solid var(--dark-border, rgba(255, 255, 255, 0.1));
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 body.dark-mode .yearly-grid th.date-header {
-  background-color: #1F618D !important;
+  background-color: #2c5282 !important;
   border-bottom: 1px solid var(--dark-border, rgba(255, 255, 255, 0.12)) !important;
   border-right: 1px solid var(--dark-border, rgba(255, 255, 255, 0.12)) !important;
 }
@@ -4816,6 +4810,93 @@ body.dark-mode .category-name {
 body.dark-mode .day-name,
 body.dark-mode .day-number {
   color: rgba(224, 242, 254, 0.85) !important;
+}
+
+body.dark-mode .yearly-grid .date-cell {
+  background-color: #182f46 !important;
+}
+
+body.dark-mode .yearly-grid .grid-cell {
+  background-color: #172b3e;
+}
+
+body.dark-mode .yearly-grid .total-cell {
+  background-color: #26131763;
+  border-left: 1px solid rgb(22 53 83 / 28%);
+  border-right: 1px solid rgb(22 53 83 / 28%);
+}
+
+body.dark-mode .yearly-grid .amount,
+body.dark-mode .yearly-grid .category-total {
+  color: #c9b9a9 !important;
+}
+
+body.dark-mode .yearly-grid .transaction-count {
+  color: #fff !important;
+  background-color: rgb(129 129 129 / 62%);
+  padding: 2px 7px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-style: normal;
+}
+
+/* Yearly transaction modal title colors in dark mode */
+body.dark-mode .yearly-transaction-modal .title-category {
+  color: rgba(255, 255, 255, 0.92) !important;
+}
+
+body.dark-mode .yearly-transaction-modal .title-date {
+  color: rgba(224, 242, 254, 0.85) !important;
+  background: transparent !important;
+}
+
+body.dark-mode .yearly-transaction-modal .title-divider {
+  color: rgba(255, 255, 255, 0.35) !important;
+}
+
+body.dark-mode .yearly-transaction-modal .title-total {
+  color: #c9b9a9 !important;
+}
+
+/* Transaction editor fields in dark mode */
+body.dark-mode .yearly-transaction-modal .transaction-description,
+body.dark-mode .yearly-transaction-modal .transaction-amount,
+body.dark-mode .yearly-transaction-modal .transaction-account {
+  color: rgba(255, 255, 255, 0.87) !important;
+}
+
+/* Force yearly modal hover/focus states in dark mode */
+body.dark-mode .yearly-transaction-modal .transaction-item {
+  background-color: rgba(255, 255, 255, 0.04) !important;
+}
+
+body.dark-mode .yearly-transaction-modal .transaction-item:hover {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+body.dark-mode .yearly-transaction-modal .transaction-item:focus-within {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+body.dark-mode .yearly-transaction-modal .transaction-description:hover,
+body.dark-mode .yearly-transaction-modal .transaction-amount:hover,
+body.dark-mode .yearly-transaction-modal .transaction-account:hover {
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+body.dark-mode .yearly-transaction-modal .transaction-description:focus,
+body.dark-mode .yearly-transaction-modal .transaction-amount:focus,
+body.dark-mode .yearly-transaction-modal .transaction-account:focus {
+  border-color: #DDA15E !important;
+  box-shadow: 0 0 0 3px rgba(221, 161, 94, 0.15) !important;
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Ensure category label in yearly modal title never falls back to dark text */
+body.dark-mode .yearly-transaction-modal .modal-title .title-category,
+body.dark-mode .yearly-transaction-modal #modal-title .title-category,
+body.dark-mode .yearly-transaction-modal .integrated-title .title-category {
+  color: rgba(255, 255, 255, 0.92) !important;
 }
 
 /* Removed hover effect - was causing sticky background issue */
@@ -4985,8 +5066,16 @@ body.dark-mode .day-number {
 
 /* Yearly grid dark mode borders */
 body.dark-mode .yearly-grid td {
-    border-bottom: 1px solid rgba(30, 30, 30, 0.5);
-    border-right: 1px solid rgba(30, 30, 30, 0.5);
+    border-bottom: 1px solid rgb(22 53 83 / 28%);
+    border-right: 1px solid rgb(22 53 83 / 28%);
+}
+
+/* iPhone/mobile: increase dark-mode gridline contrast for dense screens */
+@media (max-width: 768px) {
+  body.dark-mode .yearly-grid td {
+    border-bottom: 1px solid rgb(35 72 108 / 56%) !important;
+    border-right: 1px solid rgb(35 72 108 / 56%) !important;
+  }
 }
 
 
@@ -5508,8 +5597,9 @@ body.dark-mode .filter-btn.active {
 
 /* Dark mode for yearly popup */
 body.dark-mode .yearly-popup-content {
-  background-color: var(--dark-surface, #1e1e1e) !important;
-  color: var(--dark-text-primary, rgba(255, 255, 255, 0.87)) !important;
+  background-color: #1a3148 !important;
+  color: #e6edf4 !important;
+  border-color: rgb(22 53 83 / 45%) !important;
 }
 
 body.dark-mode .yearly-popup-header {
@@ -5534,11 +5624,23 @@ body.dark-mode .yearly-popup-content .detail-amount {
 
 body.dark-mode .yearly-popup-content .detail-category,
 body.dark-mode .yearly-popup-content .detail-account {
-  color: rgba(255, 255, 255, 0.6) !important;
+  color: #b0c2d4 !important;
 }
 
 body.dark-mode .yearly-popup-content .detail-name {
   color: rgba(255, 255, 255, 0.87) !important;
+}
+
+/* Keep monthly-details popup category/date readable in dark mode */
+body.dark-mode .yearly-popup-content .detail-date,
+body.dark-mode .yearly-popup-content .detail-category,
+body.dark-mode .yearly-popup-content .category-desktop,
+body.dark-mode .yearly-popup-content .category-mobile {
+  color: #b0c2d4 !important;
+}
+
+body.dark-mode .yearly-popup-content .section-header strong {
+  color: #c9b9a9 !important;
 }
 
 /* Mobile adjustments for yearly popup */

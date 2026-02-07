@@ -855,9 +855,26 @@ button {
   }
   
   .month-year-display {
-    font-size: 15px !important;
+    font-size: 17px !important;
     min-width: 90px !important;
     padding: 2px 6px !important;
+  }
+
+  /* Mobile: right-align controls for Income and Recurring banners */
+  #incomeView .month-banner-inner,
+  #recurringView .month-banner-inner,
+  #categoriesView .month-banner-inner {
+    justify-content: flex-end !important;
+  }
+
+  #incomeView .refresh-info,
+  #recurringView .refresh-info,
+  #categoriesView .refresh-info {
+    justify-content: flex-end !important;
+  }
+
+  #categoriesView .month-banner-inner .refresh-info:only-child {
+    margin: 0 0 0 auto !important;
   }
 
   .last-refresh {

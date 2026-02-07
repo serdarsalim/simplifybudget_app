@@ -3920,10 +3920,9 @@ function refresh(forceServerRefresh) {
 }
 
 .month-year-display {
-  font-size: 17px;
+  font-size: 20px;
   font-weight: 600;
   color: #2c3e50;
-  font-family: 'Lato', sans-serif;
   min-width: 110px;
   text-align: center;
   padding: 4px 6px;
@@ -4046,10 +4045,6 @@ function refresh(forceServerRefresh) {
   background-color: #deeaf6 !important;
 }
 .weekend-row {
-  background-color: rgba(211, 236, 243, 0.3) !important;
-}
-
-.weekend-row .total-cell {
   background-color: rgba(211, 236, 243, 0.3) !important;
 }
 
@@ -4209,10 +4204,10 @@ function refresh(forceServerRefresh) {
 .total-cell.amount-max .total-amount { background-color: #ffb7b7; }
 
 /* DARK MODE: Spending heat map buckets for Spent column */
-body.dark-mode .total-cell.amount-0 .total-amount { background-color: #1e1e1e !important; }
-body.dark-mode .total-cell.amount-50 .total-amount { background-color: #3f2d2d !important; }
-body.dark-mode .total-cell.amount-100 .total-amount { background-color: #523434 !important; }
-body.dark-mode .total-cell.amount-max .total-amount { background-color: #664040 !important; }
+body.dark-mode .total-cell.amount-0 .total-amount { background-color: #1d3247 !important; }
+body.dark-mode .total-cell.amount-50 .total-amount { background-color: #23405a !important; }
+body.dark-mode .total-cell.amount-100 .total-amount { background-color: #2c5070 !important; }
+body.dark-mode .total-cell.amount-max .total-amount { background-color: #35628a !important; }
 
 .recurring-icon {
   font-size: 14px !important;
@@ -4248,7 +4243,7 @@ body.dark-mode .total-cell.amount-max .total-amount { background-color: #664040 
   line-height: 1;
   margin: 0;
   font-style: normal;
-  background-color: rgb(79 170 187 / 62%);
+  background-color: rgb(129 129 129 / 62%);
   padding: 2px 7px;
   border-radius: 12px;
   font-weight: 600;
@@ -4258,7 +4253,7 @@ body.dark-mode .total-cell.amount-max .total-amount { background-color: #664040 
   font-weight: 600;
   color: #2c3e50;
   text-align: center;
-  background-color: #ffffff;
+  background-color: #fdf9f9;
 }
 
 .total-cell[data-day] {
@@ -5615,14 +5610,14 @@ body.dark-mode .month-year-display {
 
 /* Table headers */
 body.dark-mode .monthly-grid th {
-  background-color: #334960 !important;
+  background-color: #2c5282 !important;
   color: var(--dark-text-primary, rgba(255, 255, 255, 0.87));
   border-bottom: 1px solid var(--dark-border, rgba(255, 255, 255, 0.1));
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 body.dark-mode .monthly-grid th.date-header {
-  background-color: #344960 !important;
+  background-color: #2c5282 !important;
   border-bottom: 1px solid var(--dark-border, rgba(255, 255, 255, 0.12)) !important;
   border-right: 1px solid var(--dark-border, rgba(255, 255, 255, 0.12)) !important;
 }
@@ -5668,7 +5663,7 @@ body.dark-mode .date-cell {
 }
 
 body.dark-mode .weekend-row .date-cell {
-  background-color: #184e77 !important;
+  background-color: #274a66 !important;
 }
 
 body.dark-mode .today-row.today-row .date-cell {
@@ -5689,30 +5684,36 @@ body.dark-mode .day-number {
 }
 
 body.dark-mode .day-row {
-  background-color: #252525;
+  background-color: #172b3e;
+}
+
+body.dark-mode .grid-cell {
+  background-color: #172b3e;
 }
 
 /* Dark mode row hover disabled */
 
 body.dark-mode .weekend-row {
-  background-color: #0a2c47 !important;
+  background-color: #1f3650 !important;
 }
 
-body.dark-mode .weekend-row .total-cell {
-  background-color: #0a2c47 !important;
+body.dark-mode .weekend-row .grid-cell {
+  background-color: #1f3650 !important;
 }
 
 /* Dark mode weekend row hover disabled */
 
 body.dark-mode .total-cell {
-  background-color: #2a2a2a;
+  background-color: #26131763;
+  border-left: 1px solid rgb(22 53 83 / 28%);
+  border-right: 1px solid rgb(22 53 83 / 28%);
 }
 
 /* Values get golden color */
 body.dark-mode .amount,
 body.dark-mode .total-amount,
 body.dark-mode .category-total {
-  color: #DDA15E !important;
+  color: #c9b9a9 !important;
 }
 
 /* Subtle border hover effect for grid cells in dark mode - desktop only */
@@ -5740,8 +5741,16 @@ body.dark-mode .notes-content:focus {
 
 /* Table cell borders in dark mode - subtle to blend with cell backgrounds */
 body.dark-mode .monthly-grid td {
-  border-bottom: 1px solid rgba(30, 30, 30, 0.5);
-  border-right: 1px solid rgba(30, 30, 30, 0.5);
+  border-bottom: 1px solid rgb(31 53 74);
+  border-right: 1px solid rgb(31 53 74);
+}
+
+/* iPhone/mobile: increase dark-mode gridline contrast for dense screens */
+@media (max-width: 768px) {
+  body.dark-mode .monthly-grid td {
+    border-bottom: 1px solid rgb(35 72 108 / 56%) !important;
+    border-right: 1px solid rgb(35 72 108 / 56%) !important;
+  }
 }
 
 body.dark-mode .notes-content:focus {
@@ -5749,7 +5758,7 @@ body.dark-mode .notes-content:focus {
 }
 
 body.dark-mode .cell-content.has-amount {
-  background-color: rgba(138, 94, 45, 0.34);
+  background-color: #373737;
 }
 
 /* Enhanced color coding in dark mode */
@@ -6118,30 +6127,30 @@ body.dark-mode .recurring-icon {
 
 /* Dark mode category headers */
 body.dark-mode .monthly-grid th {
-  background-color: #1F618D !important;
+  background-color: #2c5282 !important;
   color: #dbeafe !important;
 }
 
 body.dark-mode .monthly-grid th.date-header {
-  background-color: #1F618D !important;
+  background-color: #2c5282 !important;
   color: #dbeafe !important;
 }
 
 body.dark-mode .date-cell {
-  background-color: #374151 !important;
+  background-color: #182f46 !important;
 }
 
 /* Dark mode weekend rows */
 body.dark-mode .weekend-row .date-cell {
-  background-color: #485766 !important;
+  background-color: #274a66 !important;
 }
 
 body.dark-mode .weekend-row {
-  background-color: rgba(231, 243, 255, 0.08) !important;
+  background-color: #1f3650 !important;
 }
 
-body.dark-mode .weekend-row .total-cell {
-  background-color: rgba(231, 243, 255, 0.08) !important;
+body.dark-mode .weekend-row .grid-cell {
+  background-color: #1f3650 !important;
 }
 
 /* Dark mode weekend row hover disabled */
