@@ -4145,6 +4145,10 @@ function refresh(forceServerRefresh) {
 
 .cell-content.has-amount {
   background-color: rgb(255 241 241);
+  border-radius: 6px;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .cell-meta {
@@ -4195,16 +4199,16 @@ function refresh(forceServerRefresh) {
 /* Replace lines 3565-3577 with this improved gradient: */
 
 /* SPENDING HEAT MAP (Spent column): 0-49, 50-100, 100+ */
-.total-cell.amount-0 { background-color: #ffffff; }
-.total-cell.amount-50 { background-color: rgb(255 241 241); }
-.total-cell.amount-100 { background-color: #ffd3d3; }
-.total-cell.amount-max { background-color: #ffb7b7; }
+.total-cell.amount-0 .total-amount { background-color: #ffffff; }
+.total-cell.amount-50 .total-amount { background-color: rgb(255 241 241); }
+.total-cell.amount-100 .total-amount { background-color: #ffd3d3; }
+.total-cell.amount-max .total-amount { background-color: #ffb7b7; }
 
 /* DARK MODE: Spending heat map buckets for Spent column */
-body.dark-mode .total-cell.amount-0 { background-color: #1e1e1e !important; }
-body.dark-mode .total-cell.amount-50 { background-color: #3f2d2d !important; }
-body.dark-mode .total-cell.amount-100 { background-color: #523434 !important; }
-body.dark-mode .total-cell.amount-max { background-color: #664040 !important; }
+body.dark-mode .total-cell.amount-0 .total-amount { background-color: #1e1e1e !important; }
+body.dark-mode .total-cell.amount-50 .total-amount { background-color: #3f2d2d !important; }
+body.dark-mode .total-cell.amount-100 .total-amount { background-color: #523434 !important; }
+body.dark-mode .total-cell.amount-max .total-amount { background-color: #664040 !important; }
 
 .recurring-icon {
   font-size: 14px !important;
@@ -4259,9 +4263,12 @@ body.dark-mode .total-cell.amount-max { background-color: #664040 !important; }
   justify-content: center;
   align-items: center;
   height: 100%;
+  width: 100%;
+  box-sizing: border-box;
   line-height: 1;
   font-weight: 700;
   font-family: 'Lato', sans-serif;
+  border-radius: 6px;
 }
 
 .notes-cell {
