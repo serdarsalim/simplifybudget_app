@@ -1822,6 +1822,12 @@ loadTranslations: function () {
             const nextDarkMode = !document.body.classList.contains('dark-mode');
             document.body.classList.toggle('dark-mode', nextDarkMode);
             syncThemeToggleIcons();
+            if (window.MonthlyGrid && typeof MonthlyGrid.renderGrid === 'function') {
+              requestAnimationFrame(() => MonthlyGrid.renderGrid());
+            }
+            if (window.YearlyGrid && typeof YearlyGrid.renderGrid === 'function') {
+              requestAnimationFrame(() => YearlyGrid.renderGrid());
+            }
             persistDarkModeSetting(nextDarkMode);
           });
           document.body.dataset.themeToggleBound = 'true';

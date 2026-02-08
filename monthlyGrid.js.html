@@ -6185,4 +6185,33 @@ body.dark-mode .cell-tooltip.today-tooltip {
   background: rgba(8, 145, 178, 0.6);
   border: 1px solid rgba(8, 145, 178, 0.4);
 }
+
+/* Force clean light-mode repaint so dark styles never linger during toggles */
+body:not(.dark-mode) .monthly-grid .day-row {
+  background-color: #ffffff !important;
+}
+
+body:not(.dark-mode) .monthly-grid .grid-cell {
+  background-color: transparent !important;
+}
+
+body:not(.dark-mode) .monthly-grid .weekend-row {
+  background-color: rgba(211, 236, 243, 0.3) !important;
+}
+
+body:not(.dark-mode) .monthly-grid .weekend-row .grid-cell {
+  background-color: transparent !important;
+}
+
+body:not(.dark-mode) .monthly-grid .date-cell {
+  background-color: #fdfdfd !important;
+}
+
+body:not(.dark-mode) .monthly-grid .weekend-row .date-cell {
+  background-color: #deeaf6 !important;
+}
+
+body:not(.dark-mode) .monthly-grid .total-cell {
+  background-color: #fdf9f9 !important;
+}
 </style>
