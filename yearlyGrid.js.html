@@ -4232,7 +4232,7 @@ function getMonthlySpendingByCategory(month, year) {
 
 
 
-.total-header {
+.yearly-grid .total-header {
   width: 50px;
   text-align: center;
 }
@@ -4267,7 +4267,7 @@ function getMonthlySpendingByCategory(month, year) {
 
 
 
-.grid-cell {
+.yearly-grid .grid-cell {
   cursor: pointer;
   transition: background-color 0.2s;
   position: relative;
@@ -4276,7 +4276,7 @@ function getMonthlySpendingByCategory(month, year) {
 /* Removed hover effect - was causing sticky background issue */
 
 /* Cell content with improved color coding */
-.cell-content {
+.yearly-grid .cell-content {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -4293,7 +4293,7 @@ function getMonthlySpendingByCategory(month, year) {
 
 /* Desktop: center amount; right-align count */
 @media (min-width: 769px) {
-  .cell-content {
+  .yearly-grid .cell-content {
     position: relative;
     flex-direction: row;
     justify-content: center;
@@ -4301,12 +4301,12 @@ function getMonthlySpendingByCategory(month, year) {
     flex-wrap: nowrap;
   }
 
-  .cell-content .amount {
+  .yearly-grid .cell-content .amount {
     margin: 0 auto;
     white-space: nowrap;
   }
 
-  .cell-content .transaction-count {
+  .yearly-grid .cell-content .transaction-count {
     position: absolute;
     right: 4px;
   }
@@ -4357,7 +4357,7 @@ function getMonthlySpendingByCategory(month, year) {
 
 
 
-.transaction-count {
+.yearly-grid .transaction-count {
   font-size: 9px;
   color: rgba(0, 0, 0, 0.6);
   line-height: 1;

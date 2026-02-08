@@ -2437,16 +2437,6 @@ function getNextMonth(month, year) {
   totalName.style.fontWeight = 'normal';
   totalName.style.marginBottom = '2px';
   
-  // Apply dark mode styles if needed
-  const isDarkMode = document.body.classList.contains('dark-mode');
-  if (isDarkMode) {
-    spentAmount.style.color = 'rgba(255, 255, 255, 0.87)'; // Dark mode text
-    totalName.style.color = 'rgba(255, 255, 255, 0.6)'; // Dark mode secondary text
-  } else {
-    spentAmount.style.color = '#333'; // Light mode text
-    totalName.style.color = '#666'; // Light mode secondary text
-  }
-  
   // Clear totalValue and add our custom elements
   totalValue.textContent = '';
   totalValue.appendChild(spentAmount);
