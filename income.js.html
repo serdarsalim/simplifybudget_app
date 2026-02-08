@@ -5143,6 +5143,28 @@ body.dark-mode .inc-notes-cell:hover {
   color: #DDA15E;
 }
 
+/* Force clean light-mode repaint so dark income styles do not linger during toggles */
+body:not(.dark-mode) .inc-summary-box {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+  border: 1px solid rgba(79, 70, 229, 0.25);
+}
+
+body:not(.dark-mode) .inc-table-container {
+  background-color: #ffffff !important;
+  color: #2c3e50 !important;
+}
+
+body:not(.dark-mode) .inc-table th {
+  background-color: #ffffff !important;
+  color: #607d8b !important;
+  border-bottom: 1px solid #eee !important;
+}
+
+body:not(.dark-mode) .inc-table td {
+  border-color: #eee !important;
+}
+
 
 
 /* ======== DESKTOP STYLES ======== */

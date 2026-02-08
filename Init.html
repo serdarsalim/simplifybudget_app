@@ -1822,11 +1822,32 @@ loadTranslations: function () {
             const nextDarkMode = !document.body.classList.contains('dark-mode');
             document.body.classList.toggle('dark-mode', nextDarkMode);
             syncThemeToggleIcons();
+
+            const currentView = (window.SimBudget && SimBudget.Views && typeof SimBudget.Views.getCurrent === 'function')
+              ? SimBudget.Views.getCurrent()
+              : null;
+
             if (window.MonthlyGrid && typeof MonthlyGrid.renderGrid === 'function') {
               requestAnimationFrame(() => MonthlyGrid.renderGrid());
             }
             if (window.YearlyGrid && typeof YearlyGrid.renderGrid === 'function') {
               requestAnimationFrame(() => YearlyGrid.renderGrid());
+            }
+            if (currentView === 'budget' && window.SimBudget && typeof SimBudget.loadBudgetData === 'function') {
+              requestAnimationFrame(() => SimBudget.loadBudgetData(false));
+            }
+            if (currentView === 'income' && window.IncomeManager && typeof IncomeManager.updateDataSilently === 'function') {
+              const incomeCache = (window.CacheManager && typeof CacheManager.getIncomeWithTimestamp === 'function')
+                ? CacheManager.getIncomeWithTimestamp()
+                : null;
+              const incomeEntries = incomeCache && Array.isArray(incomeCache.income)
+                ? incomeCache.income
+                : ((window.CacheManager && typeof CacheManager.getIncome === 'function') ? CacheManager.getIncome() : null);
+              requestAnimationFrame(() => {
+                if (Array.isArray(incomeEntries)) {
+                  IncomeManager.updateDataSilently(incomeEntries);
+                }
+              });
             }
             persistDarkModeSetting(nextDarkMode);
           });

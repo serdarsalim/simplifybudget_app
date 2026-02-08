@@ -2390,6 +2390,28 @@ body.dark-mode .clickable-subscription-card:hover::after {
   color: rgba(255, 255, 255, 0.25);
 }
 
+/* Force clean light-mode repaint so dark dashboard styles do not linger during toggles */
+body:not(.dark-mode) .dashboard-card.budget-data-card:not(.budget-summary-integrated),
+body:not(.dark-mode) .dashboard-card.subscription-card,
+body:not(.dark-mode) .chart-container,
+body:not(.dark-mode) .donut-chart-card,
+body:not(.dark-mode) .subscription-list-card {
+  background: #ffffff !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+body:not(.dark-mode) .dashboard-card.budget-data-card *:not(.progress-bar):not(.progress-bar-container):not(.budget-summary-integrated):not(.budget-summary-integrated *),
+body:not(.dark-mode) .dashboard-card.subscription-card *,
+body:not(.dark-mode) .chart-container *,
+body:not(.dark-mode) .subscription-table th,
+body:not(.dark-mode) .subscription-list-header,
+body:not(.dark-mode) .donut-chart-container,
+body:not(.dark-mode) .donut-chart-header {
+  color: #2c3e50 !important;
+}
+
 </style>
 
 <script>
