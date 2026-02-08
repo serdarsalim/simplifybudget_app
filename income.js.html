@@ -762,21 +762,23 @@ async function calculateSummaryMetricsAsync() {
     const yearAverageLabel = `${currentYear} ${averageWord}`;
 
     container.innerHTML = `
-    <!-- Summary Box -->
-    <div class="inc-summary-row">
-      <div class="inc-summary-box">
-        <div class="inc-box-content">
-          <div class="inc-box-item inc-box-item-primary">
-            <div class="inc-box-label" id="thisMonthLabel">${currentMonthLabel}</div>
-            <div class="inc-box-value" id="monthTotal">${formatCurrency(metrics.monthTotal)}</div>
-          </div>
-          <div class="inc-box-item inc-box-item-secondary">
-            <div class="inc-box-label" id="yearTotalLabel">${yearTotalLabel}</div>
-            <div class="inc-box-value" id="yearTotal">${formatCurrency(metrics.yearTotal)}</div>
-          </div>
-          <div class="inc-box-item inc-box-item-secondary">
-            <div class="inc-box-label" id="monthlyAverageLabel">${yearAverageLabel}</div>
-            <div class="inc-box-value" id="monthlyAverage">${formatCurrency(metrics.monthlyAverage)}</div>
+    <div class="inc-sticky-shelf">
+      <!-- Summary Box -->
+      <div class="inc-summary-row">
+        <div class="inc-summary-box">
+          <div class="inc-box-content">
+            <div class="inc-box-item inc-box-item-primary">
+              <div class="inc-box-label" id="thisMonthLabel">${currentMonthLabel}</div>
+              <div class="inc-box-value" id="monthTotal">${formatCurrency(metrics.monthTotal)}</div>
+            </div>
+            <div class="inc-box-item inc-box-item-secondary">
+              <div class="inc-box-label" id="yearTotalLabel">${yearTotalLabel}</div>
+              <div class="inc-box-value" id="yearTotal">${formatCurrency(metrics.yearTotal)}</div>
+            </div>
+            <div class="inc-box-item inc-box-item-secondary">
+              <div class="inc-box-label" id="monthlyAverageLabel">${yearAverageLabel}</div>
+              <div class="inc-box-value" id="monthlyAverage">${formatCurrency(metrics.monthlyAverage)}</div>
+            </div>
           </div>
         </div>
       </div>
@@ -4936,6 +4938,49 @@ body.dark-mode .inc-table tbody tr[data-recurring="true"]:hover {
 
 /* Mobile optimizations */
 @media (max-width: 768px) {
+  #incomeView {
+    height: 100% !important;
+    overflow: hidden !important;
+  }
+
+  #incomeView .view-header {
+    position: relative !important;
+    z-index: 950 !important;
+    background: #0b0f14 !important;
+    flex: 0 0 auto !important;
+  }
+
+  body:not(.dark-mode) #incomeView .view-header {
+    background: #dce2ea !important;
+  }
+
+  #incomeContent {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .inc-sticky-shelf {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 900 !important;
+    background: #0b0f14 !important;
+    padding: 0 0 12px 0 !important;
+    margin: 0 !important;
+  }
+
+  body:not(.dark-mode) .inc-sticky-shelf {
+    background: #dce2ea !important;
+  }
+
+  .inc-summary-row {
+    margin-bottom: 0 !important;
+  }
+
   /* Mobile: keep income summary in one line (left/center/right) */
   .inc-box-content {
     display: grid;
@@ -4994,6 +5039,9 @@ body.dark-mode .inc-table tbody tr[data-recurring="true"]:hover {
     overflow-x: auto;
     overflow-y: visible !important;
     height: fit-content !important;
+    margin-bottom: 0 !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
   }
   
   .inc-table {
