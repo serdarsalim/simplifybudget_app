@@ -993,20 +993,20 @@ var RecurringManager = (function() {
               <!-- Data will be populated here -->
             </tbody>
           </table>
-        </div>
-
-        <div class="rec-table-footer">
-          <div class="rec-segmented-control">
-            <button class="rec-segment active" id="activeFilterBtn">
-              <span data-translate="active">Active</span>
-              <span class="rec-segment-count" id="activeCount"></span>
-            </button>
-            <button class="rec-segment" id="expiredFilterBtn">
-              <span>All</span>
-              <span class="rec-segment-count" id="expiredCount"></span>
-            </button>
+          <div class="rec-table-footer">
+            <div class="rec-segmented-control">
+              <button class="rec-segment active" id="activeFilterBtn">
+                <span data-translate="active">Active</span>
+                <span class="rec-segment-count" id="activeCount"></span>
+              </button>
+              <button class="rec-segment" id="expiredFilterBtn">
+                <span>All</span>
+                <span class="rec-segment-count" id="expiredCount"></span>
+              </button>
+            </div>
           </div>
         </div>
+
       </div>
     `;
     updateRecurringTable();
@@ -4683,7 +4683,73 @@ body.dark-mode .rec-delete-btn:hover {
   }
 
   .rec-table-container {
-    margin-bottom: 200px !important;
+    margin-bottom: 0 !important;
+    flex: none !important;
+    min-height: auto !important;
+    display: block !important;
+    overflow: visible !important;
+  }
+
+  .rec-table-wrapper {
+    flex: none !important;
+    min-height: auto !important;
+    overflow-y: visible !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: auto !important;
+  }
+
+  .rec-table {
+    width: 100% !important;
+    min-width: 0 !important;
+    table-layout: fixed !important;
+  }
+
+  .rec-table th {
+    position: static !important;
+    top: auto !important;
+    z-index: auto !important;
+  }
+
+  /* Hide frequency in mobile recurring list */
+  .rec-frequency-header,
+  .rec-frequency-cell {
+    display: none !important;
+  }
+
+  .rec-name-cell,
+  .rec-name-header {
+    width: 36% !important;
+    min-width: 36% !important;
+    max-width: 36% !important;
+  }
+
+  .rec-amount-header,
+  .rec-amount-cell {
+    width: 18% !important;
+    max-width: 18% !important;
+  }
+
+  .rec-dynamic-date-header,
+  .rec-dynamic-date-cell {
+    width: 28% !important;
+    max-width: 28% !important;
+  }
+
+  .rec-account-header,
+  .rec-account-cell {
+    width: 18% !important;
+    max-width: 18% !important;
+  }
+
+  .rec-table th,
+  .rec-table td {
+    padding-right: 2px !important;
+    padding-left: 2px !important;
+  }
+
+  .rec-dynamic-date-header,
+  .rec-dynamic-date-cell {
+    padding-right: 0 !important;
   }
 }
 
