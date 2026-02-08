@@ -2667,6 +2667,16 @@ function init(containerId, cachedData) {
       return;
     }
 
+    // Mobile uses the actual purple summary card directly; no duplicate sticky banner.
+    if (window.innerWidth <= 768) {
+      bannerSummary.classList.add('hidden');
+      if (window._netWorthSummaryObserver) {
+        window._netWorthSummaryObserver.disconnect();
+        window._netWorthSummaryObserver = null;
+      }
+      return;
+    }
+
     if (!summaryElement) {
       if (window._netWorthSummaryObserver) {
         window._netWorthSummaryObserver.disconnect();
@@ -4623,6 +4633,10 @@ function init(containerId, cachedData) {
   }
   
   function showMessage(message, type = 'info') {
+    if (!message || !String(message).trim()) {
+      return;
+    }
+
     // Use Utils.showToast if available (preferred - doesn't shift DOM)
     if (window.Utils && typeof Utils.showToast === 'function') {
       Utils.showToast(message, type);
@@ -5023,9 +5037,44 @@ body.dark-mode #netWorthView .networth-banner-summary {
     --networth-header-height: 88px;
   }
 
-  #netWorthView .networth-banner-summary {
-    font-size: 12px;
-    gap: 4px;
+  /* App-like sticky top stack: status bar + net worth summary */
+  #netWorthView .view-header {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 900 !important;
+    background: #0b0f14 !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    padding-top: 0 !important;
+    overflow: visible !important;
+  }
+
+  body:not(.dark-mode) #netWorthView .view-header {
+    background: #dce2ea !important;
+  }
+
+  #netWorthView .view-header .view-actions {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  #netWorthView .view-header .month-banner {
+    height: auto !important;
+    min-height: 38px;
+    overflow: visible !important;
+  }
+
+  #netWorthView .view-header .month-banner-inner {
+    flex-wrap: wrap;
+    row-gap: 8px;
+    column-gap: 8px;
+    align-items: center;
+  }
+
+  #netWorthView .networth-banner-summary,
+  #netWorthView .networth-banner-summary.hidden {
+    display: none !important;
   }
 
   #netWorthView .month-selector {
@@ -5036,6 +5085,11 @@ body.dark-mode #netWorthView .networth-banner-summary {
     min-width: 90px;
     font-size: 15px;
     padding: 2px 6px;
+  }
+
+  #netWorthContent {
+    padding-top: 8px !important;
+    overflow: visible !important;
   }
 
   .nw-chart-container {
@@ -5113,6 +5167,13 @@ body.dark-mode #netWorthView .networth-banner-summary {
   border-left: 1px solid rgba(0, 0, 0, 0.5);
   border-right: 4px solid #334a60;
   border-bottom: 4px solid #334a60;
+}
+
+.nw-message:empty {
+  display: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
 }
 
 .nw-success-message {
@@ -7347,9 +7408,32 @@ body.dark-mode .nw-modal-footer {
 
 /* Mobile view - collapsible chart with summary header */
 @media (max-width: 768px) {
+  /* Match monthly-grid strategy:
+     keep top header outside scroller and scroll inside content only */
+  #netWorthView {
+    height: 100% !important;
+    overflow: hidden !important;
+  }
+
+  #netWorthView .view-header {
+    position: relative !important;
+    z-index: 950 !important;
+    background: #0b0f14 !important;
+    flex: 0 0 auto !important;
+  }
+
+  body:not(.dark-mode) #netWorthView .view-header {
+    background: #dce2ea !important;
+  }
+
   #netWorthContent {
     display: flex !important;
     flex-direction: column !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
   }
 
   .nw-chart-container {
@@ -7361,6 +7445,10 @@ body.dark-mode .nw-modal-footer {
     flex-direction: column !important;
     width: calc(100% - 24px) !important;
     max-width: none !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 880 !important;
+    overflow: visible !important;
   }
 
   .nw-chart-header {
@@ -7370,6 +7458,9 @@ body.dark-mode .nw-modal-footer {
     opacity: 1 !important;
     width: 100% !important;
     min-height: 60px !important;
+    border-radius: 14px !important;
+    position: relative !important;
+    z-index: 1 !important;
   }
 
   .nw-chart-content {
