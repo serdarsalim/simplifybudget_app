@@ -127,6 +127,9 @@ function initEventListeners() {
   if (darkModeToggle) {
     darkModeToggle.addEventListener('change', function() {
       document.body.classList.toggle('dark-mode', this.checked);
+      if (typeof window.syncThemeToggleIcons === 'function') {
+        window.syncThemeToggleIcons();
+      }
       debounceAutoSave();
     });
   }

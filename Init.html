@@ -131,6 +131,46 @@
     }, 100);
   }
 
+  function syncThemeToggleIcons() {
+    const isDarkMode = document.body.classList.contains('dark-mode');
+    document.querySelectorAll('.theme-toggle-btn').forEach((btn) => {
+      const icon = btn.querySelector('.material-icons');
+      if (icon) {
+        icon.textContent = isDarkMode ? 'light_mode' : 'nightlight_round';
+      }
+      btn.setAttribute('aria-label', isDarkMode ? 'Switch to light mode' : 'Switch to dark mode');
+      btn.setAttribute('title', isDarkMode ? 'Switch to light mode' : 'Switch to dark mode');
+    });
+  }
+
+  function persistDarkModeSetting(isDarkMode) {
+    const darkModeToggle = document.getElementById('darkMode');
+    if (darkModeToggle) {
+      darkModeToggle.checked = isDarkMode;
+    }
+
+    if (window.SimBudget && SimBudget.Settings && typeof SimBudget.Settings.setSetting === 'function') {
+      SimBudget.Settings.setSetting('darkMode', isDarkMode);
+      return;
+    }
+
+    const cachedSettings = (window.CacheManager && typeof CacheManager.getSettings === 'function')
+      ? (CacheManager.getSettings() || {})
+      : {};
+    const settingsToSave = { ...cachedSettings, darkMode: isDarkMode };
+
+    if (window.CacheManager && typeof CacheManager.setSettings === 'function') {
+      CacheManager.setSettings(settingsToSave);
+    }
+
+    if (window.API && typeof API.setUserSettings === 'function') {
+      API.setUserSettings(settingsToSave, function(){}, function(error) {
+        console.error('Error saving dark mode setting:', error);
+      });
+    }
+  }
+  window.syncThemeToggleIcons = syncThemeToggleIcons;
+
   // Dashboard month/year editor popup
   function showDashboardMonthYearEditor() {
     const currentMonth = window.SimBudget?.getCurrentMonth() || new Date().getMonth();
@@ -1772,6 +1812,22 @@ loadTranslations: function () {
        * Bind all event listeners
        */
       bindEvents: function () {
+        // Top status-bar theme toggle buttons
+        if (!document.body.dataset.themeToggleBound) {
+          document.addEventListener("click", function(e) {
+            const themeToggleBtn = e.target.closest('.theme-toggle-btn');
+            if (!themeToggleBtn) return;
+
+            e.preventDefault();
+            const nextDarkMode = !document.body.classList.contains('dark-mode');
+            document.body.classList.toggle('dark-mode', nextDarkMode);
+            syncThemeToggleIcons();
+            persistDarkModeSetting(nextDarkMode);
+            document.dispatchEvent(new CustomEvent('settings-changed'));
+          });
+          document.body.dataset.themeToggleBound = 'true';
+        }
+        syncThemeToggleIcons();
 
         // Listen for recurring saves and trigger fetches
        document.addEventListener('recurring-saved', function(e) {
