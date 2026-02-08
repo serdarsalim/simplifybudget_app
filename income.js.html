@@ -126,15 +126,6 @@ function updateSortIndicators() {
   document.querySelectorAll('.inc-sort-indicator').forEach(indicator => {
     indicator.remove();
   });
-  
-  // Add indicator to current sort column
-  const currentHeader = document.querySelector(`[data-sort-column="${_currentSort.column}"]`);
-  if (currentHeader) {
-    const indicator = document.createElement('span');
-    indicator.className = 'inc-sort-indicator';
-    indicator.innerHTML = _currentSort.direction === 'asc' ? ' ▲' : ' ▼';
-    currentHeader.appendChild(indicator);
-  }
 }
 
 
@@ -5103,7 +5094,7 @@ body.dark-mode .inc-box-value {
 }
 
 body.dark-mode .inc-amount-cell {
-  color: #DDA15E !important;
+  color: #ffffff !important;
 }
 
 body.dark-mode .inc-currency {
@@ -5271,8 +5262,8 @@ body.dark-mode .inc-end-cell {
 }
 
 .inc-sortable:hover {
-  background-color: rgba(44, 62, 80, 0.1);
-  color: #2c3e50;
+  background-color: transparent;
+  color: inherit;
 }
 
 .inc-sort-indicator {
@@ -5285,8 +5276,8 @@ body.dark-mode .inc-end-cell {
 
 /* Dark mode sort indicators */
 body.dark-mode .inc-sortable:hover {
-  background-color: rgba(221, 161, 94, 0.1);
-  color: #DDA15E;
+  background-color: transparent;
+  color: inherit;
 }
 
 body.dark-mode .inc-sort-indicator {

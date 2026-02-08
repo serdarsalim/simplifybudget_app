@@ -1460,7 +1460,7 @@ body.dark-mode .budget-alert.info {
 
 /* Dark mode table header */
 body.dark-mode .budget-table th {
-  background-color: #182f46 !important;
+  background-color: #172b3e !important;
   color: rgba(255, 255, 255, 0.7) !important;
 }
 
@@ -1471,7 +1471,7 @@ body.dark-mode .budget-table td {
 
 /* Dark mode inset divider */
 body.dark-mode .budget-table tbody td.category-name::after {
-  background-color: rgba(255, 255, 255, 0.1) !important;
+  background-color: rgb(27 61 91 / 65%) !important;
 }
 
 .category-name {
@@ -1773,7 +1773,7 @@ body.dark-mode .subscription-title {
 /* Dark mode subscription table */
 body.dark-mode .subscription-table th,
 body.dark-mode .subscription-table td {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-bottom: 1px solid rgb(27 61 91 / 65%) !important;
   color: rgba(255, 255, 255, 0.7) !important;
 }
 
@@ -2097,6 +2097,7 @@ body.dark-mode .subscription-list-card {
     border-bottom: 1px solid #e8e8e8 !important;
   }
 
+
   /* Cover emoji portion with white overlay */
   .budget-table tbody td.category-name {
     position: relative !important;
@@ -2256,7 +2257,7 @@ body.dark-mode .subscription-list-card {
 
 /* Highlight subscriptions due today */
 .subscription-table tr.due-today {
-  background-color: #fff3e0;
+  background-color: transparent;
   font-weight: 700;
   position: relative;
 }
@@ -2264,19 +2265,45 @@ body.dark-mode .subscription-list-card {
 
 /* Highlight subscriptions due soon (within 3 days) */
 .subscription-table tr.due-soon {
-  background-color: #fff3e0;
+  background-color: transparent;
+  font-weight: 600;
+}
+
+.subscription-table tr.due-today td {
+  color: #f97316;
+  font-weight: 700;
+}
+
+.subscription-table tr.due-soon td,
+.subscription-table tr.next-payment td {
+  color: #d56e1a;
   font-weight: 600;
 }
 
 /* Dark mode support */
 body.dark-mode .subscription-table tr.due-today {
-  background-color: rgba(255, 152, 0, 0.2) !important;
+  background-color: transparent !important;
   font-weight: 700;
 }
 
 body.dark-mode .subscription-table tr.due-soon {
-  background-color: rgba(255, 152, 0, 0.2) !important;
+  background-color: transparent !important;
   font-weight: 600;
+}
+
+body.dark-mode .subscription-table tr.next-payment {
+  background-color: transparent !important;
+}
+
+body.dark-mode .subscription-table tr.due-today td {
+  color: #facc15 !important;
+  font-weight: 700 !important;
+}
+
+body.dark-mode .subscription-table tr.due-soon td,
+body.dark-mode .subscription-table tr.next-payment td {
+  color: #fbbf24 !important;
+  font-weight: 600 !important;
 }
 
 
@@ -2291,7 +2318,7 @@ body.dark-mode .subscription-table tr.due-soon {
 
 /* Next payment styling */
 .next-payment {
-  background-color: rgba(255, 193, 7, 0.2);
+  background-color: transparent;
   position: relative;
 }
 
@@ -2302,11 +2329,16 @@ tr.next-payment:not(.due-today):not(.due-soon) td {
 
 /* Combine styles when a payment is both next and due soon/today */
 tr.next-payment.due-soon td {
-  background-color: rgba(255, 152, 0, 0.02);
+  background-color: transparent;
 }
 
 tr.next-payment.due-today td {
-  background-color: rgba(255, 152, 0, 0.02);
+  background-color: transparent;
+}
+
+body.dark-mode tr.next-payment.due-soon td,
+body.dark-mode tr.next-payment.due-today td {
+  background-color: transparent !important;
 }
 
 /* Clickable subscription card styles */
@@ -2337,14 +2369,14 @@ tr.next-payment.due-today td {
 }
 
 .clickable-subscription-card:hover::after {
-  color: #9d6bff;
+  color: rgba(107, 114, 128, 0.25);
   transform: translateX(4px);
 }
 
 /* Dark mode support */
 body.dark-mode .clickable-subscription-card:hover {
-  box-shadow: 0 8px 32px rgba(123, 104, 238, 0.3) !important;
-  border: 1px solid rgba(123, 104, 238, 0.4) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
 }
 
 body.dark-mode .clickable-subscription-card::after {
@@ -2352,7 +2384,7 @@ body.dark-mode .clickable-subscription-card::after {
 }
 
 body.dark-mode .clickable-subscription-card:hover::after {
-  color: #9d6bff;
+  color: rgba(255, 255, 255, 0.25);
 }
 
 </style>

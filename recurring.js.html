@@ -209,15 +209,6 @@ var RecurringManager = (function() {
     document.querySelectorAll('.rec-sort-indicator').forEach(indicator => {
       indicator.remove();
     });
-    
-    // Add indicator to current sort column
-    const currentHeader = document.querySelector(`[data-sort-column="${_currentSort.column}"]`);
-    if (currentHeader) {
-      const indicator = document.createElement('span');
-      indicator.className = 'rec-sort-indicator';
-      indicator.innerHTML = _currentSort.direction === 'asc' ? ' ▲' : ' ▼';
-      currentHeader.appendChild(indicator);
-    }
   }
 
   /**
@@ -3618,8 +3609,8 @@ body.dark-mode .rec-chart-toggle {
 }
 
 .rec-sortable:hover {
-  background-color: rgba(44, 62, 80, 0.1);
-  color: #2c3e50;
+  background-color: transparent;
+  color: inherit;
 }
 
 .rec-sort-indicator {
@@ -3632,8 +3623,8 @@ body.dark-mode .rec-chart-toggle {
 
 /* Dark mode sort indicators */
 body.dark-mode .rec-sortable:hover {
-  background-color: rgba(221, 161, 94, 0.1);
-  color: #DDA15E;
+  background-color: transparent;
+  color: inherit;
 }
 
 body.dark-mode .rec-sort-indicator {
@@ -4078,6 +4069,11 @@ body.dark-mode .rec-confirm-btn.rec-delete-btn:hover {
   max-width: 88px !important;
 }
 
+.rec-dynamic-date-header {
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
 /* Name cell - Updated with emoji and name styling */
 .rec-name-cell,
 .rec-name-header {
@@ -4218,15 +4214,15 @@ body.dark-mode .rec-confirm-btn.rec-delete-btn:hover {
 
 /* Status classes for dynamic date column */
 .rec-dynamic-date-cell.status-active {
-  color: #2e7d32;
+  color: inherit;
 }
 
 .rec-dynamic-date-cell.status-expires {
-  color: #ff9800;
+  color: inherit;
 }
 
 .rec-dynamic-date-cell.status-ended {
-  color: #d32f2f;
+  color: inherit;
 }
 
 /* Full text display for type and frequency */
@@ -4407,7 +4403,8 @@ body.dark-mode .rec-table th {
 
 body.dark-mode .rec-box-value,
 body.dark-mode .rec-amount-cell {
-  color: #DDA15E !important;
+  color: #f3f4f6 !important;
+  font-weight: 700 !important;
 }
 
 body.dark-mode .rec-currency {
@@ -4424,11 +4421,16 @@ body.dark-mode .rec-category-select {
 }
 
 body.dark-mode .rec-table td {
-  border-color: var(--dark-border, rgba(255, 255, 255, 0.12));
+  border-color: rgb(27 61 91 / 65%);
 }
 
 body.dark-mode .rec-table th {
-  border-bottom: 1px solid var(--dark-border, rgba(255, 255, 255, 0.12));
+  border-bottom: 1px solid rgb(27 61 91 / 65%);
+}
+
+body.dark-mode .rec-table th,
+body.dark-mode .rec-table td {
+  border-bottom: 1px solid rgb(27 61 91 / 65%) !important;
 }
 
 body.dark-mode .rec-table th {
@@ -4491,15 +4493,15 @@ body.dark-mode .rec-show-expired-btn.active:hover {
 }
 
 body.dark-mode .rec-dynamic-date-cell.status-active {
-  color: #4caf50;
+  color: inherit;
 }
 
 body.dark-mode .rec-dynamic-date-cell.status-expires {
-  color: #ffb74d;
+  color: inherit;
 }
 
 body.dark-mode .rec-dynamic-date-cell.status-ended {
-  color: #ef5350;
+  color: inherit;
 }
 
 body.dark-mode .rec-expiration-info {
@@ -4536,8 +4538,8 @@ body.dark-mode .rec-delete-btn:hover {
   
   .rec-dynamic-date-header,
   .rec-dynamic-date-cell {
-    width: 110px !important;       /* Set narrower width for next payment */
-    max-width:110px !important;
+    width: 138px !important;
+    max-width: 138px !important;
   }
   
   .rec-account-header,
@@ -4548,8 +4550,8 @@ body.dark-mode .rec-delete-btn:hover {
   
   .rec-frequency-header,
   .rec-frequency-cell {
-    width: 120px !important;      /* Increased from 90px */
-    max-width: 120px !important;
+    width: 102px !important;
+    max-width: 102px !important;
   }
   
   .rec-box-item {
