@@ -2629,7 +2629,9 @@ function init(containerId, cachedData) {
     container.innerHTML = `
       <div class="nw-message" id="netWorthMessage" style="display: none;"></div>
 
-      ${renderNetWorthChart(summary)}
+      <div class="nw-sticky-shelf">
+        ${renderNetWorthChart(summary)}
+      </div>
 
       <div class="nw-categories-grid">
         ${Object.keys(ASSET_CATEGORIES).map(categoryKey =>
@@ -5088,7 +5090,7 @@ body.dark-mode #netWorthView .networth-banner-summary {
   }
 
   #netWorthContent {
-    padding-top: 8px !important;
+    padding-top: 0 !important;
     overflow: visible !important;
   }
 
@@ -7436,19 +7438,38 @@ body.dark-mode .nw-modal-footer {
     -webkit-overflow-scrolling: touch !important;
   }
 
+  .nw-sticky-shelf {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 900 !important;
+    background: #0b0f14 !important;
+    padding: 0 12px 12px 12px !important;
+    margin: 0 !important;
+  }
+
+  body:not(.dark-mode) .nw-sticky-shelf {
+    background: #dce2ea !important;
+  }
+
   .nw-chart-container {
     order: -9999 !important;
-    margin: 12px !important;
+    margin: 0 !important;
     padding: 0 !important;
     gap: 0 !important;
     display: flex !important;
     flex-direction: column !important;
-    width: calc(100% - 24px) !important;
+    width: 100% !important;
     max-width: none !important;
-    position: sticky !important;
-    top: 0 !important;
-    z-index: 880 !important;
+    position: static !important;
+    top: auto !important;
+    z-index: auto !important;
     overflow: visible !important;
+    border-radius: 14px !important;
+  }
+
+  #netWorthContent .nw-chart-container ~ * {
+    position: relative;
+    z-index: 1;
   }
 
   .nw-chart-header {
