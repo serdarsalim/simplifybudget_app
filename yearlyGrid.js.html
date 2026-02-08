@@ -2042,7 +2042,7 @@ function getNextMonth(month, year) {
     if (modalTitle) {
       modalTitle.innerHTML = `
         <div class="integrated-title">
-          <span class="title-category">${category.emoji ? `${category.emoji} ${translatedCategoryText}` : translatedCategoryText}</span>
+          <span class="title-category" style="color: ${document.body.classList.contains('dark-mode') ? 'rgba(255,255,255,0.92)' : '#111827'};">${category.emoji ? `${category.emoji} ${translatedCategoryText}` : translatedCategoryText}</span>
           <span class="title-divider">|</span>
           <span class="title-date">${formattedDate}</span>
           ${total > 0 ? `<span class="title-divider">|</span><span class="title-total">Total: ${formatCurrency(total, 2)}</span>` : ''}
@@ -2166,7 +2166,7 @@ function openYearlyTransactionModal(month, categoryId) {
   if (modalTitle) {
     modalTitle.innerHTML = `
       <div class="integrated-title">
-        <span class="title-category">${category.emoji ? `${category.emoji} ${translatedCategoryText}` : translatedCategoryText}</span>
+        <span class="title-category" style="color: ${document.body.classList.contains('dark-mode') ? 'rgba(255,255,255,0.92)' : '#111827'};">${category.emoji ? `${category.emoji} ${translatedCategoryText}` : translatedCategoryText}</span>
         <span class="title-divider">|</span>
         <span class="title-date">${formattedDate}</span>
         ${total > 0 ? `<span class="title-divider">|</span><span class="title-total">Total: ${formatCurrency(total, 2)}</span>` : ''}

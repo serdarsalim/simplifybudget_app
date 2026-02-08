@@ -5688,7 +5688,7 @@ body.dark-mode .day-row {
 }
 
 body.dark-mode .grid-cell {
-  background-color: #172b3e;
+  background-color: #05111da1;
 }
 
 /* Dark mode row hover disabled */
@@ -5698,7 +5698,7 @@ body.dark-mode .weekend-row {
 }
 
 body.dark-mode .weekend-row .grid-cell {
-  background-color: #1f3650 !important;
+  background-color: #172f46 !important;
 }
 
 /* Dark mode weekend row hover disabled */
@@ -5741,15 +5741,14 @@ body.dark-mode .notes-content:focus {
 
 /* Table cell borders in dark mode - subtle to blend with cell backgrounds */
 body.dark-mode .monthly-grid td {
-  border-bottom: 1px solid rgb(31 53 74);
-  border-right: 1px solid rgb(31 53 74);
+  border-bottom: 1px solid rgb(24 41 56);
+  border-right: 1px solid rgb(24 41 56);
 }
 
-/* iPhone/mobile: increase dark-mode gridline contrast for dense screens */
-@media (max-width: 768px) {
-  body.dark-mode .monthly-grid td {
-    border-bottom: 1px solid rgb(35 72 108 / 56%) !important;
-    border-right: 1px solid rgb(35 72 108 / 56%) !important;
+/* Desktop dark mode: make Sunday row grid lines slightly lighter */
+@media (min-width: 769px) {
+  body.dark-mode .monthly-grid tr.weekend-row td {
+    border-right: 1px solid rgb(27 61 91) !important;
   }
 }
 
@@ -5795,6 +5794,24 @@ body.dark-mode .modal-header {
 
 body.dark-mode .modal-title {
   color: rgba(255, 255, 255, 0.9);
+}
+
+body.dark-mode .move-transaction-trigger {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+body.dark-mode .move-transaction-trigger:hover {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+body.dark-mode .move-transaction-trigger:focus-visible {
+  outline: 1px solid rgba(221, 161, 94, 0.6);
+  outline-offset: 1px;
+}
+
+body.dark-mode .modal-title .title-category {
+  color: rgba(255, 255, 255, 0.92) !important;
 }
 
 
@@ -6150,7 +6167,7 @@ body.dark-mode .weekend-row {
 }
 
 body.dark-mode .weekend-row .grid-cell {
-  background-color: #1f3650 !important;
+  background-color: #172f46 !important;
 }
 
 /* Dark mode weekend row hover disabled */
