@@ -593,12 +593,29 @@ function updateSortIndicators() {
 // REPLACE calculateSummaryMetrics function around line 410:
 
 function calculateSummaryMetrics() {
+  const nowForCount = new Date();
+  const countYear = nowForCount.getFullYear();
+  const countMonth = nowForCount.getMonth();
+  const monthPaymentCount =
+    _incomeData.filter(item =>
+      item.date &&
+      item.date.getFullYear() === countYear &&
+      item.date.getMonth() === countMonth &&
+      !item.isRecurring
+    ).length +
+    _recurringIncomeData.filter(item =>
+      item.date &&
+      item.date.getFullYear() === countYear &&
+      item.date.getMonth() === countMonth
+    ).length;
+
   const cachedMetrics = computeMetricsFromCache();
   if (cachedMetrics) {
     return {
       yearTotal: cachedMetrics.yearTotal,
       monthTotal: cachedMetrics.monthTotal,
-      monthlyAverage: cachedMetrics.monthlyAverage
+      monthlyAverage: cachedMetrics.monthlyAverage,
+      monthPaymentCount: monthPaymentCount
     };
   }
 
@@ -653,7 +670,8 @@ function calculateSummaryMetrics() {
   return {
     yearTotal: yearTotal,
     monthTotal: monthTotal,
-    monthlyAverage: monthlyAverage
+    monthlyAverage: monthlyAverage,
+    monthPaymentCount: monthPaymentCount
   };
 }
 
@@ -664,21 +682,11 @@ async function calculateSummaryMetricsAsync() {
     if (!cacheMetrics) {
       return;
     }
-
-    const elements = {
-      yearTotal: getElement('yearTotal'),
-      monthTotal: getElement('monthTotal'),
-      monthlyAverage: getElement('monthlyAverage')
-    };
-
-    if (elements.yearTotal) {
-      elements.yearTotal.innerHTML = formatCurrency(cacheMetrics.yearTotal);
-    }
-    if (elements.monthTotal) {
-      elements.monthTotal.innerHTML = formatCurrency(cacheMetrics.monthTotal);
-    }
-    if (elements.monthlyAverage) {
-      elements.monthlyAverage.innerHTML = formatCurrency(cacheMetrics.monthlyAverage);
+    const summaryLine = getElement('incomeSummaryLine');
+    if (summaryLine) {
+      const localMetrics = calculateSummaryMetrics();
+      const monthLabel = new Date().toLocaleDateString(_language || 'en-US', { month: 'short', year: 'numeric' });
+      summaryLine.textContent = `${monthLabel}: ${localMetrics.monthPaymentCount} Payments | Total: ${formatCurrency(cacheMetrics.monthTotal)} | Yearly avg: ${formatCurrency(cacheMetrics.monthlyAverage)}`;
     }
   } catch (error) {
     console.error('Error calculating summary metrics:', error);
@@ -755,31 +763,12 @@ async function calculateSummaryMetricsAsync() {
     // Get month name in current language if possible
     const currentMonthLabel = now.toLocaleDateString(_language || 'en-US', { month: 'short', year: 'numeric' });
 
-    // Build translated labels with dynamic year
-    const totalWord = (window.Utils && Utils.translateCategory) ? Utils.translateCategory('total') : 'Total';
-    const averageWord = (window.Utils && Utils.translateCategory) ? Utils.translateCategory('average') : 'Average';
-    const yearTotalLabel = `${currentYear} ${totalWord}`;
-    const yearAverageLabel = `${currentYear} ${averageWord}`;
-
     container.innerHTML = `
     <div class="inc-sticky-shelf">
       <!-- Summary Box -->
       <div class="inc-summary-row">
         <div class="inc-summary-box">
-          <div class="inc-box-content">
-            <div class="inc-box-item inc-box-item-primary">
-              <div class="inc-box-label" id="thisMonthLabel">${currentMonthLabel}</div>
-              <div class="inc-box-value" id="monthTotal">${formatCurrency(metrics.monthTotal)}</div>
-            </div>
-            <div class="inc-box-item inc-box-item-secondary">
-              <div class="inc-box-label" id="yearTotalLabel">${yearTotalLabel}</div>
-              <div class="inc-box-value" id="yearTotal">${formatCurrency(metrics.yearTotal)}</div>
-            </div>
-            <div class="inc-box-item inc-box-item-secondary">
-              <div class="inc-box-label" id="monthlyAverageLabel">${yearAverageLabel}</div>
-              <div class="inc-box-value" id="monthlyAverage">${formatCurrency(metrics.monthlyAverage)}</div>
-            </div>
-          </div>
+          <div class="inc-summary-line" id="incomeSummaryLine">${currentMonthLabel}: ${metrics.monthPaymentCount} Payments | Total: ${formatCurrency(metrics.monthTotal)} | Yearly avg: ${formatCurrency(metrics.monthlyAverage)}</div>
         </div>
       </div>
     </div>
@@ -3138,41 +3127,10 @@ function saveEditedRecurringIncome(originalItem, overlay) {
   function updateSummaryCards() {
     // Update synchronously from in-memory data
     const metrics = calculateSummaryMetrics();
-
-    const elements = {
-      yearTotal: getElement('yearTotal'),
-      monthTotal: getElement('monthTotal'),
-      monthlyAverage: getElement('monthlyAverage'),
-      yearTotalLabel: getElement('yearTotalLabel'),
-      thisMonthLabel: getElement('thisMonthLabel'),
-      monthlyAverageLabel: getElement('monthlyAverageLabel')
-    };
-
-    // Update labels with current year
-    const currentYear = new Date().getFullYear();
-    if (elements.yearTotalLabel) {
-      elements.yearTotalLabel.textContent = `${currentYear} Total`;
-    }
-
-    if (elements.monthlyAverageLabel) {
-      elements.monthlyAverageLabel.textContent = `${currentYear} Average`;
-    }
-
-    // Update this month label with formatted month
-    const now = new Date();
-    const monthName = now.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-    if (elements.thisMonthLabel) {
-      elements.thisMonthLabel.textContent = monthName;
-    }
-
-    if (elements.yearTotal) {
-      elements.yearTotal.innerHTML = formatCurrency(metrics.yearTotal);
-    }
-    if (elements.monthTotal) {
-      elements.monthTotal.innerHTML = formatCurrency(metrics.monthTotal);
-    }
-    if (elements.monthlyAverage) {
-      elements.monthlyAverage.innerHTML = formatCurrency(metrics.monthlyAverage);
+    const summaryLine = getElement('incomeSummaryLine');
+    if (summaryLine) {
+      const monthName = new Date().toLocaleDateString(_language || 'en-US', { month: 'short', year: 'numeric' });
+      summaryLine.textContent = `${monthName}: ${metrics.monthPaymentCount} Payments | Total: ${formatCurrency(metrics.monthTotal)} | Yearly avg: ${formatCurrency(metrics.monthlyAverage)}`;
     }
 
   }
@@ -4623,12 +4581,24 @@ body.dark-mode .inc-confirm-btn.inc-cancel-btn:hover {
 }
 
 .inc-summary-box {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
   border-radius: 8px;
-  padding: 10px 20px;
+  padding: 16px 20px;
   border: 1px solid rgba(0, 0, 0, 0.08);
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
   width: 100%;
+}
+
+.inc-summary-line {
+  color: #fff;
+  font-family: 'Lato', sans-serif;
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 1.4;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .inc-box-content {
@@ -4980,6 +4950,15 @@ body.dark-mode .inc-table tbody tr[data-recurring="true"]:hover {
     margin-bottom: 0 !important;
   }
 
+  .inc-summary-box {
+    padding: 12px 12px !important;
+  }
+
+  .inc-summary-line {
+    font-size: 12px !important;
+    letter-spacing: -0.1px;
+  }
+
   /* Mobile: keep income summary in one line (left/center/right) */
   .inc-box-content {
     display: grid;
@@ -5039,12 +5018,14 @@ body.dark-mode .inc-table tbody tr[data-recurring="true"]:hover {
     overflow-y: visible !important;
     height: fit-content !important;
     margin-bottom: 0 !important;
-    flex: 1 1 auto !important;
-    min-height: 0 !important;
+    flex: none !important;
+    min-height: auto !important;
+    display: block !important;
   }
 
   .inc-table-wrapper {
     overflow-x: hidden !important;
+    overflow-y: visible !important;
     width: 100% !important;
   }
   

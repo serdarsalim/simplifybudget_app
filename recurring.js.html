@@ -948,9 +948,7 @@ var RecurringManager = (function() {
         <div class="rec-chart-container ${collapsedClass}">
           <div class="rec-chart-header">
             <div class="rec-chart-summary" id="chartSummary">
-              <span class="summary-item">${metrics.currentMonthCount} Payments in ${getCurrentDate()}</span>
-              <span class="summary-item summary-separator">|</span>
-              <span class="summary-item">${formatCurrency(metrics.currentMonthTotal)} (${metrics.incomePercentage}% of income)</span>
+              <span class="summary-line">${getCurrentDate()}: ${metrics.currentMonthCount} Payments | Total ${formatCurrency(metrics.currentMonthTotal)} | ${metrics.incomePercentage}% of income</span>
             </div>
             <button class="rec-chart-toggle" id="chartToggleBtn" title="Toggle chart visibility">
               <span class="chart-toggle-icon">${toggleIcon}</span>
@@ -2883,9 +2881,7 @@ const colorPalette = [
     
     if (summaryElement) {
       summaryElement.innerHTML = `
-        <span class="summary-item">${metrics.currentMonthCount} Payments in ${getCurrentDate()}</span>
-        <span class="summary-item summary-separator">|</span>
-        <span class="summary-item">${formatCurrency(metrics.currentMonthTotal)} (${metrics.incomePercentage}% of income)</span>
+        <span class="summary-line">${getCurrentDate()}: ${metrics.currentMonthCount} Payments | Total ${formatCurrency(metrics.currentMonthTotal)} | ${metrics.incomePercentage}% of income</span>
       `;
     }
 
@@ -3084,11 +3080,7 @@ const colorPalette = [
    */
   function getCurrentDate() {
     const now = new Date();
-    const monthNames = [
-      "January", "February", "March", "April", "May", "June",
-      "July", "August", "September", "October", "November", "December"
-    ];
-    return `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
+    return now.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
   }
 
   /**
@@ -3408,7 +3400,8 @@ function showRecurringHelp(type) {
 /* ======== CHART CONTAINER ======== */
 .rec-chart-container {
   background-color: #ffffff;
-  border-radius: 0px;
+  border-radius: 8px;
+  overflow: hidden;
   padding: 0;
   margin-bottom: 16px;
   border: 1px solid rgba(0, 0, 0, 0.08);
@@ -3420,7 +3413,7 @@ function showRecurringHelp(type) {
   display: flex;
   flex-direction: column;
   padding: 16px 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
   border-bottom: none;
   border-radius: 8px 8px 0 0;
   gap: 12px;
@@ -3451,17 +3444,16 @@ function showRecurringHelp(type) {
 }
 
 .rec-chart-summary {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 20px;
+  display: block;
   font-size: 16px;
   font-weight: 600;
   color: white;
   text-align: center;
   line-height: 1.4;
   font-family: 'Lato', sans-serif;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .rec-chart-summary .summary-separator {
@@ -3472,6 +3464,11 @@ function showRecurringHelp(type) {
   display: flex;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
+}
+
+.summary-line {
+  display: inline;
   white-space: nowrap;
 }
 
@@ -3508,6 +3505,10 @@ function showRecurringHelp(type) {
   font-size: 14px;
 }
 
+.rec-chart-container.chart-collapsed .rec-chart-header {
+  border-radius: 8px;
+}
+
 .chart-toggle-icon {
   display: inline-block;
 }
@@ -3516,6 +3517,7 @@ function showRecurringHelp(type) {
 @media (max-width: 768px) {
   .rec-chart-header {
     gap: 8px;
+    padding: 12px 12px !important;
   }
   
   .rec-chart-title-left {
@@ -3527,9 +3529,9 @@ function showRecurringHelp(type) {
   }
   
   .rec-chart-summary {
-    font-size: 14px;
-    gap: 12px;
-    flex-direction: column;
+    font-size: 12px;
+    white-space: nowrap;
+    letter-spacing: -0.1px;
   }
 
   .rec-chart-summary .summary-separator {
@@ -3544,6 +3546,11 @@ function showRecurringHelp(type) {
     height: 250px;
     padding: 15px;
     padding-bottom: 20px; /* Minimal space for legend on mobile */
+  }
+
+  .rec-chart-toggle {
+    top: 50% !important;
+    transform: translateY(-50%);
   }
 }
 

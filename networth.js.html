@@ -5221,7 +5221,7 @@ body.dark-mode #netWorthView .networth-banner-summary {
   justify-content: center;
   align-items: center;
   padding: 16px 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
   border-bottom: none;
   border-radius: 8px 8px 0 0;
   position: relative;
@@ -5458,16 +5458,19 @@ body.dark-mode #netWorthView .networth-banner-summary {
 
   .nw-chart-header {
     display: flex !important;
-    padding: 14px 50px 14px 16px;
-    min-height: 50px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    padding: 12px 44px 12px 12px;
+    min-height: auto;
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
   }
 
   .nw-chart-summary {
-    font-size: 13px;
-    gap: 8px;
-    flex-direction: column;
+    font-size: 14px;
+    gap: 0;
+    flex-direction: row;
     color: white !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .nw-chart-summary .nw-summary-separator {
@@ -5476,10 +5479,13 @@ body.dark-mode #netWorthView .networth-banner-summary {
 
   .nw-summary-line {
     gap: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .nw-summary-total {
-    font-size: 15px;
+    font-size: 14px;
   }
 
   .nw-chart-toggle {
@@ -5497,6 +5503,12 @@ body.dark-mode #netWorthView .networth-banner-summary {
 @media (min-width: 1024px) {
   .nw-chart-container {
     max-width: 70%;
+  }
+}
+
+@media (min-width: 769px) {
+  .nw-chart-container.chart-collapsed .nw-chart-header {
+    border-radius: 8px;
   }
 }
 
@@ -7478,7 +7490,8 @@ body.dark-mode .nw-modal-footer {
     visibility: visible !important;
     opacity: 1 !important;
     width: 100% !important;
-    min-height: 60px !important;
+    min-height: auto !important;
+    padding: 12px 44px 12px 12px !important;
     border-radius: 14px !important;
     position: relative !important;
     z-index: 1 !important;
