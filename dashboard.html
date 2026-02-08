@@ -375,7 +375,7 @@ body.dark-mode .subscription-list-card {
   border-color: rgba(255, 255, 255, 0.1) !important;
 }
 
-body.dark-mode .dashboard-card.budget-data-card *:not(.progress-bar):not(.progress-bar-container):not(.budget-summary-integrated):not(.budget-summary-integrated *),
+body.dark-mode .dashboard-card.budget-data-card *:not(.budget-value):not(.progress-bar):not(.progress-bar-container):not(.budget-summary-integrated):not(.budget-summary-integrated *),
 body.dark-mode .dashboard-card.subscription-card *,
 body.dark-mode .chart-container *,
 body.dark-mode .subscription-table th,
@@ -1811,6 +1811,17 @@ body.dark-mode .subscription-list-card {
   color: #9ca3af;
 }
 
+/* Budget table Goal column should be de-emphasized vs Actual */
+.dashboard-card.budget-data-card .budget-table tbody td.budget-value {
+  color: #9aa5b4 !important;
+  font-weight: 700 !important;
+}
+
+body.dark-mode .dashboard-card.budget-data-card .budget-table tbody td.budget-value {
+  color: #b2c0d1 !important;
+  font-weight: 700 !important;
+}
+
 /* Only expand on large screens */
 @media screen and (min-width: 1200px) and (min-height: 900px) {
   .budget-value {
@@ -2402,7 +2413,7 @@ body:not(.dark-mode) .subscription-list-card {
   border-color: rgba(0, 0, 0, 0.08) !important;
 }
 
-body:not(.dark-mode) .dashboard-card.budget-data-card *:not(.progress-bar):not(.progress-bar-container):not(.budget-summary-integrated):not(.budget-summary-integrated *),
+body:not(.dark-mode) .dashboard-card.budget-data-card *:not(.budget-value):not(.progress-bar):not(.progress-bar-container):not(.budget-summary-integrated):not(.budget-summary-integrated *),
 body:not(.dark-mode) .dashboard-card.subscription-card *,
 body:not(.dark-mode) .chart-container *,
 body:not(.dark-mode) .subscription-table th,
