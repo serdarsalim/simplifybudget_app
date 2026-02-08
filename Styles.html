@@ -921,6 +921,11 @@ button {
   gap: 20px;
 }
 
+/* Real top breathing room above status banner */
+.view-actions .month-banner {
+  margin-top: 10px !important;
+}
+
 /* When only refresh-info is present (no month-selector), center it */
 .month-banner-inner:has(.refresh-info:only-child) {
   justify-content: center;
@@ -1260,9 +1265,9 @@ body.dark-mode .last-refresh {
   margin: 0 !important;
 }
 
-/* Remove view header padding when banner is present */
+/* Keep top breathing room above status banner */
 .view-header {
-  padding: 0 !important;
+  padding: 10px 0 0 0 !important;
   margin: 0 !important;
 }
 
