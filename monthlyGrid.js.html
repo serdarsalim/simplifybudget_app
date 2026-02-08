@@ -5752,6 +5752,13 @@ body.dark-mode .monthly-grid td {
   }
 }
 
+/* Mobile dark mode: match weekend row right border with desktop */
+@media (max-width: 768px) {
+  body.dark-mode .monthly-grid tr.weekend-row td {
+    border-right: 1px solid rgb(27 61 91) !important;
+  }
+}
+
 body.dark-mode .notes-content:focus {
   background-color: rgba(40, 40, 40, 0.9);
 }
@@ -6141,36 +6148,6 @@ body.dark-mode .transaction-item.fixed-transaction select {
 body.dark-mode .recurring-icon {
   color: #0891b2;
 }
-
-/* Dark mode category headers */
-body.dark-mode .monthly-grid th {
-  background-color: #2c5282 !important;
-  color: #dbeafe !important;
-}
-
-body.dark-mode .monthly-grid th.date-header {
-  background-color: #2c5282 !important;
-  color: #dbeafe !important;
-}
-
-body.dark-mode .date-cell {
-  background-color: #182f46 !important;
-}
-
-/* Dark mode weekend rows */
-body.dark-mode .weekend-row .date-cell {
-  background-color: #274a66 !important;
-}
-
-body.dark-mode .weekend-row {
-  background-color: #1f3650 !important;
-}
-
-body.dark-mode .weekend-row .grid-cell {
-  background-color: #172f46 !important;
-}
-
-/* Dark mode weekend row hover disabled */
 
 /* Mobile adjustments */
 @media (max-width: 768px) {
