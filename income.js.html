@@ -764,25 +764,26 @@ async function calculateSummaryMetricsAsync() {
     const currentMonthLabel = now.toLocaleDateString(_language || 'en-US', { month: 'short', year: 'numeric' });
 
     container.innerHTML = `
-    <div class="inc-sticky-shelf">
-      <!-- Summary Box -->
-      <div class="budget-summary-integrated">
-        <div class="budget-summary-row">
-          <div>
-            <div class="value-label">${currentMonthLabel}</div>
-            <div class="value-amount">${metrics.monthPaymentCount} Payment${metrics.monthPaymentCount !== 1 ? 's' : ''}</div>
-          </div>
-          <div>
-            <div class="value-label">Total</div>
-            <div class="value-amount">${formatCurrency(metrics.monthTotal)}</div>
-          </div>
-          <div>
-            <div class="value-label">12m Avg</div>
-            <div class="value-amount">${formatCurrency(metrics.monthlyAverage)}</div>
+    <div class="inc-content-column">
+      <div class="inc-sticky-shelf">
+        <!-- Summary Box -->
+        <div class="budget-summary-integrated">
+          <div class="budget-summary-row">
+            <div>
+              <div class="value-label">${currentMonthLabel}</div>
+              <div class="value-amount">${metrics.monthPaymentCount} Payment${metrics.monthPaymentCount !== 1 ? 's' : ''}</div>
+            </div>
+            <div>
+              <div class="value-label">Total</div>
+              <div class="value-amount">${formatCurrency(metrics.monthTotal)}</div>
+            </div>
+            <div>
+              <div class="value-label">12m Avg</div>
+              <div class="value-amount">${formatCurrency(metrics.monthlyAverage)}</div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
       <!-- Table Section -->
       <div class="inc-table-container">
@@ -825,6 +826,7 @@ async function calculateSummaryMetricsAsync() {
           </select>
         </div>
       </div>
+    </div>
     `;
 
     updateIncomeTable();
@@ -4916,8 +4918,20 @@ body.dark-mode .inc-table tbody tr[data-recurring="true"]:hover {
   font-weight: 700;
 }
 
+/* Desktop: summary + table in same column */
+.inc-content-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 16px;
+}
+
 /* Mobile optimizations */
 @media (max-width: 768px) {
+  .inc-content-column {
+    display: contents !important;
+  }
+
   #incomeView {
     height: 100% !important;
     overflow: hidden !important;
@@ -5202,6 +5216,17 @@ body:not(.dark-mode) .inc-table td {
 
 /* ======== DESKTOP STYLES ======== */
 @media (min-width: 769px) {
+  #incomeContent {
+    --inc-desktop-width: 700px;
+  }
+
+  .inc-content-column {
+    width: var(--inc-desktop-width) !important;
+    max-width: var(--inc-desktop-width) !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+
   .inc-box-item {
     flex: 1;
   }
@@ -5234,11 +5259,17 @@ body:not(.dark-mode) .inc-table td {
   }
   
   /* ======== DESKTOP PADDING ======== */
-  .inc-table-container,
+  .inc-sticky-shelf,
+  .inc-table-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    box-sizing: border-box;
+  }
+
   .inc-summary-box {
-    margin-left: auto;
-    margin-right: auto;
-    width: 700px;
+    width: 100%;
     box-sizing: border-box;
   }
 
