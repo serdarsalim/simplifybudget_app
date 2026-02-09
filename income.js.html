@@ -766,9 +766,20 @@ async function calculateSummaryMetricsAsync() {
     container.innerHTML = `
     <div class="inc-sticky-shelf">
       <!-- Summary Box -->
-      <div class="inc-summary-row">
-        <div class="inc-summary-box">
-          <div class="inc-summary-line" id="incomeSummaryLine">${currentMonthLabel}: ${metrics.monthPaymentCount} Payments | Total: ${formatCurrency(metrics.monthTotal)} | Yearly avg: ${formatCurrency(metrics.monthlyAverage)}</div>
+      <div class="budget-summary-integrated">
+        <div class="budget-summary-row">
+          <div>
+            <div class="value-label">${currentMonthLabel}</div>
+            <div class="value-amount">${metrics.monthPaymentCount} Payment${metrics.monthPaymentCount !== 1 ? 's' : ''}</div>
+          </div>
+          <div>
+            <div class="value-label">Total</div>
+            <div class="value-amount">${formatCurrency(metrics.monthTotal)}</div>
+          </div>
+          <div>
+            <div class="value-label">12m Avg</div>
+            <div class="value-amount">${formatCurrency(metrics.monthlyAverage)}</div>
+          </div>
         </div>
       </div>
     </div>
@@ -4947,18 +4958,6 @@ body.dark-mode .inc-table tbody tr[data-recurring="true"]:hover {
     background: #dce2ea !important;
   }
 
-  .inc-summary-row {
-    margin-bottom: 0 !important;
-  }
-
-  .inc-summary-box {
-    padding: 12px 12px !important;
-  }
-
-  .inc-summary-line {
-    font-size: 12px !important;
-    letter-spacing: -0.1px;
-  }
 
   /* Mobile: keep income summary in one line (left/center/right) */
   .inc-box-content {
