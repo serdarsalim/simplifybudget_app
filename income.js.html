@@ -762,6 +762,7 @@ async function calculateSummaryMetricsAsync() {
 
     // Get month name in current language if possible
     const currentMonthLabel = now.toLocaleDateString(_language || 'en-US', { month: 'short', year: 'numeric' });
+    const paymentCountLabel = `${metrics.monthPaymentCount} Payment${metrics.monthPaymentCount !== 1 ? 's' : ''} in`;
 
     container.innerHTML = `
     <div class="inc-content-column">
@@ -770,8 +771,8 @@ async function calculateSummaryMetricsAsync() {
         <div class="budget-summary-integrated">
           <div class="budget-summary-row">
             <div>
-              <div class="value-label">${currentMonthLabel}</div>
-              <div class="value-amount">${metrics.monthPaymentCount} Payment${metrics.monthPaymentCount !== 1 ? 's' : ''}</div>
+              <div class="value-label">${paymentCountLabel}</div>
+              <div class="value-amount">${currentMonthLabel}</div>
             </div>
             <div>
               <div class="value-label">Total</div>
