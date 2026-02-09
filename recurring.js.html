@@ -946,9 +946,9 @@ var RecurringManager = (function() {
       <div class="rec-sticky-shelf">
         <!-- Chart Container -->
         <div class="rec-chart-container ${collapsedClass}">
-          <div class="rec-chart-header">
+          <div class="rec-chart-header budget-summary-integrated">
             <div class="rec-chart-summary" id="chartSummary">
-              <span class="summary-line">${getCurrentDate()}: ${metrics.currentMonthCount} Payments | Total ${formatCurrency(metrics.currentMonthTotal)} | ${metrics.incomePercentage}% of income</span>
+              ${getRecurringSummaryMarkup(metrics)}
             </div>
             <button class="rec-chart-toggle" id="chartToggleBtn" title="Toggle chart visibility">
               <span class="chart-toggle-icon">${toggleIcon}</span>
@@ -2880,9 +2880,7 @@ const colorPalette = [
     const summaryElement = document.getElementById('chartSummary');
     
     if (summaryElement) {
-      summaryElement.innerHTML = `
-        <span class="summary-line">${getCurrentDate()}: ${metrics.currentMonthCount} Payments | Total ${formatCurrency(metrics.currentMonthTotal)} | ${metrics.incomePercentage}% of income</span>
-      `;
+      summaryElement.innerHTML = getRecurringSummaryMarkup(metrics);
     }
 
     maybeLoadBudgetDataForMetrics(metrics);
@@ -2978,6 +2976,27 @@ const colorPalette = [
       currentMonthTotal: currentMonthTotal,
       incomePercentage: incomePercentage
     };
+  }
+
+  function getRecurringSummaryMarkup(metrics) {
+    const monthLabel = getCurrentDate();
+    const paymentLabel = `${metrics.currentMonthCount} Payment${metrics.currentMonthCount !== 1 ? 's' : ''} in`;
+    return `
+      <div class="budget-summary-row">
+        <div>
+          <div class="value-label">${paymentLabel}</div>
+          <div class="value-amount">${monthLabel}</div>
+        </div>
+        <div>
+          <div class="value-label">Total</div>
+          <div class="value-amount">${formatCurrency(metrics.currentMonthTotal)}</div>
+        </div>
+        <div>
+          <div class="value-label">% of income</div>
+          <div class="value-amount">${metrics.incomePercentage}%</div>
+        </div>
+      </div>
+    `;
   }
 
   function sumMonthlyIncome(entries, month, year) {
@@ -3412,11 +3431,11 @@ function showRecurringHelp(type) {
 .rec-chart-header {
   display: flex;
   flex-direction: column;
-  padding: 16px 20px;
+  padding: 14px 50px;
   background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
   border-bottom: none;
   border-radius: 8px 8px 0 0;
-  gap: 12px;
+  gap: 0;
   position: relative;
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
 }
@@ -3445,15 +3464,8 @@ function showRecurringHelp(type) {
 
 .rec-chart-summary {
   display: block;
-  font-size: 16px;
-  font-weight: 600;
   color: white;
-  text-align: center;
-  line-height: 1.4;
-  font-family: 'Lato', sans-serif;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  width: 100%;
 }
 
 .rec-chart-summary .summary-separator {
@@ -3470,6 +3482,10 @@ function showRecurringHelp(type) {
 .summary-line {
   display: inline;
   white-space: nowrap;
+}
+
+.rec-chart-summary .budget-summary-row {
+  margin-bottom: 0;
 }
 
 .rec-chart-content {
@@ -3495,8 +3511,9 @@ function showRecurringHelp(type) {
 
 .rec-chart-toggle {
   position: absolute;
-  top: 16px;
+  top: 50%;
   right: 20px;
+  transform: translateY(-50%);
   background: none;
   border: none;
   cursor: pointer;
@@ -3516,8 +3533,7 @@ function showRecurringHelp(type) {
 /* Mobile responsive for chart */
 @media (max-width: 768px) {
   .rec-chart-header {
-    gap: 8px;
-    padding: 12px 12px !important;
+    padding: 8px 12px !important;
   }
   
   .rec-chart-title-left {
@@ -3529,8 +3545,6 @@ function showRecurringHelp(type) {
   }
   
   .rec-chart-summary {
-    font-size: 12px;
-    white-space: nowrap;
     letter-spacing: -0.1px;
   }
 
@@ -3541,7 +3555,7 @@ function showRecurringHelp(type) {
   .summary-item {
     gap: 4px;
   }
-  
+
   .rec-chart-content {
     height: 250px;
     padding: 15px;
@@ -3605,10 +3619,6 @@ body.dark-mode .rec-chart-toggle {
     padding: 20px 24px !important;
   }
 
-  .rec-chart-summary {
-    font-size: 18px;
-    gap: 30px;
-  }
 }
 
 /* ======== SORTABLE TABLE ENHANCEMENTS ======== */
