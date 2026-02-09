@@ -35,6 +35,7 @@ var NetWorthManager = (function() {
   
   // Remove mode toggle
   let _removeMode = false;
+  let _mobileSidebarToggleLockCount = 0;
 
   // Sorting state per category - load from localStorage or default to empty object
   let _categorySort = JSON.parse(localStorage.getItem('nwCategorySort')) || {};
@@ -69,6 +70,32 @@ var NetWorthManager = (function() {
     return safeTemplate
       .replace('{prevMonthName}', prevMonthName)
       .replace('{prevYear}', prevYear);
+  }
+
+  function hideMobileSidebarToggle() {
+    if (window.innerWidth > 768) return;
+    const toggle = document.getElementById('mobileSidebarToggle');
+    if (!toggle) return;
+    _mobileSidebarToggleLockCount += 1;
+    toggle.style.display = 'none';
+  }
+
+  function showMobileSidebarToggle(force) {
+    if (window.innerWidth > 768) return;
+    const toggle = document.getElementById('mobileSidebarToggle');
+    if (!toggle) return;
+
+    if (force) {
+      _mobileSidebarToggleLockCount = 0;
+    } else if (_mobileSidebarToggleLockCount > 0) {
+      _mobileSidebarToggleLockCount -= 1;
+    }
+
+    if (_mobileSidebarToggleLockCount === 0) {
+      const sidebar = document.getElementById('sidebar');
+      if (sidebar && sidebar.classList.contains('sb-open')) return;
+      toggle.style.display = '';
+    }
   }
 
   function normalizeChartMode(mode) {
@@ -3467,6 +3494,7 @@ function init(containerId, cachedData) {
     
     container.appendChild(backdrop);
     container.appendChild(modal);
+    hideMobileSidebarToggle();
     
     // Apply translations to the dynamically created modal
     if (window.SimBudget && SimBudget.applyTranslations) {
@@ -3584,12 +3612,14 @@ function init(containerId, cachedData) {
       // Close modal
       if (container.contains(backdrop)) container.removeChild(backdrop);
       if (container.contains(modal)) container.removeChild(modal);
+      showMobileSidebarToggle();
     }
     
     // Cancel function
     function closeModal() {
       if (container.contains(backdrop)) container.removeChild(backdrop);
       if (container.contains(modal)) container.removeChild(modal);
+      showMobileSidebarToggle();
     }
     
     // Bind events
@@ -3739,6 +3769,7 @@ function init(containerId, cachedData) {
     
     // Show modal
     modal.style.display = 'block';
+    hideMobileSidebarToggle();
     
     // Bind modal events
     bindAssetDetailsModalEvents(modal, entry);
@@ -4188,6 +4219,11 @@ function init(containerId, cachedData) {
       element.addEventListener(event, func);
       modal._handlers.push({ element, event, func });
     }
+
+    function closeAssetDetailsModal() {
+      modal.style.display = 'none';
+      showMobileSidebarToggle();
+    }
     
     // Setup autocomplete for category field
     const categoryInput = modal.querySelector('#assetCategory');
@@ -4203,7 +4239,7 @@ function init(containerId, cachedData) {
     const closeBtn = modal.querySelector('#modalClose');
     if (closeBtn) {
       addHandler(closeBtn, 'click', () => {
-        modal.style.display = 'none';
+        closeAssetDetailsModal();
       });
     }
     
@@ -4211,7 +4247,7 @@ function init(containerId, cachedData) {
     const overlay = modal.querySelector('#modalOverlay');
     if (overlay) {
       addHandler(overlay, 'click', () => {
-        modal.style.display = 'none';
+        closeAssetDetailsModal();
       });
     }
     
@@ -4219,7 +4255,7 @@ function init(containerId, cachedData) {
     const cancelBtn = modal.querySelector('#cancelAssetBtn');
     if (cancelBtn) {
       addHandler(cancelBtn, 'click', () => {
-        modal.style.display = 'none';
+        closeAssetDetailsModal();
       });
     }
     
@@ -4243,7 +4279,7 @@ function init(containerId, cachedData) {
             assignColorsToAssetTypes();
             calculateSummary();
             renderNetWorthView();
-            modal.style.display = 'none';
+            closeAssetDetailsModal();
             
             // Delete from Google Sheet
             if (window.API && typeof API.clearNetWorthRow === 'function') {
@@ -4270,7 +4306,7 @@ function init(containerId, cachedData) {
     // Keyboard events
     const keydownHandler = (e) => {
       if (e.key === 'Escape') {
-        modal.style.display = 'none';
+        closeAssetDetailsModal();
       }
     };
     addHandler(modal, 'keydown', keydownHandler);
@@ -4392,6 +4428,7 @@ function init(containerId, cachedData) {
     saveNetWorthEntries(_netWorthData.entries);
     renderNetWorthView();
     modal.style.display = 'none';
+    showMobileSidebarToggle();
     
     showMessage(`${getTranslation('asset_updated_successfully')}: ${name}`, 'success');
   }
@@ -4502,11 +4539,13 @@ function init(containerId, cachedData) {
     
     container.appendChild(backdrop);
     container.appendChild(modal);
+    hideMobileSidebarToggle();
     
-    function closeModal() {
+    function closeModal(confirmed) {
       if (container.contains(backdrop)) container.removeChild(backdrop);
       if (container.contains(modal)) container.removeChild(modal);
-      if (onCancel) onCancel();
+      showMobileSidebarToggle();
+      if (!confirmed && onCancel) onCancel();
     }
     
     const closeBtn = modal.querySelector('.nw-modal-close');
@@ -4534,7 +4573,7 @@ function init(containerId, cachedData) {
     
     modal.querySelector('#confirmDelete').addEventListener('click', function(e) {
       e.stopPropagation();
-      closeModal();
+      closeModal(true);
       if (onConfirm) onConfirm();
     });
   }
