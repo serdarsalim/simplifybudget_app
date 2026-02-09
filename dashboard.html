@@ -69,29 +69,34 @@
       </div>
       
       <!-- Second Column: Budget Categories -->
-      <div class="dashboard-card budget-data-card">
-        <!-- Income/Spent/Left Summary moved here -->
-        <div class="budget-summary-integrated">
-          <div class="budget-summary-row">
-            <div>
-              <div class="value-label" data-translate="income">Income</div>
-              <div id="income-value" class="value-amount">€0</div>
-            </div>
-            <div>
-              <div class="value-label" data-translate="spent">Spent</div>
-              <div id="spent-value" class="value-amount">€0</div>
-            </div>
-            <div>
-              <div id="left-to-spend-label" class="value-label" data-translate="left_to_spend">Left to Spend</div>
-              <div id="left-to-spend-value" class="value-amount">€0</div>
+      <!-- Budget Column: Summary + Table stacked -->
+      <div class="budget-column">
+        <!-- Monthly Summary Card (detached) -->
+        <div class="budget-summary-standalone">
+          <div class="budget-summary-integrated">
+            <div class="budget-summary-row">
+              <div>
+                <div class="value-label" data-translate="income">Income</div>
+                <div id="income-value" class="value-amount">€0</div>
+              </div>
+              <div>
+                <div class="value-label" data-translate="spent">Spent</div>
+                <div id="spent-value" class="value-amount">€0</div>
+              </div>
+              <div>
+                <div id="left-to-spend-label" class="value-label" data-translate="left_to_spend">Left to Spend</div>
+                <div id="left-to-spend-value" class="value-amount">€0</div>
+              </div>
             </div>
           </div>
         </div>
-        
+
+        <!-- Budget Table Card (detached) -->
+        <div class="dashboard-card budget-data-card">
         <div id="budget-alert" class="budget-alert">
           <!-- Budget alert message will be populated dynamically -->
         </div>
-        
+
         <div class="budget-table-container">
           <table class="budget-table">
             <thead>
@@ -109,7 +114,8 @@
           </table>
         </div>
       </div>
-      
+      </div>
+
       <!-- Third Column: Subscription Summary & List -->
       <div class="col-right">
         <!-- Integrated: Subscription List Card with Summary -->
@@ -257,10 +263,8 @@ body, .dashboard-container {
   display: none !important;
 }
 
-/* Main Column - Budget Categories with integrated summary */
+/* Main Column - Budget Categories table */
 .budget-data-card {
-  grid-column: 1 / 2 !important;
-  grid-row: 1 !important;
   height: fit-content !important;
   overflow: visible !important;
   min-width: 0;
@@ -290,7 +294,7 @@ body, .dashboard-container {
 
 /* Chart placement when enabled (desktop) - handled in savings section */
 
-#budgetView.show-expense-chart .budget-data-card {
+#budgetView.show-expense-chart .budget-column {
   grid-column: 2 / 3 !important;
 }
 
@@ -298,7 +302,7 @@ body, .dashboard-container {
   grid-column: 3 / 4 !important;
 }
 
-#budgetView:not(.show-expense-chart) .budget-data-card {
+#budgetView:not(.show-expense-chart) .budget-column {
   grid-column: 2 / 3 !important;
 }
 
@@ -479,13 +483,26 @@ body.dark-mode .chart-container .chart-label {
   flex-direction: column;
 }
 
+/* Budget column wrapper - keeps summary and table stacked together */
+.budget-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  align-self: start;
+}
+
+.budget-summary-standalone {
+  width: 100%;
+}
+
 .budget-summary-integrated {
   background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
   color: white;
   padding: 14px 50px;
-  margin: 0 -20px 0 -20px;
+  margin: 0;
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
-  border-radius: 8px 8px 0 0;
+  border-radius: 8px;
 }
 
 .budget-summary-row {
@@ -1344,7 +1361,7 @@ body.dark-mode .savings-progress-bar.savings-status-expired {
   margin: 0;
   margin-bottom: 0;
   text-align: center;
-  border-radius: 0;
+  border-radius: 8px 8px 0 0;
   border-bottom: 1px solid rgba(0,0,0,0.06);
   font-size: 15px;
 }
@@ -1905,16 +1922,16 @@ body.dark-mode .dashboard-card.budget-data-card .budget-table tbody td.budget-va
   .dashboard-container {
     grid-template-columns: minmax(250px, 1fr) minmax(300px, 1fr) !important;
   }
-  
+
   .col-left {
     grid-column: 1 / 2 !important;
   }
-  
-  .budget-data-card {
+
+  .budget-column {
     grid-column: 2 / 3 !important;
     grid-row: 1 / span 3 !important;
   }
-  
+
   .col-right {
     grid-column: 1 / 2 !important;
     grid-row: 4 !important;
@@ -1935,7 +1952,7 @@ body.dark-mode .dashboard-card.budget-data-card .budget-table tbody td.budget-va
   }
   
   .col-left,
-  .budget-data-card,
+  .budget-column,
   .col-right,
   .dashboard-left-stack {
     grid-column: 1 / 2 !important;
@@ -1950,49 +1967,76 @@ body.dark-mode .dashboard-card.budget-data-card .budget-table tbody td.budget-va
 /* Mobile layout fixes - scoped to dashboard only */
 @media (max-width: 768px) {
   #budgetView {
-    overflow-x: hidden !important;
+    height: 100% !important;
+    overflow: hidden !important;
   }
 
   #budgetView .view-header {
+    position: relative !important;
+    z-index: 950 !important;
+    background: #dce2ea !important;
+    flex: 0 0 auto !important;
     padding: 0 0 10px 0 !important;
     margin: 0 !important;
   }
 
-  #budgetView .view-content,
+  body.dark-mode #budgetView .view-header {
+    background: #121212 !important;
+  }
+
+  #budgetView .view-content {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 0 10px 200px 10px !important;
+    background: linear-gradient(135deg, #e8ecf1 0%, #dce2ea 100%);
+  }
+
+  body.dark-mode #budgetView .view-content {
+    background: #121212 !important;
+  }
+
   .dashboard-content {
     display: block !important;
     width: 100% !important;
     max-width: 100% !important;
-    overflow-x: hidden !important;
   }
 
   .dashboard-container {
     display: flex !important;
     flex-direction: column !important;
-    gap: 20px !important;
-    padding: 10px 6px 200px 6px !important;
+    gap: 16px !important;
+    padding: 0 0 200px 0 !important;
     align-items: center !important;
     width: 100% !important;
     max-width: 100% !important;
-    overflow-x: hidden !important;
+    overflow: visible !important;
   }
 
-  #budgetView .view-content {
-    padding: 10px 10px 200px 10px !important;
-    flex: 1;
-    overflow-y: auto;
-    overflow-x: hidden !important;
-    background: linear-gradient(135deg, #e8ecf1 0%, #dce2ea 100%);
-    min-height: 100vh;
+  #budgetView .budget-column {
+    display: contents !important;
   }
 
-  body.dark-mode #budgetView .view-content {
+  .budget-summary-standalone {
+    order: 1 !important;
+    width: 100% !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 900 !important;
+    background: #dce2ea !important;
+    padding: 0 0 8px 0 !important;
+    margin: 0 !important;
+  }
+
+  body.dark-mode .budget-summary-standalone {
     background: #121212 !important;
-    background-attachment: fixed;
   }
 
-  #budgetView .dashboard-card.budget-data-card,
-  #budgetView [class*="budget-data"] {
+  #budgetView .dashboard-card.budget-data-card {
     order: 1 !important;
   }
 
@@ -2074,13 +2118,13 @@ body.dark-mode .dashboard-card.budget-data-card .budget-table tbody td.budget-va
   }
 
   .budget-summary-integrated {
-    margin: 0 -2px 0 -2px !important;
+    margin: 0 !important;
   }
 
   .subscription-summary-integrated {
     margin: 0 -2px 16px -2px !important;
   }
-  
+
   /* CLEAN: Simple table styling with proper HTML structure */
   .budget-table th,
   .budget-table td {
@@ -2227,7 +2271,7 @@ body.dark-mode .dashboard-card.budget-data-card .budget-table tbody td.budget-va
 
   .budget-summary-integrated {
     padding: 8px 12px !important;
-    margin: 0 -2px 0 -2px !important;
+    margin: 0 !important;
   }
 
   .subscription-summary-integrated {
