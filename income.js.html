@@ -363,6 +363,8 @@ function updateSortIndicators() {
           
           // Update the table to include recurring data
           updateIncomeTable();
+          // Refresh top summary card after recurring data is merged
+          updateSummaryCards();
         }
       },
       function(error) {
@@ -771,16 +773,16 @@ async function calculateSummaryMetricsAsync() {
         <div class="budget-summary-integrated">
           <div class="budget-summary-row">
             <div>
-              <div class="value-label">${paymentCountLabel}</div>
-              <div class="value-amount">${currentMonthLabel}</div>
+              <div class="value-label" id="incomePaymentCountLabel">${paymentCountLabel}</div>
+              <div class="value-amount" id="incomeMonthLabel">${currentMonthLabel}</div>
             </div>
             <div>
               <div class="value-label">Total</div>
-              <div class="value-amount">${formatCurrency(metrics.monthTotal)}</div>
+              <div class="value-amount" id="incomeMonthTotal">${formatCurrency(metrics.monthTotal)}</div>
             </div>
             <div>
               <div class="value-label">12m Avg</div>
-              <div class="value-amount">${formatCurrency(metrics.monthlyAverage)}</div>
+              <div class="value-amount" id="incomeAvgTotal">${formatCurrency(metrics.monthlyAverage)}</div>
             </div>
           </div>
         </div>
@@ -3141,9 +3143,23 @@ function saveEditedRecurringIncome(originalItem, overlay) {
   function updateSummaryCards() {
     // Update synchronously from in-memory data
     const metrics = calculateSummaryMetrics();
+    const monthName = new Date().toLocaleDateString(_language || 'en-US', { month: 'short', year: 'numeric' });
+    const paymentCountLabel = `${metrics.monthPaymentCount} Payment${metrics.monthPaymentCount !== 1 ? 's' : ''} in`;
+
+    const paymentCountEl = getElement('incomePaymentCountLabel');
+    if (paymentCountEl) paymentCountEl.textContent = paymentCountLabel;
+
+    const monthLabelEl = getElement('incomeMonthLabel');
+    if (monthLabelEl) monthLabelEl.textContent = monthName;
+
+    const monthTotalEl = getElement('incomeMonthTotal');
+    if (monthTotalEl) monthTotalEl.textContent = formatCurrency(metrics.monthTotal);
+
+    const avgTotalEl = getElement('incomeAvgTotal');
+    if (avgTotalEl) avgTotalEl.textContent = formatCurrency(metrics.monthlyAverage);
+
     const summaryLine = getElement('incomeSummaryLine');
     if (summaryLine) {
-      const monthName = new Date().toLocaleDateString(_language || 'en-US', { month: 'short', year: 'numeric' });
       summaryLine.textContent = `${monthName}: ${metrics.monthPaymentCount} Payments | Total: ${formatCurrency(metrics.monthTotal)} | Yearly avg: ${formatCurrency(metrics.monthlyAverage)}`;
     }
 

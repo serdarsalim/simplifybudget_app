@@ -868,18 +868,17 @@ var RecurringManager = (function() {
 
 
   /**
-   * Update expired count display
+   * Update filter counts display
    */
   function updateFilterButtons() {
-    const activeCount = _recurringData.filter(item => {
-      const status = item.status.toLowerCase();
-      return status === 'active';
+    // Keep counts aligned with table data rules.
+    const countableItems = _recurringData.filter(item => Math.abs(item.amount) !== 0.444);
+    const activeCount = countableItems.filter(item => {
+      const status = (item.status || '').toLowerCase();
+      // Active view includes both active and expiring items
+      return status === 'active' || status === 'expires';
     }).length;
-    
-    const expiredCount = _recurringData.filter(item => {
-      const status = item.status.toLowerCase();
-      return status === 'ended' || status === 'expires';
-    }).length;
+    const allCount = countableItems.length;
     
     const activeCountElement = getElement('activeCount');
     const expiredCountElement = getElement('expiredCount');
@@ -891,7 +890,7 @@ var RecurringManager = (function() {
     }
     
     if (expiredCountElement) {
-      expiredCountElement.textContent = expiredCount;
+      expiredCountElement.textContent = allCount;
     }
     
     // Update button active states
@@ -2925,9 +2924,19 @@ const colorPalette = [
     
     // Try multiple ways to get income data
     let monthlyIncome = 0;
+    let hasUnifiedIncome = false;
+
+    // Method 0: Unified master cache (includes one-time + recurring income when available)
+    if (window.CacheManager && typeof CacheManager.get === 'function') {
+      const unifiedCache = CacheManager.get('expenses_with_timestamp');
+      if (unifiedCache && Array.isArray(unifiedCache.expenses)) {
+        monthlyIncome = sumMonthlyIncomeFromUnifiedCache(unifiedCache.expenses, currentMonth, currentYear);
+        hasUnifiedIncome = monthlyIncome > 0;
+      }
+    }
     
     // Method 1: Try _dataCache.get('budget')
-    if (window._dataCache && typeof _dataCache.get === 'function') {
+    if (monthlyIncome === 0 && window._dataCache && typeof _dataCache.get === 'function') {
       const budgetData = _dataCache.get('budget');
       if (budgetData && budgetData.summary && budgetData.summary.income) {
         monthlyIncome = budgetData.summary.income;
@@ -2965,6 +2974,18 @@ const colorPalette = [
         : CacheManager.getIncome?.();
       if (cachedIncome && Array.isArray(cachedIncome)) {
         monthlyIncome = sumMonthlyIncome(cachedIncome, currentMonth, currentYear);
+      }
+    }
+
+    // Method 6: Add recurring income due this month from recurring cache
+    // This covers cases where recurring incomes are not present in income cache.
+    if (!hasUnifiedIncome && window.CacheManager && typeof CacheManager.getRecurringWithTimestamp === 'function') {
+      const recurringCache = CacheManager.getRecurringWithTimestamp();
+      const recurringEntries = recurringCache && Array.isArray(recurringCache.entries)
+        ? recurringCache.entries
+        : [];
+      if (recurringEntries.length > 0) {
+        monthlyIncome += sumMonthlyRecurringIncome(recurringEntries, currentMonth, currentYear);
       }
     }
     
@@ -3014,6 +3035,61 @@ const colorPalette = [
         total += Math.abs(amount);
       }
     });
+    return total;
+  }
+
+  function sumMonthlyIncomeFromUnifiedCache(entries, month, year) {
+    let total = 0;
+    entries.forEach(entry => {
+      if (!entry) return;
+      const categoryName = (entry.category || entry.type || '').toString().toLowerCase();
+      if (!categoryName.includes('income')) return;
+
+      const amount = parseFloat(entry.amount);
+      if (!amount || amount <= 0) return;
+
+      const rawDate = entry.date || entry.transactionDate || entry.startDate || entry.Date || entry.dateString;
+      const parsed = rawDate ? new Date(rawDate) : null;
+      if (!parsed || isNaN(parsed.getTime())) return;
+
+      if (parsed.getMonth() === month && parsed.getFullYear() === year) {
+        total += Math.abs(amount);
+      }
+    });
+    return total;
+  }
+
+  function sumMonthlyRecurringIncome(entries, month, year) {
+    let total = 0;
+
+    entries.forEach(entry => {
+      if (!entry) return;
+
+      const categoryName = (entry.category || '').toString().toLowerCase();
+      if (!categoryName.includes('income')) return;
+
+      const amount = parseFloat(entry.amount);
+      if (!amount || amount <= 0) return;
+
+      const startDate = parseDateOnly(entry.startDate || entry.date || entry.Date || entry.start_date);
+      if (!startDate) return;
+
+      const endDate = parseDateOnly(entry.endDate || entry.end_date);
+      if (endDate) {
+        const monthStart = new Date(year, month, 1);
+        const monthEnd = new Date(year, month + 1, 0);
+        if (endDate < monthStart) return;
+        if (startDate > monthEnd) return;
+      }
+
+      if (isSubscriptionDueThisMonth({
+        startDate: startDate,
+        frequency: entry.frequency || 'Monthly'
+      }, month, year)) {
+        total += Math.abs(amount);
+      }
+    });
+
     return total;
   }
 
