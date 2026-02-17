@@ -3172,9 +3172,28 @@ function getOrdinalSuffix(day) {
  * Get category emoji for mobile display
  */
 function getCategoryEmojiForMobile(categoryName, allCategories) {
-  if (!categoryName) return '';
-  const category = allCategories?.find(cat => cat.id === categoryName || cat.name === categoryName);
-  return category?.emoji || '';
+  if (!categoryName || !Array.isArray(allCategories)) return '';
+  const normalize = (value) => (value || '')
+    .toString()
+    .replace(/[\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}\u{2460}-\u{24FF}\u{2500}-\u{257F}\u{2580}-\u{259F}\u{25A0}-\u{25FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2B50}\u{2B55}\u{231A}\u{231B}\u{2328}\u{23CF}\u{23E9}-\u{23F3}\u{23F8}-\u{23FA}\u{24C2}\u{25AA}\u{25AB}\u{25B6}\u{25C0}\u{25FB}-\u{25FE}\u{2934}\u{2935}\u{3030}\u{303D}\u{3297}\u{3299}]|\u{FE0F}/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+
+  const targetRaw = categoryName.toString().trim();
+  const targetNorm = normalize(targetRaw);
+
+  const category = allCategories.find(cat => {
+    const idValue = cat && cat.id != null ? cat.id.toString() : '';
+    const nameValue = cat && cat.name ? cat.name.toString() : '';
+    const fullNameValue = cat && cat.fullName ? cat.fullName.toString() : '';
+    if (idValue && idValue === targetRaw) return true;
+    if (normalize(nameValue) === targetNorm) return true;
+    if (normalize(fullNameValue) === targetNorm) return true;
+    return false;
+  });
+
+  return category && category.emoji ? category.emoji : '';
 }
 
 /**
@@ -3210,8 +3229,15 @@ function showMonthDetailsPopup(month, currentYear) {
     return txMonth === month && txYear === currentYear;
   });
   
-  // Get categories for emoji lookup
-  const allCategories = window._allCategories || [];
+  // Get categories for emoji lookup (fallback to cache if global list is empty)
+  let allCategories = Array.isArray(window._allCategories) ? window._allCategories : [];
+  if (allCategories.length === 0 && window.CacheManager && typeof CacheManager.getCategoriesWithTimestamp === 'function') {
+    const cachedCategories = CacheManager.getCategoriesWithTimestamp();
+    if (cachedCategories && Array.isArray(cachedCategories.categories)) {
+      allCategories = cachedCategories.categories;
+      window._allCategories = allCategories;
+    }
+  }
   
   // Get the correct currency formatter for current context
   const formatCurrency = getCorrectCurrencyFormatter();
