@@ -2139,7 +2139,7 @@ body.dark-mode .dashboard-card.budget-data-card .budget-table tbody td.budget-va
   
   /* ESSENTIAL: Make sure category names show and align properly */
   .budget-table .category-name {
-    font-size: 12px !important;
+    font-size: 13px !important;
     font-weight: 500 !important;
     display: table-cell !important;
     vertical-align: middle !important;
@@ -2251,6 +2251,50 @@ body.dark-mode .dashboard-card.budget-data-card .budget-table tbody td.budget-va
     width: 23% !important;
     min-width: 80px !important;
   }
+
+  /* Mobile summary amounts */
+  .budget-summary-integrated .value-amount,
+  #income-value,
+  #spent-value,
+  #left-to-spend-value {
+    font-size: 16px !important;
+  }
+
+  /* iPhone readability + no zoom: use compact 16px numeric styling */
+  .budget-table td.budget-value,
+  .budget-table td.actual-value,
+  #savingsMonthGoal,
+  #savingsActualValue {
+    font-size: 16px !important;
+    font-family: "Avenir Next Condensed", "Arial Narrow", "Lato", sans-serif !important;
+  }
+
+  /* Mobile emphasis flip: Goal lighter, Actual bolder */
+  .dashboard-card.budget-data-card .budget-table tbody td.budget-value,
+  #savingsMonthGoal {
+    font-weight: 500 !important;
+  }
+
+  .dashboard-card.budget-data-card .budget-table tbody td.actual-value,
+  #savingsActualValue {
+    font-weight: 600 !important;
+  }
+
+  body:not(.dark-mode) .dashboard-card.budget-data-card .budget-table tbody td.actual-value {
+    color: #1f2937 !important;
+  }
+
+  body.dark-mode .dashboard-card.budget-data-card .budget-table tbody td.budget-value,
+  body.dark-mode #savingsMonthGoal {
+    font-weight: 500 !important;
+    color: #b2c0d1 !important;
+  }
+
+  body.dark-mode .dashboard-card.budget-data-card .budget-table tbody td.actual-value,
+  body.dark-mode #savingsActualValue {
+    font-weight: 600 !important;
+    color: rgba(241, 245, 249, 0.92) !important;
+  }
 }
 
 /* Very small screens */
@@ -2262,7 +2306,7 @@ body.dark-mode .dashboard-card.budget-data-card .budget-table tbody td.budget-va
   }
 
   .category-name {
-    font-size: 12px !important;
+    font-size: 13px !important;
   }
 
   .budget-table th:first-child,
