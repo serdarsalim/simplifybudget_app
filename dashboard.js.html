@@ -398,7 +398,7 @@ const SaveQueue = {
     overlay.innerHTML = `
       <div class="dash-expense-modal" role="dialog" aria-modal="true" aria-label="Category expenses">
         <div class="dash-expense-header">
-          <h3>${category.emoji ? `${escapeHtml(category.emoji)} ` : ''}${escapeHtml(titleText)} • ${DASHBOARD_MONTHS[month]} ${year} | ${Utils.formatCurrency(total)}</h3>
+          <h3>${category.emoji ? `${escapeHtml(category.emoji)} ` : ''}${escapeHtml(titleText)} • ${DASHBOARD_MONTHS[month]} ${year} • ${Utils.formatCurrency(total)}</h3>
           <button class="dash-expense-close" type="button" aria-label="Close">×</button>
         </div>
         <div class="dash-expense-table">

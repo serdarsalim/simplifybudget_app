@@ -140,3 +140,4 @@ Use `CacheManager.invalidateAll()` when major data changes occur.
 - OAuth scopes are defined in `appsscript.json`
 - `.clasp.json` links to the Google Apps Script project
 - Test files prefixed with `Zz` or `zz` are for development only
+- Mobile popup rule: whenever adding a new popup/modal/overlay, hide `#mobileSidebarToggle` while it is open and restore it when closed (use scoped CSS like `body:has(.<popup-open-class>) #mobileSidebarToggle { display: none !important; }`).

@@ -47,7 +47,7 @@ function showDayDetailsPopup(day) {
   
   // Create popup
   const popup = document.createElement('div');
-  popup.className = 'day-details-popup';
+  popup.className = 'day-details-popup yearly-day-popup';
   popup.innerHTML = `
     <div class="popup-backdrop"></div>
     <div class="popup-content">
@@ -4595,7 +4595,7 @@ body:has(.yearly-transaction-modal.visible) #mobileSidebarToggle {
 
 
 
-.popup-content {
+.yearly-day-popup .popup-content {
   position: relative;
   width: 90%;
   max-width: 550px;
