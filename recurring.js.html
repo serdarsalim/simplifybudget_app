@@ -13,7 +13,7 @@ var RecurringManager = (function() {
   let _currencySymbol = '$';
   let _showDecimals = true;
   let _language = 'en';
-  let _showExpired = false; // Default to hiding expired subscriptions
+  let _showExpired = false; // `false` = Active view, `true` = Ended view
   let _currentSort = { column: 'nextPayment', direction: 'asc' }; // Default sort by next payment
   let _budgetLoadAttempted = false;
   let _incomeLoadAttempted = false;
@@ -87,51 +87,20 @@ var RecurringManager = (function() {
    * Sort data based on current sort settings
    */
   function sortData(data) {
-    // Special sorting when showing expired items
+    // Ended view: `nextPayment` is mostly empty, so sort by end date instead.
     if (_showExpired && _currentSort.column === 'nextPayment') {
       return [...data].sort((a, b) => {
-        const aStatus = a.status.toLowerCase();
-        const bStatus = b.status.toLowerCase();
-        
-        // Expired items come first when sorting by next payment
-        if (aStatus === 'expires' && bStatus !== 'expires') return -1;
-        if (bStatus === 'expires' && aStatus !== 'expires') return 1;
-        
-        // If both or neither are expired, fall back to normal sorting
-        if (!_currentSort.column) return 0;
-        
-        let aVal = a[_currentSort.column];
-        let bVal = b[_currentSort.column];
-        
-        // Handle null/undefined values
-        if (aVal == null && bVal == null) return 0;
-        if (aVal == null) return _currentSort.direction === 'asc' ? 1 : -1;
-        if (bVal == null) return _currentSort.direction === 'asc' ? -1 : 1;
-        
-        // Handle dates
-        if (_currentSort.column === 'nextPayment' || _currentSort.column === 'startDate' || 
-            _currentSort.column === 'endDate' || _currentSort.column === 'expiration') {
-          aVal = aVal instanceof Date ? aVal : new Date(aVal);
-          bVal = bVal instanceof Date ? bVal : new Date(bVal);
-        }
-        
-        // Handle numbers
-        if (_currentSort.column === 'amount') {
-          aVal = parseFloat(aVal) || 0;
-          bVal = parseFloat(bVal) || 0;
-        }
-        
-        // Handle strings
-        if (typeof aVal === 'string' && typeof bVal === 'string') {
-          aVal = aVal.toLowerCase();
-          bVal = bVal.toLowerCase();
-        }
-        
-        let result = 0;
-        if (aVal < bVal) result = -1;
-        if (aVal > bVal) result = 1;
-        
-        return _currentSort.direction === 'desc' ? -result : result;
+        const aEnd = a.endDate || a.expiration || null;
+        const bEnd = b.endDate || b.expiration || null;
+
+        if (!aEnd && !bEnd) return 0;
+        if (!aEnd) return 1;
+        if (!bEnd) return -1;
+
+        const aDate = aEnd instanceof Date ? aEnd : new Date(aEnd);
+        const bDate = bEnd instanceof Date ? bEnd : new Date(bEnd);
+
+        return bDate - aDate;
       });
     }
     
@@ -878,7 +847,10 @@ var RecurringManager = (function() {
       // Active view includes both active and expiring items
       return status === 'active' || status === 'expires';
     }).length;
-    const allCount = countableItems.length;
+    const endedCount = countableItems.filter(item => {
+      const status = (item.status || '').toLowerCase();
+      return status === 'ended';
+    }).length;
     
     const activeCountElement = getElement('activeCount');
     const expiredCountElement = getElement('expiredCount');
@@ -890,7 +862,7 @@ var RecurringManager = (function() {
     }
     
     if (expiredCountElement) {
-      expiredCountElement.textContent = allCount;
+      expiredCountElement.textContent = endedCount;
     }
     
     // Update button active states
@@ -998,7 +970,7 @@ var RecurringManager = (function() {
                 <span class="rec-segment-count" id="activeCount"></span>
               </button>
               <button class="rec-segment" id="expiredFilterBtn">
-                <span>All</span>
+                <span data-translate="ended">Ended</span>
                 <span class="rec-segment-count" id="expiredCount"></span>
               </button>
             </div>
@@ -1030,11 +1002,16 @@ var RecurringManager = (function() {
 
   let filteredData = _recurringData;
 
-  // Filter based on expired toggle
+  // Filter based on active/ended segmented control
   if (!_showExpired) {
     filteredData = filteredData.filter(item => {
       const status = item.status.toLowerCase();
       return status === 'active' || status === 'expires';
+    });
+  } else {
+    filteredData = filteredData.filter(item => {
+      const status = item.status.toLowerCase();
+      return status === 'ended';
     });
   }
 
@@ -1061,7 +1038,7 @@ var RecurringManager = (function() {
       // 6 visible columns: Name, Amount, Next Payment, Account, Frequency, End Date
       const colSpan = 6;
       
-      const message = _showExpired ? 'No subscriptions found' : 'No active subscriptions';
+      const message = _showExpired ? 'No ended subscriptions' : 'No active subscriptions';
       emptyRow.innerHTML = `
         <td colspan="${colSpan}" class="rec-empty-message" data-translate="no_recurring_found">
           ${message}
