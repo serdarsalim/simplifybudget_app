@@ -2536,6 +2536,22 @@ body:not(.dark-mode) .donut-chart-header {
   cursor: pointer;
 }
 
+/* Desktop typography bump for budget table + savings amount */
+@media (min-width: 769px) {
+  .category-name {
+    font-size: 18px !important;
+  }
+
+  .dashboard-card.budget-data-card .budget-table tbody td.budget-value,
+  .dashboard-card.budget-data-card .budget-table tbody td.actual-value {
+    font-size: 15px !important;
+  }
+
+  #savingsMonthGoal {
+    font-size: 16px !important;
+  }
+}
+
 body:has(.dash-expense-modal-overlay) #mobileSidebarToggle {
   display: none !important;
 }
