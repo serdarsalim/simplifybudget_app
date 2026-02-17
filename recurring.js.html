@@ -1639,6 +1639,7 @@ var RecurringManager = (function() {
       // Calculate stats
       const totalPaid = calculateTotalPaid(item);
       const thisYearCost = calculateThisYearCost(item);
+      const isEndedPayment = (item.status || '').toLowerCase() === 'ended';
 
       popup.innerHTML = `
         <div class="rec-popup-header">
@@ -1711,15 +1712,17 @@ var RecurringManager = (function() {
 
           <!-- Stats Card - 2 Column -->
           <div class="rec-stats-card">
-            <div class="rec-stats-grid">
+            <div class="rec-stats-grid ${isEndedPayment ? 'rec-stats-grid--single' : ''}">
               <div class="rec-stats-item">
                 <span class="rec-stats-label">Paid So Far</span>
                 <span class="rec-stats-value">${formatCurrency(totalPaid)}</span>
               </div>
-              <div class="rec-stats-item">
-                <span class="rec-stats-label">${new Date().getFullYear()} Projected</span>
-                <span class="rec-stats-value">${formatCurrency(thisYearCost)}</span>
-              </div>
+              ${isEndedPayment ? '' : `
+                <div class="rec-stats-item">
+                  <span class="rec-stats-label">${new Date().getFullYear()} Projected</span>
+                  <span class="rec-stats-value">${formatCurrency(thisYearCost)}</span>
+                </div>
+              `}
             </div>
           </div>
         </div>
@@ -5374,6 +5377,10 @@ body.dark-mode .rec-btn-delete:hover {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
+}
+
+.rec-stats-grid--single {
+  grid-template-columns: 1fr;
 }
 
 .rec-stats-item {
