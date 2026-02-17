@@ -325,6 +325,124 @@ const SaveQueue = {
     }
   }
 
+  function resolveCategoryIdForMonthlyGrid(categoryFullName, categoryText, categoryEmoji) {
+    if (!window.CacheManager || typeof CacheManager.getCategoriesWithTimestamp !== 'function') return null;
+    const categoryData = CacheManager.getCategoriesWithTimestamp();
+    const categories = categoryData && Array.isArray(categoryData.categories) ? categoryData.categories : [];
+    const targetFull = normalizeCategoryName(categoryFullName);
+    const targetText = normalizeCategoryName(categoryText);
+    const targetEmoji = (categoryEmoji || '').toString().trim();
+
+    const match = categories.find((cat) => {
+      const fullName = normalizeCategoryName(cat.fullName || '');
+      const nameOnly = normalizeCategoryName(cat.name || '');
+      const emoji = (cat.emoji || '').toString().trim();
+      if (fullName && fullName === targetFull) return true;
+      if (nameOnly && nameOnly === targetText) {
+        if (!targetEmoji || !emoji || emoji === targetEmoji) return true;
+      }
+      return false;
+    });
+
+    return match ? match.id : null;
+  }
+
+  function getDefaultEntryDay(viewMonth, viewYear) {
+    const now = new Date();
+    const isCurrentViewMonth = viewMonth === now.getMonth() && viewYear === now.getFullYear();
+    return isCurrentViewMonth ? now.getDate() : 1;
+  }
+
+  function openMonthlyExpenseModalWithRetry(day, categoryId, maxTries = 8, delayMs = 120) {
+    let tries = 0;
+    const tryOpen = () => {
+      tries += 1;
+      if (window.MonthlyGrid && typeof MonthlyGrid.openTransactionModal === 'function') {
+        MonthlyGrid.openTransactionModal(day, categoryId);
+        return;
+      }
+      if (tries < maxTries) {
+        setTimeout(tryOpen, delayMs);
+      }
+    };
+    tryOpen();
+  }
+
+  function launchAddExpenseFromCategoryModal(category) {
+    const month = window._currentMonth !== undefined ? window._currentMonth : new Date().getMonth();
+    const year = window._currentYear !== undefined ? window._currentYear : new Date().getFullYear();
+    const categoryId = resolveCategoryIdForMonthlyGrid(category.name, category.text, category.emoji);
+    if (categoryId == null) {
+      if (window.Utils && typeof Utils.showToast === 'function') {
+        Utils.showToast('Could not find category for expense entry.', 'error');
+      }
+      return;
+    }
+
+    closeCategoryExpenseModal();
+
+    try {
+      localStorage.setItem('simbudget_expenseViewMode', 'monthly');
+      sessionStorage.setItem('simbudget_expenseViewMode', 'monthly');
+    } catch (e) {
+      console.warn('Could not persist expense view mode:', e);
+    }
+
+    if (window.SimBudget && SimBudget.Views && typeof SimBudget.Views.switchTo === 'function') {
+      SimBudget.Views.switchTo('expense');
+    }
+
+    const viewToggle = document.getElementById('viewToggle');
+    const viewToggleReports = document.getElementById('viewToggleReports');
+    if (viewToggle && viewToggle.getAttribute('data-view') === 'yearly') {
+      viewToggle.click();
+    }
+    if (viewToggleReports && viewToggleReports.getAttribute('data-view') === 'yearly') {
+      viewToggleReports.click();
+    }
+
+    if (window.MonthlyGrid && typeof MonthlyGrid.setMonthYear === 'function') {
+      MonthlyGrid.setMonthYear(month, year);
+    }
+
+    const day = getDefaultEntryDay(month, year);
+    openMonthlyExpenseModalWithRetry(day, categoryId);
+  }
+
+  function openMonthlyExpensesPopupFromDashboard() {
+    const month = window._currentMonth !== undefined ? window._currentMonth : new Date().getMonth();
+    const year = window._currentYear !== undefined ? window._currentYear : new Date().getFullYear();
+
+    // Keep MonthlyGrid transaction cache in sync before opening shared popup.
+    if (window.CacheManager && window.MonthlyGrid && typeof MonthlyGrid.setExpenseData === 'function') {
+      const unifiedCache = typeof CacheManager.get === 'function'
+        ? CacheManager.get('expenses_with_timestamp')
+        : null;
+      if (unifiedCache && Array.isArray(unifiedCache.expenses)) {
+        MonthlyGrid.setExpenseData(unifiedCache.expenses);
+      }
+    }
+
+    if (typeof window.showMonthDetailsPopup === 'function') {
+      window.showMonthDetailsPopup(month, year);
+    }
+  }
+
+  function bindDashboardSummaryDrilldown(incomeElement, spentElement, leftToSpendElement) {
+    const bindClick = (el) => {
+      if (!el) return;
+      el.style.cursor = 'pointer';
+      el.onclick = function() {
+        openMonthlyExpensesPopupFromDashboard();
+      };
+      el.setAttribute('title', 'View month transactions');
+    };
+
+    bindClick(incomeElement);
+    bindClick(spentElement);
+    bindClick(leftToSpendElement);
+  }
+
   function getCurrentMonthCategoryExpenses(categoryFullName) {
     const targetNormalized = normalizeCategoryName(categoryFullName);
     const month = window._currentMonth !== undefined ? window._currentMonth : new Date().getMonth();
@@ -411,6 +529,7 @@ const SaveQueue = {
           ${rowsMarkup}
         </div>
         <div class="dash-expense-footer">
+          <button class="dash-expense-add-btn" type="button">Add Expense</button>
           <button class="inc-btn-cancel dash-expense-close-btn" type="button">Close</button>
         </div>
       </div>
@@ -425,6 +544,7 @@ const SaveQueue = {
 
     overlay.querySelector('.dash-expense-close').addEventListener('click', closeCategoryExpenseModal);
     overlay.querySelector('.dash-expense-close-btn').addEventListener('click', closeCategoryExpenseModal);
+    overlay.querySelector('.dash-expense-add-btn').addEventListener('click', () => launchAddExpenseFromCategoryModal(category));
 
     _activeCategoryKeyHandler = (event) => {
       if (event.key === 'Escape') {
@@ -497,6 +617,7 @@ const SaveQueue = {
     if (incomeElement) incomeElement.textContent = Utils.formatCurrency(data.summary.income || 0);
     if (spentElement) spentElement.textContent = Utils.formatCurrency(data.summary.spent || 0);
     if (leftToSpendElement) leftToSpendElement.textContent = Utils.formatCurrency(data.summary.leftToSpend || 0);
+    bindDashboardSummaryDrilldown(incomeElement, spentElement, leftToSpendElement);
     
     // REPLACE with this dynamic logic:
     if (incomeElement) incomeElement.textContent = Utils.formatCurrency(data.summary.income || 0);
