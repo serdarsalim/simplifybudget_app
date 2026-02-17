@@ -54,7 +54,7 @@ function showDayDetailsPopup(day) {
     <div class="popup-backdrop"></div>
     <div class="popup-content">
       <div class="popup-header">
-      <h3>Spending on ${dayName}, ${monthDay} &nbsp;&nbsp; • &nbsp;&nbsp; ${formatCurrency(dailyTotal)}</h3>
+      <h3>Spending on ${dayName}, ${monthDay} · ${formatCurrency(dailyTotal)}</h3>
         <button class="popup-close">×</button>
       </div>
       <div class="popup-body">
@@ -102,6 +102,98 @@ function showDayDetailsPopup(day) {
   backdrop.addEventListener('click', closePopup);
   
   // Show popup immediately
+  popup.classList.add('visible');
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function getTransactionsForMonthAndCategory(categoryId) {
+  return _transactions
+    .filter(tx => {
+      if (!tx.date || !tx.category) return false;
+      const txMonth = tx.date.getMonth();
+      const txYear = tx.date.getFullYear();
+      if (txMonth !== _currentMonth || txYear !== _currentYear) return false;
+      const txCatNormalized = tx.category.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const categoryNormalized = String(categoryId || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      return tx.category === categoryId || txCatNormalized === categoryNormalized;
+    })
+    .sort((a, b) => b.date - a.date || b.amount - a.amount);
+}
+
+function showCategoryDetailsPopup(category) {
+  const categoryTransactions = getTransactionsForMonthAndCategory(category.id);
+  if (categoryTransactions.length === 0) return;
+
+  const monthLabel = new Date(_currentYear, _currentMonth, 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  const total = categoryTransactions.reduce((sum, tx) => sum + tx.amount, 0);
+  const emojiRegex = /[\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}\u{2460}-\u{24FF}\u{2500}-\u{257F}\u{2580}-\u{259F}\u{25A0}-\u{25FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2B50}\u{2B55}\u{231A}\u{231B}\u{2328}\u{23CF}\u{23E9}-\u{23F3}\u{23F8}-\u{23FA}\u{24C2}\u{25AA}\u{25AB}\u{25B6}\u{25C0}\u{25FB}-\u{25FE}\u{2934}\u{2935}\u{3030}\u{303D}\u{3297}\u{3299}]|\u{FE0F}/gu;
+  const categoryText = (category.name || '').replace(emojiRegex, '').trim();
+  const translatedText = Utils.translateCategory ? Utils.translateCategory(categoryText) : categoryText;
+  const categoryTitle = category.emoji ? `${category.emoji} ${translatedText}` : translatedText;
+
+  const popup = document.createElement('div');
+  popup.className = 'day-details-popup';
+  popup.innerHTML = `
+    <div class="popup-backdrop"></div>
+    <div class="popup-content category-month-popup">
+      <div class="popup-header">
+        <h3>${escapeHtml(categoryTitle)} · ${escapeHtml(monthLabel)} · ${formatCurrency(total)}</h3>
+        <button class="popup-close">×</button>
+      </div>
+      <div class="popup-body category-month-popup-body">
+        <div class="category-month-table">
+          <div class="category-month-head">
+            <div>DATE</div>
+            <div>DESCRIPTION</div>
+            <div>AMOUNT</div>
+            <div>ACCOUNT</div>
+          </div>
+          ${categoryTransactions.map(tx => {
+            const dayDate = tx.date instanceof Date ? tx.date : new Date(tx.date);
+            const dateLabel = dayDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            return `
+              <div class="category-month-row">
+                <div class="category-month-date">${escapeHtml(dateLabel)}</div>
+                <div class="category-month-desc">${escapeHtml(tx.description || 'Expense')}</div>
+                <div class="category-month-amount">${formatCurrency(tx.amount)}</div>
+                <div class="category-month-account">${escapeHtml(tx.account || 'Other')}</div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+      <div class="popup-footer category-month-popup-footer">
+        <button class="close-transaction-btn popup-close-btn">
+          <span data-translate="close_button">Close</span>
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(popup);
+
+  const closeBtn = popup.querySelector('.popup-close');
+  const footerCloseBtn = popup.querySelector('.popup-close-btn');
+  const backdrop = popup.querySelector('.popup-backdrop');
+  function closePopup() {
+    popup.remove();
+  }
+  closeBtn.addEventListener('click', closePopup);
+  if (footerCloseBtn) footerCloseBtn.addEventListener('click', closePopup);
+  backdrop.addEventListener('click', closePopup);
+
+  if (window.SimBudget && SimBudget.applyTranslations) {
+    SimBudget.applyTranslations();
+  }
+
   popup.classList.add('visible');
 }
 
@@ -2311,6 +2403,7 @@ function getNextMonth(month, year) {
     const categoryHeader = document.createElement('th');
     categoryHeader.className = 'category-header';
     categoryHeader.setAttribute('data-category', category.id);
+    categoryHeader.style.cursor = 'pointer';
     
     // Extract emoji and text for translation
     const emojiRegex = /[\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}\u{2460}-\u{24FF}\u{2500}-\u{257F}\u{2580}-\u{259F}\u{25A0}-\u{25FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2B50}\u{2B55}\u{231A}\u{231B}\u{2328}\u{23CF}\u{23E9}-\u{23F3}\u{23F8}-\u{23FA}\u{24C2}\u{25AA}\u{25AB}\u{25B6}\u{25C0}\u{25FB}-\u{25FE}\u{2934}\u{2935}\u{3030}\u{303D}\u{3297}\u{3299}]|\u{FE0F}/gu;
@@ -2346,6 +2439,10 @@ function getNextMonth(month, year) {
     }
 
     categoryHeader.appendChild(headerContent);
+    categoryHeader.addEventListener('click', function(e) {
+      e.stopPropagation();
+      showCategoryDetailsPopup(category);
+    });
     
     headerRow.appendChild(categoryHeader);
   });
@@ -5294,6 +5391,76 @@ body:has(.day-details-popup.visible) #mobileSidebarToggle {
   overflow-y: auto;
 }
 
+.category-month-popup {
+  max-width: 680px;
+}
+
+.category-month-popup-body {
+  padding: 0 20px;
+}
+
+.category-month-table {
+  width: 100%;
+}
+
+.category-month-head,
+.category-month-row {
+  display: grid;
+  grid-template-columns: 130px minmax(220px, 1fr) 130px 130px;
+  gap: 10px;
+  align-items: center;
+  text-align: left;
+}
+
+.category-month-head {
+  position: sticky;
+  top: 0;
+  background: #ffffff;
+  z-index: 1;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #64748b;
+  padding: 12px 0;
+  border-bottom: 1px solid #d9e2ec;
+}
+
+.category-month-row {
+  border-bottom: 1px solid #edf2f7;
+  color: #1f2937;
+  padding: 10px 0;
+}
+
+.category-month-row:last-child {
+  border-bottom: none;
+}
+
+.category-month-date,
+.category-month-desc {
+  font-size: 14px;
+}
+
+.category-month-amount {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e3a5f;
+}
+
+.category-month-account {
+  font-size: 14px;
+  color: #475569;
+}
+
+.category-month-popup-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
 .transaction-detail {
   display: grid;
   grid-template-columns: 1fr 0.5fr 80px 0.5fr;
@@ -5353,6 +5520,30 @@ body.dark-mode .popup-header h3 {
   color: rgba(248, 250, 252, 0.94);
 }
 
+body.dark-mode .category-month-head {
+  background: #111827;
+  color: rgba(148, 163, 184, 0.9);
+  border-bottom-color: rgba(148, 163, 184, 0.2);
+}
+
+body.dark-mode .category-month-row {
+  color: rgba(241, 245, 249, 0.92);
+  border-bottom-color: rgba(148, 163, 184, 0.14);
+}
+
+body.dark-mode .category-month-amount {
+  color: rgba(191, 219, 254, 0.92);
+}
+
+body.dark-mode .category-month-account {
+  color: rgba(148, 163, 184, 0.9);
+}
+
+body.dark-mode .category-month-popup-footer {
+  background: #0f172a;
+  border-top-color: rgba(148, 163, 184, 0.2);
+}
+
 body.dark-mode .transaction-detail {
   border-color: rgba(148, 163, 184, 0.14);
 }
@@ -5380,6 +5571,42 @@ body.dark-mode .popup-backdrop {
   .popup-content {
     width: 95%;
     max-height: 80vh;
+  }
+
+  .category-month-popup {
+    max-width: 95%;
+  }
+
+  .category-month-popup-body {
+    padding: 0 12px;
+  }
+
+  .category-month-head,
+  .category-month-row {
+    grid-template-columns: 90px minmax(130px, 1fr) 88px;
+    gap: 8px;
+  }
+
+  .category-month-head {
+    font-size: 11px;
+  }
+
+  .category-month-date,
+  .category-month-desc,
+  .category-month-amount {
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .category-month-head div:nth-child(4),
+  .category-month-row div:nth-child(4) {
+    display: none;
+  }
+
+  .category-month-popup-footer {
+    padding: 12px;
   }
 
   .popup-header h3 {

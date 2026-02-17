@@ -529,7 +529,7 @@ const SaveQueue = {
           ${rowsMarkup}
         </div>
         <div class="dash-expense-footer">
-          <button class="dash-expense-add-btn" type="button">Add Expense</button>
+          <button class="dash-expense-add-btn" type="button">+ Add</button>
           <button class="inc-btn-cancel dash-expense-close-btn" type="button">Close</button>
         </div>
       </div>
@@ -543,8 +543,8 @@ const SaveQueue = {
     });
 
     overlay.querySelector('.dash-expense-close').addEventListener('click', closeCategoryExpenseModal);
-    overlay.querySelector('.dash-expense-close-btn').addEventListener('click', closeCategoryExpenseModal);
     overlay.querySelector('.dash-expense-add-btn').addEventListener('click', () => launchAddExpenseFromCategoryModal(category));
+    overlay.querySelector('.dash-expense-close-btn').addEventListener('click', closeCategoryExpenseModal);
 
     _activeCategoryKeyHandler = (event) => {
       if (event.key === 'Escape') {
