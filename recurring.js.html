@@ -2466,18 +2466,10 @@ function restoreNextPaymentColumn() {
     }
 
     const { monthlyData, subscriptionData } = calculateMonthlyProjections();
-    
-   // User's specific color palette
-const colorPalette = [
-  '#F8CBA8', '#FF6F61', '#FFD166', '#06D6A0', '#00FFBF', '#ffc6ff',
-   '#2ECC71', '#83D0C9', '#38A3A5', '#F08080', 
-  '#FFB74D', '#FFD54F', '#4FC3F7', '#4DD0E1', '#81C784', '#A5D6A7',
-  '#FF8A65', '#FFCC80', '#BA68C8', '#CE93D8', '#FFF176', '#FFEB3B'
-];
+
     // Prepare chart data
     const currentYear = new Date().getFullYear();
     const monthLabels = [];
-    const datasets = [];
     const totalValues = [];
     
     // Generate month labels and collect total data
@@ -2496,64 +2488,8 @@ const colorPalette = [
   totalValues.push(monthlyData[monthKey] || 0);
 }
 
-    // Get unique subscription names and assign colors
-    const subscriptions = [...new Set(Object.values(subscriptionData).flatMap(month => Object.keys(month)))];
-    
     // Determine current month (0-indexed)
     const currentMonth = new Date().getMonth();
-    
-    // Create stacked datasets for each INDIVIDUAL SUBSCRIPTION with historical/projected split
-    subscriptions.forEach((subscriptionName, index) => {
-      const historicalValues = [];
-      const projectedValues = [];
-      
-      for (let month = 0; month < 12; month++) {
-        const monthKey = new Date(currentYear, month, 1).toISOString().substring(0, 7);
-        const value = subscriptionData[monthKey][subscriptionName] || 0;
-        
-        if (month <= currentMonth) {
-          // Historical data (past and current month)
-          historicalValues.push(value);
-          projectedValues.push(0);
-        } else {
-          // Projected data (future months)
-          historicalValues.push(0);
-          projectedValues.push(value);
-        }
-      }
-      
-      // Use color from palette, cycling if we have more subscriptions than colors
-      const color = colorPalette[index % colorPalette.length];
-      
-      // Historical dataset (normal colors)
-      datasets.push({
-        label: subscriptionName,
-        data: historicalValues,
-        backgroundColor: color,
-        borderColor: color,
-        borderWidth: 0,
-        stack: 'main'
-      });
-      
-      // Projected dataset (grey/muted colors with dashed border)
-      const greyColor = color.replace(/rgb\(([^)]+)\)/, 'rgba($1, 0.4)') 
-                            .replace(/#([0-9A-F]{6})/i, (match, hex) => {
-                              const r = parseInt(hex.substr(0,2), 16);
-                              const g = parseInt(hex.substr(2,2), 16);
-                              const b = parseInt(hex.substr(4,2), 16);
-                              return `rgba(${r}, ${g}, ${b}, 0.4)`;
-                            });
-      
-      datasets.push({
-        label: subscriptionName + ' (Projected)',
-        data: projectedValues,
-        backgroundColor: greyColor || 'rgba(128, 128, 128, 0.4)',
-        borderColor: color,
-        borderWidth: 1,
-        borderDash: [3, 3],
-        stack: 'main'
-      });
-    });
 
     // Split total line into historical and projected segments
     const historicalTotals = [];
@@ -2569,14 +2505,43 @@ const colorPalette = [
         projectedTotals.push(value);
       }
     }
+
+    // Bridge actual -> projected so dashed path starts at current month.
+    if (currentMonth >= 0 && currentMonth < projectedTotals.length) {
+      projectedTotals[currentMonth] = totalValues[currentMonth] || 0;
+    }
+
+    // Adaptive Y-axis: zoom when monthly totals are tightly clustered.
+    const validTotals = totalValues.filter(v => typeof v === 'number' && !isNaN(v) && v > 0);
+    let yMin = 0;
+    let yMax = Math.max(...totalValues, 100);
+    if (validTotals.length >= 2) {
+      const minTotal = Math.min(...validTotals);
+      const maxTotal = Math.max(...validTotals);
+      const spread = Math.max(1, maxTotal - minTotal);
+      const spreadRatio = maxTotal > 0 ? (spread / maxTotal) : 1;
+      const shouldZoomY = spreadRatio <= 0.35;
+
+      if (shouldZoomY) {
+        const padding = Math.max(12, Math.round(spread * 0.35));
+        yMin = Math.max(0, minTotal - padding);
+        yMax = maxTotal + padding;
+
+        // Keep a minimum visual range so labels and deltas have breathing room.
+        if ((yMax - yMin) < 80) {
+          const mid = (yMax + yMin) / 2;
+          yMin = Math.max(0, Math.floor(mid - 40));
+          yMax = Math.ceil(mid + 40);
+        }
+      }
+    }
     
     // Determine colors based on dark mode
     const isDarkMode = document.body.classList.contains('dark-mode');
     const totalLineColor = isDarkMode ? '#DDA15E' : '#1f2937';
     const projectedLineColor = isDarkMode ? 'rgba(221, 161, 94, 0.6)' : 'rgba(128, 128, 128, 0.8)';
-    
-    // Historical total line (solid)
-    datasets.push({
+
+    const datasets = [{
       label: 'Total',
       data: historicalTotals,
       type: 'line',
@@ -2592,30 +2557,90 @@ const colorPalette = [
       pointStyle: 'circle',
       showLine: true,
       spanGaps: false
-    });
-    
-    // Projected total line (dashed, grey)
-    datasets.push({
-      label: 'Total (Projected)',
+    }, {
+      label: 'Projected Total',
       data: projectedTotals,
       type: 'line',
       borderColor: projectedLineColor,
       backgroundColor: 'transparent',
       borderWidth: 3,
       borderDash: [8, 4],
-      pointRadius: 6,
-      pointBackgroundColor: projectedLineColor,
-      pointBorderColor: '#ffffff',
-      pointBorderWidth: 2,
+      pointRadius: function(ctx) {
+        return ctx.dataIndex === currentMonth ? 0 : 6;
+      },
+      pointBackgroundColor: function(ctx) {
+        return ctx.dataIndex === currentMonth ? 'transparent' : projectedLineColor;
+      },
+      pointBorderColor: function(ctx) {
+        return ctx.dataIndex === currentMonth ? 'transparent' : '#ffffff';
+      },
+      pointBorderWidth: function(ctx) {
+        return ctx.dataIndex === currentMonth ? 0 : 2;
+      },
       fill: false,
       tension: 0.4,
       pointStyle: 'circle',
       showLine: true,
       spanGaps: false
-    });
+    }];
+
+    const totalLabelsPlugin = {
+      id: 'totalLabelsPlugin',
+      afterDatasetsDraw: function(chart) {
+        const ctx = chart.ctx;
+
+        const historicalTotalDataset = chart.data.datasets.find(ds => ds.label === 'Total');
+        const projectedTotalDataset = chart.data.datasets.find(ds => ds.label === 'Projected Total');
+
+        if (!historicalTotalDataset && !projectedTotalDataset) return;
+
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillStyle = document.body.classList.contains('dark-mode') ? '#DDA15E' : '#1f2937';
+        ctx.font = 'bold 10px Arial';
+
+        totalValues.forEach((value, index) => {
+          if (!(value > 0)) return;
+
+          const isHistorical = index <= currentMonth;
+          const activeDataset = isHistorical ? historicalTotalDataset : projectedTotalDataset;
+          if (!activeDataset) return;
+
+          const datasetIndex = chart.data.datasets.indexOf(activeDataset);
+          const meta = chart.getDatasetMeta(datasetIndex);
+          const point = meta.data[index];
+          if (!point) return;
+
+          const x = point.x;
+          const y = point.y - 25;
+
+          const totalStr = value >= 1000 ? '€' + (value / 1000).toFixed(0) + 'k' : '€' + value.toFixed(0);
+          const prevValue = index > 0 ? (totalValues[index - 1] || 0) : 0;
+          const delta = value - prevValue;
+
+          ctx.fillText(totalStr, x, y);
+
+          if (index > 0 && delta !== 0) {
+            const changeStr = delta > 0 ?
+              '+' + (delta >= 1000 ? '€' + (delta / 1000).toFixed(0) + 'k' : '€' + delta.toFixed(0)) :
+              '-' + (Math.abs(delta) >= 1000 ? '€' + (Math.abs(delta) / 1000).toFixed(0) + 'k' : '€' + Math.abs(delta).toFixed(0));
+
+            ctx.fillStyle = delta > 0 ? '#22c55e' : '#ef4444';
+            ctx.font = '9px Arial';
+            ctx.fillText(changeStr, x, y + 14);
+            ctx.fillStyle = document.body.classList.contains('dark-mode') ? '#DDA15E' : '#1f2937';
+            ctx.font = 'bold 10px Arial';
+          }
+        });
+
+        ctx.restore();
+      }
+    };
 
     const config = {
-      type: 'bar', // STACKED BAR CHART not line!
+      type: 'line',
+      plugins: [totalLabelsPlugin],
       data: {
         labels: monthLabels,
         datasets: datasets
@@ -2630,7 +2655,6 @@ const colorPalette = [
         },
         scales: {
           x: {
-            stacked: true, // Stack the bars
             grid: {
               display: false
             },
@@ -2642,12 +2666,14 @@ const colorPalette = [
             }
           },
           y: {
-            stacked: true, // Stack the bars
-            beginAtZero: true,
+            beginAtZero: false,
+            min: yMin,
+            max: yMax,
             grid: {
               color: 'rgba(0, 0, 0, 0.1)'
             },
             ticks: {
+              maxTicksLimit: 5,
               callback: function(value) {
                 if (value >= 1000) {
                   return (value / 1000).toFixed(0) + 'k';
@@ -2662,163 +2688,47 @@ const colorPalette = [
         },
         plugins: {
           legend: {
-            display: true,
-            position: 'bottom',
-            align: 'center',
-            labels: {
-              boxWidth: 10,
-              boxHeight: 10,
-              padding: 8,
-              font: {
-                size: 10
-              },
-               filter: function(legendItem) {
-        // Don't show Total lines in legend
-        if (legendItem.text === 'Total' || legendItem.text === 'Total (Projected)') return false;
-        
-        // Don't show projected datasets in legend - only show base subscription names
-        if (legendItem.text.includes('(Projected)')) return false;
-        
-        // Hide legend on vertical mobile
-        const isMobile = window.innerWidth <= 768;
-        const isPortrait = window.innerHeight > window.innerWidth;
-        const isVerticalMobile = isMobile && isPortrait;
-        
-        return !isVerticalMobile; // Hide all subscription labels on vertical mobile
-      }
-    },
-
- // ADD THIS: Enable clicking legend items to toggle datasets
-        onClick: function(e, legendItem, legend) {
-          const chart = legend.chart;
-          const index = legendItem.datasetIndex;
-          const dataset = chart.data.datasets[index];
-          
-          // Skip the Total line datasets
-          if (dataset.label === 'Total' || dataset.label === 'Total (Projected)') return;
-          
-          // Handle projected datasets - toggle both historical and projected for same subscription
-          let baseLabel = dataset.label.replace(' (Projected)', '');
-          let isProjected = dataset.label.includes('(Projected)');
-          
-          // Find both historical and projected datasets for this subscription
-          const relatedDatasets = chart.data.datasets.filter(ds => 
-            ds.label === baseLabel || ds.label === baseLabel + ' (Projected)'
-          );
-          
-          // Toggle visibility for both
-          const newHiddenState = !dataset.hidden;
-          relatedDatasets.forEach(ds => {
-            ds.hidden = newHiddenState;
-          });
-          
-          // Update chart
-          chart.update();
-        }
-
+            display: false
   },
           tooltip: {
-            mode: 'point',
-            intersect: true,
+            mode: 'index',
+            intersect: false,
+            displayColors: false,
+            backgroundColor: '#0f172a',
+            titleColor: '#f8fafc',
+            bodyColor: '#f8fafc',
+            borderColor: '#1e293b',
+            borderWidth: 1,
+            cornerRadius: 10,
+            padding: 12,
             callbacks: {
               label: function(context) {
-                if (context.dataset.label === 'Total' || context.dataset.label === 'Total (Projected)') {
-                  const isProjected = context.dataIndex > currentMonth;
-                  const totalLabel = isProjected ? 'Total (Projected)' : 'Total';
-                  return `${totalLabel}: ${formatCurrency(context.parsed.y)}`;
-                }
-                const value = context.parsed.y;
-                const baseLabel = context.dataset.label.replace(' (Projected)', '');
-                const isProjected = context.dataIndex > currentMonth;
-                const labelSuffix = isProjected ? ' (Projected)' : '';
-                return `${baseLabel}${labelSuffix}: ${formatCurrency(value)}`;
+                if (context.parsed.y == null) return null;
+                return `${context.dataset.label}: ${formatCurrency(context.parsed.y)}`;
               },
               afterBody: function(tooltipItems) {
-                const currentMonth = tooltipItems[0]?.dataIndex || 0;
-                const currentTotal = totalValues[currentMonth] || 0;
-                const prevTotal = currentMonth > 0 ? (totalValues[currentMonth - 1] || 0) : 0;
-                const delta = currentTotal - prevTotal;
-                
-                if (delta !== 0) {
-                  const deltaStr = delta > 0 ? `+${formatCurrency(delta)}` : `-${formatCurrency(Math.abs(delta))}`;
-                  return [`Change: ${deltaStr}`];
+                const hoveredMonth = tooltipItems[0]?.dataIndex || 0;
+                const monthKey = new Date(currentYear, hoveredMonth, 1).toISOString().substring(0, 7);
+                const paymentsForMonth = subscriptionData[monthKey] || {};
+                const paymentRows = Object.entries(paymentsForMonth)
+                  .filter(([, amount]) => (parseFloat(amount) || 0) > 0)
+                  .sort((a, b) => (parseFloat(b[1]) || 0) - (parseFloat(a[1]) || 0))
+                  .map(([name, amount]) => `${name}: ${formatCurrency(amount)}`);
+
+                const lines = [];
+                if (paymentRows.length > 0) {
+                  lines.push('Payments:');
+                  paymentRows.forEach(row => lines.push(row));
                 }
-                return [];
+
+                return lines;
               }
             }
-          }
-        },
-        elements: {
-          bar: {
-            borderWidth: 0
           }
         },
         interaction: {
           mode: 'index',
           intersect: false
-        },
-        animation: {
-          onComplete: function() {
-            // Draw total labels manually after animation completes
-            const chart = this;
-            const ctx = chart.ctx;
-            
-            // Find both total datasets
-            const historicalTotalDataset = chart.data.datasets.find(ds => ds.label === 'Total');
-            const projectedTotalDataset = chart.data.datasets.find(ds => ds.label === 'Total (Projected)');
-            
-            if (historicalTotalDataset || projectedTotalDataset) {
-              ctx.save();
-              ctx.textAlign = 'center';
-              ctx.textBaseline = 'bottom';
-              ctx.fillStyle = document.body.classList.contains('dark-mode') ? '#DDA15E' : '#1f2937';
-              ctx.font = 'bold 10px Arial';
-              
-              // Process all 12 months using the original totalValues array
-              totalValues.forEach((value, index) => {
-                if (value > 0) {
-                  // Determine which dataset to use for positioning
-                  const isHistorical = index <= currentMonth;
-                  const activeDataset = isHistorical ? historicalTotalDataset : projectedTotalDataset;
-                  
-                  if (activeDataset) {
-                    const datasetIndex = chart.data.datasets.indexOf(activeDataset);
-                    const meta = chart.getDatasetMeta(datasetIndex);
-                    const point = meta.data[index];
-                    
-                    if (point) {
-                      const x = point.x;
-                      const y = point.y - 25; // Move trend line higher above bars
-                      
-                      // Format total value
-                      let totalStr = value >= 1000 ? '€' + (value / 1000).toFixed(0) + 'k' : '€' + value.toFixed(0);
-                      
-                      // Calculate change
-                      const prevValue = index > 0 ? (totalValues[index - 1] || 0) : 0;
-                      const delta = value - prevValue;
-                      
-                      ctx.fillText(totalStr, x, y);
-                      
-                      // Draw change below if there's a change
-                      if (index > 0 && delta !== 0) {
-                        const changeStr = delta > 0 ? 
-                          '+' + (delta >= 1000 ? '€' + (delta / 1000).toFixed(0) + 'k' : '€' + delta.toFixed(0)) :
-                          '-' + (Math.abs(delta) >= 1000 ? '€' + (Math.abs(delta) / 1000).toFixed(0) + 'k' : '€' + Math.abs(delta).toFixed(0));
-                        
-                        ctx.fillStyle = delta > 0 ? '#22c55e' : '#ef4444';
-                        ctx.font = '9px Arial';
-                        ctx.fillText(changeStr, x, y + 14); // Adjusted spacing
-                        ctx.fillStyle = document.body.classList.contains('dark-mode') ? '#DDA15E' : '#1f2937';
-                        ctx.font = 'bold 10px Arial';
-                      }
-                    }
-                  }
-                }
-              });
-              
-              ctx.restore();
-            }
-          }
         }
       }
     };
@@ -2832,21 +2742,26 @@ const colorPalette = [
       config.options.scales.y.grid.color = 'rgba(255, 255, 255, 0.1)';
       
       // Update legend for dark mode
-      config.options.plugins.legend.labels.color = 'rgba(255, 255, 255, 0.87)';
-      
-      // Update total line color for dark mode
-      const totalDataset = datasets[datasets.length - 1];
-      if (totalDataset && totalDataset.label === 'Total') {
+      const totalDataset = datasets.find(ds => ds.label === 'Total');
+      const projectedDataset = datasets.find(ds => ds.label === 'Projected Total');
+      if (totalDataset) {
         totalDataset.borderColor = '#DDA15E';
         totalDataset.pointBackgroundColor = '#DDA15E';
         totalDataset.pointBorderColor = '#1e1e1e';
       }
+      if (projectedDataset) {
+        projectedDataset.borderColor = 'rgba(221, 161, 94, 0.6)';
+        projectedDataset.pointBackgroundColor = 'rgba(221, 161, 94, 0.6)';
+        projectedDataset.pointBorderColor = '#1e1e1e';
+      }
       
       // Update tooltip for dark mode
       if (!config.options.plugins.tooltip) config.options.plugins.tooltip = {};
-      config.options.plugins.tooltip.backgroundColor = 'rgba(30, 30, 30, 0.9)';
+      config.options.plugins.tooltip.backgroundColor = '#020617';
       config.options.plugins.tooltip.titleColor = '#DDA15E';
       config.options.plugins.tooltip.bodyColor = 'rgba(255, 255, 255, 0.87)';
+      config.options.plugins.tooltip.borderColor = '#334155';
+      config.options.plugins.tooltip.borderWidth = 1;
     }
 
     window.recurringChart = new Chart(ctx, config);
