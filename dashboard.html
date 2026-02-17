@@ -2474,6 +2474,223 @@ body:not(.dark-mode) .donut-chart-header {
   color: #2c3e50 !important;
 }
 
+/* Category expense drilldown modal */
+.dashboard-category-trigger {
+  cursor: pointer;
+}
+
+.dash-expense-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2100;
+  padding: 16px;
+  backdrop-filter: blur(3px);
+}
+
+.dash-expense-modal {
+  width: min(680px, 96vw);
+  max-height: 88vh;
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.25);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.dash-expense-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #f8fafc 0%, #eef2f7 100%);
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.dash-expense-header h3 {
+  margin: 0;
+  color: #1f2937;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.dash-expense-close {
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.dash-expense-close:hover {
+  color: #0f172a;
+}
+
+.dash-expense-meta {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  padding: 12px 20px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  color: #334155;
+  font-weight: 600;
+}
+
+.dash-expense-summary {
+  white-space: nowrap;
+}
+
+.dash-expense-table {
+  overflow: auto;
+  padding: 0 20px;
+}
+
+.dash-expense-head,
+.dash-expense-row {
+  display: grid;
+  grid-template-columns: 88px minmax(180px, 280px) 110px 130px;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 0;
+  width: max-content;
+  min-width: 620px;
+}
+
+.dash-expense-head {
+  position: sticky;
+  top: 0;
+  background: #ffffff;
+  z-index: 1;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #64748b;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.dash-expense-row {
+  border-bottom: 1px solid #edf2f7;
+  color: #1f2937;
+}
+
+.dash-expense-name {
+  font-weight: 600;
+}
+
+.dash-expense-amount {
+  text-align: left;
+  font-weight: 700;
+  color: #1e3a5f;
+}
+
+.dash-expense-account {
+  text-align: left;
+  color: #475569;
+}
+
+.dash-expense-empty {
+  padding: 24px 0;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.dash-expense-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 14px 20px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+body.dark-mode .dash-expense-modal-overlay {
+  background: rgba(2, 6, 23, 0.72);
+}
+
+body.dark-mode .dash-expense-modal {
+  background: #111827;
+  border-color: rgba(148, 163, 184, 0.24);
+  box-shadow: 0 24px 56px rgba(2, 6, 23, 0.75);
+}
+
+body.dark-mode .dash-expense-header {
+  background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+  border-bottom-color: rgba(148, 163, 184, 0.2);
+}
+
+body.dark-mode .dash-expense-header h3 {
+  color: rgba(248, 250, 252, 0.94);
+}
+
+body.dark-mode .dash-expense-close {
+  color: rgba(203, 213, 225, 0.8);
+}
+
+body.dark-mode .dash-expense-close:hover {
+  color: rgba(248, 250, 252, 0.95);
+}
+
+body.dark-mode .dash-expense-meta {
+  background: #0f172a;
+  border-bottom-color: rgba(148, 163, 184, 0.2);
+  color: rgba(226, 232, 240, 0.9);
+}
+
+body.dark-mode .dash-expense-head {
+  background: #111827;
+  color: rgba(148, 163, 184, 0.9);
+  border-bottom-color: rgba(148, 163, 184, 0.2);
+}
+
+body.dark-mode .dash-expense-row {
+  color: rgba(241, 245, 249, 0.92);
+  border-bottom-color: rgba(148, 163, 184, 0.14);
+}
+
+body.dark-mode .dash-expense-amount {
+  color: rgba(191, 219, 254, 0.92);
+}
+
+body.dark-mode .dash-expense-account,
+body.dark-mode .dash-expense-empty {
+  color: rgba(148, 163, 184, 0.9);
+}
+
+body.dark-mode .dash-expense-footer {
+  background: #0f172a;
+  border-top-color: rgba(148, 163, 184, 0.2);
+}
+
+@media (max-width: 768px) {
+  .dash-expense-modal {
+    width: 100%;
+    max-height: 92vh;
+  }
+
+  .dash-expense-header h3 {
+    font-size: 16px;
+  }
+
+  .dash-expense-head,
+  .dash-expense-row {
+    grid-template-columns: 74px 1fr 96px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .dash-expense-head div:nth-child(4),
+  .dash-expense-row div:nth-child(4) {
+    display: none;
+  }
+}
+
 </style>
 
 <script>

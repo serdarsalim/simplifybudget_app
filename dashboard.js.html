@@ -268,6 +268,189 @@ const SaveQueue = {
       const match = categoryName.match(emojiRegex);
       return match ? match[0] : '📊';
     }
+
+  const DASHBOARD_EMOJI_REGEX = /[\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}\u{2460}-\u{24FF}\u{2500}-\u{257F}\u{2580}-\u{259F}\u{25A0}-\u{25FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2B50}\u{2B55}\u{231A}\u{231B}\u{2328}\u{23CF}\u{23E9}-\u{23F3}\u{23F8}-\u{23FA}\u{24C2}\u{25AA}\u{25AB}\u{25B6}\u{25C0}\u{25FB}-\u{25FE}\u{2934}\u{2935}\u{3030}\u{303D}\u{3297}\u{3299}]|\u{FE0F}/gu;
+  const DASHBOARD_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  let _activeCategoryModal = null;
+  let _activeCategoryKeyHandler = null;
+
+  function normalizeCategoryName(value) {
+    return (value || '')
+      .toString()
+      .replace(DASHBOARD_EMOJI_REGEX, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+  }
+
+  function parseExpenseDateSafe(dateValue) {
+    if (dateValue instanceof Date && !isNaN(dateValue.getTime())) return dateValue;
+    if (!dateValue) return null;
+    const input = dateValue.toString().trim();
+    const ddMmmYyyy = input.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/);
+    if (ddMmmYyyy) {
+      const day = parseInt(ddMmmYyyy[1], 10);
+      const month = DASHBOARD_MONTHS.indexOf(ddMmmYyyy[2]);
+      const year = parseInt(ddMmmYyyy[3], 10);
+      if (month >= 0) return new Date(year, month, day, 12, 0, 0, 0);
+    }
+    const parsed = new Date(input);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  function formatShortExpenseDate(dateValue) {
+    const parsed = parseExpenseDateSafe(dateValue);
+    if (!parsed) return '—';
+    return `${DASHBOARD_MONTHS[parsed.getMonth()]} ${parsed.getDate()}`;
+  }
+
+  function escapeHtml(value) {
+    return (value || '')
+      .toString()
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function closeCategoryExpenseModal() {
+    if (_activeCategoryKeyHandler) {
+      document.removeEventListener('keydown', _activeCategoryKeyHandler);
+      _activeCategoryKeyHandler = null;
+    }
+    if (_activeCategoryModal) {
+      _activeCategoryModal.remove();
+      _activeCategoryModal = null;
+    }
+  }
+
+  function getCurrentMonthCategoryExpenses(categoryFullName) {
+    const targetNormalized = normalizeCategoryName(categoryFullName);
+    const month = window._currentMonth !== undefined ? window._currentMonth : new Date().getMonth();
+    const year = window._currentYear !== undefined ? window._currentYear : new Date().getFullYear();
+    let monthlyExpenses = [];
+
+    if (window.CacheManager && typeof CacheManager.getExpenses === 'function') {
+      const cached = CacheManager.getExpenses(month, year);
+      if (Array.isArray(cached)) {
+        monthlyExpenses = cached;
+      }
+    }
+
+    if (!Array.isArray(monthlyExpenses) || monthlyExpenses.length === 0) {
+      const unifiedCache = window.CacheManager && typeof CacheManager.get === 'function'
+        ? CacheManager.get('expenses_with_timestamp')
+        : null;
+      const allExpenses = unifiedCache && Array.isArray(unifiedCache.expenses) ? unifiedCache.expenses : [];
+      monthlyExpenses = allExpenses.filter((tx) => {
+        const txDate = parseExpenseDateSafe(tx && tx.date);
+        return txDate && txDate.getMonth() === month && txDate.getFullYear() === year;
+      });
+    }
+
+    return monthlyExpenses
+      .filter((tx) => {
+        if (!tx) return false;
+        const rawCategory = tx.category || tx.type || '';
+        if (rawCategory && rawCategory.toString().toLowerCase().includes('income')) return false;
+        return normalizeCategoryName(rawCategory) === targetNormalized;
+      })
+      .map((tx) => {
+        const amount = parseFloat(tx.amount) || 0;
+        return {
+          date: tx.date,
+          name: (tx.name || tx.description || tx.label || 'Unnamed expense').toString(),
+          amount: Math.abs(amount),
+          account: (tx.account || '').toString()
+        };
+      })
+      .sort((a, b) => {
+        const aTime = parseExpenseDateSafe(a.date)?.getTime() || 0;
+        const bTime = parseExpenseDateSafe(b.date)?.getTime() || 0;
+        return bTime - aTime;
+      });
+  }
+
+  function openCategoryExpenseModal(category) {
+    closeCategoryExpenseModal();
+
+    const month = window._currentMonth !== undefined ? window._currentMonth : new Date().getMonth();
+    const year = window._currentYear !== undefined ? window._currentYear : new Date().getFullYear();
+    const txList = getCurrentMonthCategoryExpenses(category.name);
+    const total = txList.reduce((sum, tx) => sum + (tx.amount || 0), 0);
+    const titleText = Utils.translateCategory ? Utils.translateCategory(category.text || category.name) : (category.text || category.name);
+
+    const overlay = document.createElement('div');
+    overlay.className = 'dash-expense-modal-overlay';
+
+    const rowsMarkup = txList.length ? txList.map((tx) => `
+      <div class="dash-expense-row">
+        <div class="dash-expense-date">${formatShortExpenseDate(tx.date)}</div>
+        <div class="dash-expense-name">${escapeHtml(tx.name)}</div>
+        <div class="dash-expense-amount">${Utils.formatCurrency(tx.amount)}</div>
+        <div class="dash-expense-account">${escapeHtml(tx.account || '—')}</div>
+      </div>
+    `).join('') : `
+      <div class="dash-expense-empty">No expenses in this category for this month.</div>
+    `;
+
+    overlay.innerHTML = `
+      <div class="dash-expense-modal" role="dialog" aria-modal="true" aria-label="Category expenses">
+        <div class="dash-expense-header">
+          <h3>${category.emoji ? `${escapeHtml(category.emoji)} ` : ''}${escapeHtml(titleText)} • ${DASHBOARD_MONTHS[month]} ${year} | ${Utils.formatCurrency(total)}</h3>
+          <button class="dash-expense-close" type="button" aria-label="Close">×</button>
+        </div>
+        <div class="dash-expense-table">
+          <div class="dash-expense-head">
+            <div>Date</div>
+            <div>Description</div>
+            <div>Amount</div>
+            <div>Account</div>
+          </div>
+          ${rowsMarkup}
+        </div>
+        <div class="dash-expense-footer">
+          <button class="inc-btn-cancel dash-expense-close-btn" type="button">Close</button>
+        </div>
+      </div>
+    `;
+
+    const modalCard = overlay.querySelector('.dash-expense-modal');
+    overlay.addEventListener('click', (event) => {
+      if (!modalCard.contains(event.target)) {
+        closeCategoryExpenseModal();
+      }
+    });
+
+    overlay.querySelector('.dash-expense-close').addEventListener('click', closeCategoryExpenseModal);
+    overlay.querySelector('.dash-expense-close-btn').addEventListener('click', closeCategoryExpenseModal);
+
+    _activeCategoryKeyHandler = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeCategoryExpenseModal();
+      }
+    };
+    document.addEventListener('keydown', _activeCategoryKeyHandler);
+
+    document.body.appendChild(overlay);
+    _activeCategoryModal = overlay;
+  }
+
+  function attachCategoryDrilldownHandlers() {
+    document.querySelectorAll('.dashboard-category-trigger').forEach((el) => {
+      el.addEventListener('click', function() {
+        const row = this.closest('tr[data-category-full]');
+        if (!row) return;
+        openCategoryExpenseModal({
+          name: row.dataset.categoryFull || '',
+          text: row.dataset.categoryText || '',
+          emoji: row.dataset.categoryEmoji || ''
+        });
+      });
+    });
+  }
   
     // Render the budget dashboard
   /**
@@ -275,6 +458,7 @@ const SaveQueue = {
    * @param {Object} data - Combined dashboard data from all modules
    */
   SimBudget.renderBudgetDashboard = function(data) {
+  closeCategoryExpenseModal();
 
 
     
@@ -373,7 +557,7 @@ if (budgetAlert) {
 let progressClass = percentSpent > 100 ? 'over-budget' : (percentSpent > 80 ? 'near-limit' : '');        
 
 // Extract emoji and text separately
-const emojiRegex = /[\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}\u{2460}-\u{24FF}\u{2500}-\u{257F}\u{2580}-\u{259F}\u{25A0}-\u{25FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2B50}\u{2B55}\u{231A}\u{231B}\u{2328}\u{23CF}\u{23E9}-\u{23F3}\u{23F8}-\u{23FA}\u{24C2}\u{25AA}\u{25AB}\u{25B6}\u{25C0}\u{25FB}-\u{25FE}\u{2934}\u{2935}\u{3030}\u{303D}\u{3297}\u{3299}]|\u{FE0F}/gu;
+const emojiRegex = DASHBOARD_EMOJI_REGEX;
 
 const allEmojis = category.name.match(emojiRegex);
 const categoryText = category.name.replace(emojiRegex, '').trim();
@@ -381,13 +565,16 @@ const categoryEmoji = allEmojis ? allEmojis.join('') : '';
 
 // Create row
 const row = document.createElement('tr');
+row.dataset.categoryFull = category.name;
+row.dataset.categoryText = categoryText;
+row.dataset.categoryEmoji = categoryEmoji;
 row.innerHTML = `
-  <td class="category-name">
+  <td class="category-name dashboard-category-trigger" title="View month expenses">
     ${categoryEmoji ? `<span class="category-emoji">${categoryEmoji}</span>` : ''}
     ${Utils.translateCategory(categoryText)}
   </td>
   <td class="budget-value" data-category="${category.name}" data-value="${category.budgeted}">${Utils.formatCurrency(category.budgeted)}</td>
-  <td class="actual-value">${Utils.formatCurrency(category.actual)}</td>
+  <td class="actual-value dashboard-category-trigger" title="View month expenses">${Utils.formatCurrency(category.actual)}</td>
   <td class="progress-cell">
     <div class="progress-bar-container">
       <div class="progress-bar ${progressClass}" style="width: ${Math.min(percentSpent, 100)}%"></div>
@@ -408,6 +595,7 @@ row.innerHTML = `
               console.error("Error making budget values editable:", error);
             }
           }
+          attachCategoryDrilldownHandlers();
         });
       }
     }
