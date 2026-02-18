@@ -242,11 +242,23 @@ function updateSortIndicators() {
     );
 
     const yearTotal = currentYearSummary.reduce((sum, entry) => sum + entry.income, 0);
-    const monthEntry = currentYearSummary.find(entry => entry.month === currentMonth);
+    const monthEntry = monthlySummary.find(entry => entry.year === currentYear && entry.month === currentMonth);
     const monthTotal = monthEntry ? monthEntry.income : 0;
-
-    const monthsWithIncome = currentYearSummary.filter(entry => entry.income > 0).length;
-    const monthlyAverage = monthsWithIncome > 0 ? yearTotal / monthsWithIncome : 0;
+    const rollingStart = new Date(currentYear, currentMonth - 11, 1);
+    const monthlyIncomeByKey = new Map();
+    monthlySummary.forEach(entry => {
+      if (!entry || !(entry.monthStart instanceof Date)) return;
+      if (entry.monthStart < rollingStart) return;
+      if (entry.monthStart > new Date(currentYear, currentMonth, 1)) return;
+      monthlyIncomeByKey.set(`${entry.year}-${entry.month}`, entry.income || 0);
+    });
+    let rolling12Total = 0;
+    for (let offset = 11; offset >= 0; offset--) {
+      const monthDate = new Date(currentYear, currentMonth - offset, 1);
+      const key = `${monthDate.getFullYear()}-${monthDate.getMonth()}`;
+      rolling12Total += monthlyIncomeByKey.get(key) || 0;
+    }
+    const monthlyAverage = rolling12Total / 12;
 
     return {
       monthlySummary,
@@ -254,7 +266,7 @@ function updateSortIndicators() {
       yearTotal,
       monthTotal,
       monthlyAverage,
-      monthsWithIncome
+      monthsWithIncome: 12
     };
   }
 
@@ -659,15 +671,23 @@ function calculateSummaryMetrics() {
   const yearTotal = regularYearTotal + recurringYearTotal;
   const monthTotal = regularMonthTotal + recurringMonthTotal;
   
-  const monthsWithIncome = new Set();
-  [...regularYearIncome, ...recurringYearIncome].forEach(item => {
-    if (item.date) {
-      monthsWithIncome.add(item.date.getMonth());
-    }
+  const rollingStart = new Date(currentYear, currentMonth - 11, 1);
+  const rollingEnd = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999);
+  const monthTotals = new Map();
+  [..._incomeData, ..._recurringIncomeData].forEach(item => {
+    if (!item || !item.date) return;
+    const date = item.date instanceof Date ? item.date : new Date(item.date);
+    if (isNaN(date.getTime()) || date < rollingStart || date > rollingEnd) return;
+    const key = `${date.getFullYear()}-${date.getMonth()}`;
+    monthTotals.set(key, (monthTotals.get(key) || 0) + (item.amount || 0));
   });
-  
-  const monthsCount = monthsWithIncome.size;
-  const monthlyAverage = monthsCount > 0 ? yearTotal / monthsCount : 0;
+  let rolling12Total = 0;
+  for (let offset = 11; offset >= 0; offset--) {
+    const monthDate = new Date(currentYear, currentMonth - offset, 1);
+    const key = `${monthDate.getFullYear()}-${monthDate.getMonth()}`;
+    rolling12Total += monthTotals.get(key) || 0;
+  }
+  const monthlyAverage = rolling12Total / 12;
   
   return {
     yearTotal: yearTotal,
@@ -688,7 +708,7 @@ async function calculateSummaryMetricsAsync() {
     if (summaryLine) {
       const localMetrics = calculateSummaryMetrics();
       const monthLabel = new Date().toLocaleDateString(_language || 'en-US', { month: 'short', year: 'numeric' });
-      summaryLine.textContent = `${monthLabel}: ${localMetrics.monthPaymentCount} Payments | Total: ${formatCurrency(cacheMetrics.monthTotal)} | Yearly avg: ${formatCurrency(cacheMetrics.monthlyAverage)}`;
+      summaryLine.textContent = `${monthLabel}: ${localMetrics.monthPaymentCount} Payments | Total: ${formatCurrency(cacheMetrics.monthTotal)} | 12m avg: ${formatCurrency(cacheMetrics.monthlyAverage)}`;
     }
   } catch (error) {
     console.error('Error calculating summary metrics:', error);
@@ -777,11 +797,11 @@ async function calculateSummaryMetricsAsync() {
               <div class="value-amount" id="incomeMonthLabel">${currentMonthLabel}</div>
             </div>
             <div>
-              <div class="value-label">Total</div>
+              <div class="value-label" title="This is your total income for the current month.">Total</div>
               <div class="value-amount" id="incomeMonthTotal">${formatCurrency(metrics.monthTotal)}</div>
             </div>
             <div>
-              <div class="value-label">12m Avg</div>
+              <div class="value-label" title="This is the average income of the past 12 months.">12m Avg</div>
               <div class="value-amount" id="incomeAvgTotal">${formatCurrency(metrics.monthlyAverage)}</div>
             </div>
           </div>
@@ -3160,7 +3180,7 @@ function saveEditedRecurringIncome(originalItem, overlay) {
 
     const summaryLine = getElement('incomeSummaryLine');
     if (summaryLine) {
-      summaryLine.textContent = `${monthName}: ${metrics.monthPaymentCount} Payments | Total: ${formatCurrency(metrics.monthTotal)} | Yearly avg: ${formatCurrency(metrics.monthlyAverage)}`;
+      summaryLine.textContent = `${monthName}: ${metrics.monthPaymentCount} Payments | Total: ${formatCurrency(metrics.monthTotal)} | 12m avg: ${formatCurrency(metrics.monthlyAverage)}`;
     }
 
   }
