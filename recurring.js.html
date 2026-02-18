@@ -2511,13 +2511,15 @@ function restoreNextPaymentColumn() {
       projectedTotals[currentMonth] = totalValues[currentMonth] || 0;
     }
 
-    // Adaptive Y-axis: zoom when monthly totals are tightly clustered.
+    // Adaptive Y-axis: zoom when monthly totals are tightly clustered,
+    // but keep a reasonable vertical span so minor fluctuations are not exaggerated.
     const validTotals = totalValues.filter(v => typeof v === 'number' && !isNaN(v) && v > 0);
     let yMin = 0;
     let yMax = Math.max(...totalValues, 100);
     if (validTotals.length >= 2) {
       const minTotal = Math.min(...validTotals);
       const maxTotal = Math.max(...validTotals);
+      const avgTotal = validTotals.reduce((sum, value) => sum + value, 0) / validTotals.length;
       const spread = Math.max(1, maxTotal - minTotal);
       const spreadRatio = maxTotal > 0 ? (spread / maxTotal) : 1;
       const shouldZoomY = spreadRatio <= 0.35;
@@ -2527,14 +2529,35 @@ function restoreNextPaymentColumn() {
         yMin = Math.max(0, minTotal - padding);
         yMax = maxTotal + padding;
 
-        // Keep a minimum visual range so labels and deltas have breathing room.
-        if ((yMax - yMin) < 80) {
+        // Keep a minimum visual range relative to the average to avoid
+        // over-dramatizing small month-to-month changes.
+        const minDesiredSpan = Math.max(80, Math.round(avgTotal * 0.3));
+        const currentSpan = yMax - yMin;
+        if (currentSpan < minDesiredSpan) {
           const mid = (yMax + yMin) / 2;
-          yMin = Math.max(0, Math.floor(mid - 40));
-          yMax = Math.ceil(mid + 40);
+          yMin = Math.max(0, Math.floor(mid - minDesiredSpan / 2));
+          yMax = Math.ceil(mid + minDesiredSpan / 2);
         }
       }
     }
+    const ySpan = Math.max(1, yMax - yMin);
+    const useCompactTicks = ySpan >= 1500;
+    const useCompactValueLabels = ySpan >= 2000;
+    const formatChartCurrency = function(value, useCompact) {
+      const amount = typeof value === 'number' ? value : parseFloat(value) || 0;
+      const convertedAmount = (window.Utils && Utils.CurrencyConverter && typeof Utils.CurrencyConverter.convert === 'function')
+        ? Utils.CurrencyConverter.convert(amount)
+        : amount;
+      const displaySymbol = (window.Utils && Utils.CurrencyConverter && typeof Utils.CurrencyConverter.getDisplaySymbol === 'function')
+        ? Utils.CurrencyConverter.getDisplaySymbol()
+        : _currencySymbol;
+
+      if (useCompact && Math.abs(convertedAmount) >= 1000) {
+        const decimals = Math.abs(convertedAmount) < 10000 ? 1 : 0;
+        return `${displaySymbol}${(convertedAmount / 1000).toFixed(decimals)}k`;
+      }
+      return `${displaySymbol}${Math.round(convertedAmount).toLocaleString()}`;
+    };
     
     // Determine colors based on dark mode
     const isDarkMode = document.body.classList.contains('dark-mode');
@@ -2615,7 +2638,7 @@ function restoreNextPaymentColumn() {
           const x = point.x;
           const y = point.y - 25;
 
-          const totalStr = value >= 1000 ? '€' + (value / 1000).toFixed(0) + 'k' : '€' + value.toFixed(0);
+          const totalStr = formatChartCurrency(value, useCompactValueLabels);
           const prevValue = index > 0 ? (totalValues[index - 1] || 0) : 0;
           const delta = value - prevValue;
 
@@ -2623,8 +2646,8 @@ function restoreNextPaymentColumn() {
 
           if (index > 0 && delta !== 0) {
             const changeStr = delta > 0 ?
-              '+' + (delta >= 1000 ? '€' + (delta / 1000).toFixed(0) + 'k' : '€' + delta.toFixed(0)) :
-              '-' + (Math.abs(delta) >= 1000 ? '€' + (Math.abs(delta) / 1000).toFixed(0) + 'k' : '€' + Math.abs(delta).toFixed(0));
+              `+${formatChartCurrency(delta, false)}` :
+              `-${formatChartCurrency(Math.abs(delta), false)}`;
 
             ctx.fillStyle = delta > 0 ? '#22c55e' : '#ef4444';
             ctx.font = '9px Arial';
@@ -2675,10 +2698,7 @@ function restoreNextPaymentColumn() {
             ticks: {
               maxTicksLimit: 5,
               callback: function(value) {
-                if (value >= 1000) {
-                  return (value / 1000).toFixed(0) + 'k';
-                }
-                return formatCurrency(value);
+                return formatChartCurrency(value, useCompactTicks);
               },
               font: {
                 size: 11
@@ -3225,6 +3245,20 @@ function restoreNextPaymentColumn() {
         }
       };
       document.addEventListener('settings-changed', window._recurringSettingsListener);
+    }
+
+    // Display currency / exchange-rate change listener - only add once
+    if (!window._recurringDisplayCurrencyListener) {
+      window._recurringDisplayCurrencyListener = function() {
+        loadSettings();
+        updateChartMetrics();
+        updateRecurringTable();
+
+        if (window.recurringChart) {
+          initializeRecurringChart();
+        }
+      };
+      document.addEventListener('display-currency-changed', window._recurringDisplayCurrencyListener);
     }
 
     // Add the click handler
