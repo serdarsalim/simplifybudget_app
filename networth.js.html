@@ -2229,6 +2229,7 @@ function init(containerId, cachedData) {
             callbacks: {
               label: function(context) {
                 const percentage = context.parsed.y;
+                if (percentage == null) return null;
                 return `Performance: ${percentage.toFixed(2)}%`;
               }
             }
@@ -2438,7 +2439,9 @@ function init(containerId, cachedData) {
             callbacks: {
               label: function(context) {
                 const asset = sortedAssets[context.dataIndex];
-                const percentage = data[context.dataIndex].toFixed(1);
+                const percentageValue = data[context.dataIndex];
+                if (!asset || percentageValue == null) return null;
+                const percentage = percentageValue.toFixed(1);
                 return `${asset.name}: ${formatCurrency(asset.amount)} (${percentage}%)`;
               }
             }
