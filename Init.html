@@ -1784,6 +1784,7 @@ loadTranslations: function () {
         const monthYearDisplay = document.getElementById('monthYearDisplay');
         if (monthYearDisplay) {
           monthYearDisplay.textContent = `${translatedMonth} ${year}`;
+          monthYearDisplay.setAttribute('data-year', year);
         }
         
         // Update budget display (dashboard banner)
@@ -3694,12 +3695,10 @@ scheduleAppShutdown: function() {
     const reportsView = document.getElementById('reportsView');
     const monthlyContent = document.getElementById('expenseContent');
     const yearlyContent = document.getElementById('reportsContent');
+    const monthYearDisplay = document.getElementById('monthYearDisplay');
+    const yearDisplayReports = document.getElementById('yearDisplayReports');
 
     if (!expenseView || !reportsView || !monthlyContent || !yearlyContent) return;
-
-    // Get toggle buttons
-    const viewToggle = document.getElementById('viewToggle');
-    const viewToggleReports = document.getElementById('viewToggleReports');
 
     function switchToMonthly() {
 
@@ -3707,12 +3706,13 @@ scheduleAppShutdown: function() {
       expenseView.style.display = 'block';
       reportsView.style.display = 'none';
 
-      // Update toggle buttons
-      if (viewToggle) {
-        viewToggle.setAttribute('data-view', 'monthly');
+      if (monthYearDisplay) {
+        monthYearDisplay.setAttribute('data-view-mode', 'monthly');
+        monthYearDisplay.setAttribute('aria-label', 'Switch to yearly view');
+        monthYearDisplay.setAttribute('title', 'Switch to yearly view');
       }
-      if (viewToggleReports) {
-        viewToggleReports.setAttribute('data-view', 'monthly');
+      if (yearDisplayReports) {
+        yearDisplayReports.setAttribute('data-view-mode', 'monthly');
       }
 
       // Save toggle state
@@ -3743,12 +3743,13 @@ scheduleAppShutdown: function() {
       expenseView.style.display = 'none';
       reportsView.style.display = 'block';
 
-      // Update toggle buttons
-      if (viewToggle) {
-        viewToggle.setAttribute('data-view', 'yearly');
+      if (monthYearDisplay) {
+        monthYearDisplay.setAttribute('data-view-mode', 'yearly');
       }
-      if (viewToggleReports) {
-        viewToggleReports.setAttribute('data-view', 'yearly');
+      if (yearDisplayReports) {
+        yearDisplayReports.setAttribute('data-view-mode', 'yearly');
+        yearDisplayReports.setAttribute('aria-label', 'Switch to monthly view');
+        yearDisplayReports.setAttribute('title', 'Switch to monthly view');
       }
 
       // Save toggle state
@@ -3784,28 +3785,21 @@ scheduleAppShutdown: function() {
       }
     }
 
-    // Bind events to toggle buttons
-    if (viewToggle && !viewToggle._toggleBound) {
-      viewToggle.addEventListener('click', function() {
-        const currentView = viewToggle.getAttribute('data-view');
-        if (currentView === 'monthly') {
-          switchToYearly();
-        } else {
-          switchToMonthly();
-        }
+    if (monthYearDisplay && !monthYearDisplay._toggleBound) {
+      monthYearDisplay.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        switchToYearly();
       });
-      viewToggle._toggleBound = true;
+      monthYearDisplay._toggleBound = true;
     }
-    if (viewToggleReports && !viewToggleReports._toggleBound) {
-      viewToggleReports.addEventListener('click', function() {
-        const currentView = viewToggleReports.getAttribute('data-view');
-        if (currentView === 'yearly') {
-          switchToMonthly();
-        } else {
-          switchToYearly();
-        }
+    if (yearDisplayReports && !yearDisplayReports._toggleBound) {
+      yearDisplayReports.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        switchToMonthly();
       });
-      viewToggleReports._toggleBound = true;
+      yearDisplayReports._toggleBound = true;
     }
 
     // Function to restore saved toggle state (called when switching to expense view)

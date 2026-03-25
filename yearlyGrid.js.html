@@ -1481,19 +1481,6 @@ if (refreshReports) {
     document.addEventListener('click', handleDocumentClick);
     document.addEventListener('touchend', handleTouchEnd);
     
-    // Add click-to-edit functionality for month/year display
-    const yearDisplayReports = document.getElementById('yearDisplayReports');
-    if (yearDisplayReports) {
-      yearDisplayReports.removeEventListener('click', yearDisplayReports._editHandler);
-      
-      yearDisplayReports._editHandler = function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        showMonthYearEditor('yearDisplayReports');
-      };
-      
-      yearDisplayReports.addEventListener('click', yearDisplayReports._editHandler);
-    }
   }
   
   /**
@@ -1606,6 +1593,9 @@ function getNextMonth(month, year) {
       // For yearly view, just show the year
       yearDisplayReports.textContent = `${_currentYear}`;
       yearDisplayReports.setAttribute('data-year', _currentYear);
+      yearDisplayReports.setAttribute('data-view-mode', 'yearly');
+      yearDisplayReports.setAttribute('aria-label', 'Switch to monthly view');
+      yearDisplayReports.setAttribute('title', 'Switch to monthly view');
     }
   }
   

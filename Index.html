@@ -235,13 +235,6 @@
                   >
                     <i class="material-icons">star</i>
                   </a>
-                  <button id="viewToggle" class="toggle-btn" data-view="monthly" aria-label="Toggle monthly/yearly view">
-                    <span class="toggle-badge">
-                      <span class="toggle-badge-option" data-mode="monthly">M</span>
-                      <span class="toggle-badge-sep">/</span>
-                      <span class="toggle-badge-option" data-mode="yearly">Y</span>
-                    </span>
-                  </button>
                   <button id="monthlyAnalytics" class="analytics-btn" data-translate-title="analytics" aria-label="Analytics">
                     <i class="material-icons">insights</i>
                   </button>
@@ -249,7 +242,7 @@
                     <button id="prevMonth" class="month-nav-btn" data-translate-aria-label="previous_month">
                       <i class="material-icons month-tri left">play_arrow</i>
                     </button>
-                    <div id="monthYearDisplay" class="month-year-display editable" data-translate-title="click_edit_month_year">
+                    <div id="monthYearDisplay" class="month-year-display view-switch-display" aria-label="Switch to yearly view" title="Switch to yearly view">
                       <!-- Will be populated by JS -->
                     </div>
                     <button id="nextMonth" class="month-nav-btn" data-translate-aria-label="next_month">
@@ -293,13 +286,6 @@
                   >
                     <i class="material-icons">star</i>
                   </a>
-                  <button id="viewToggleReports" class="toggle-btn" data-view="yearly" aria-label="Toggle monthly/yearly view">
-                    <span class="toggle-badge">
-                      <span class="toggle-badge-option" data-mode="monthly">M</span>
-                      <span class="toggle-badge-sep">/</span>
-                      <span class="toggle-badge-option" data-mode="yearly">Y</span>
-                    </span>
-                  </button>
                   <button id="yearlyAnalytics" class="analytics-btn" data-translate-title="analytics" aria-label="Analytics">
                     <i class="material-icons">insights</i>
                   </button>
@@ -307,7 +293,7 @@
                     <button id="prevYearReports" class="month-nav-btn" data-translate-aria-label="previous_year">
                       <i class="material-icons month-tri left">play_arrow</i>
                     </button>
-                    <div id="yearDisplayReports" class="month-year-display editable" data-translate-title="click_edit_year">
+                    <div id="yearDisplayReports" class="month-year-display view-switch-display" aria-label="Switch to monthly view" title="Switch to monthly view">
                       <!-- Will be populated by JS -->
                     </div>
                     <button id="nextYearReports" class="month-nav-btn" data-translate-aria-label="next_year">

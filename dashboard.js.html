@@ -392,13 +392,8 @@ const SaveQueue = {
       SimBudget.Views.switchTo('expense');
     }
 
-    const viewToggle = document.getElementById('viewToggle');
-    const viewToggleReports = document.getElementById('viewToggleReports');
-    if (viewToggle && viewToggle.getAttribute('data-view') === 'yearly') {
-      viewToggle.click();
-    }
-    if (viewToggleReports && viewToggleReports.getAttribute('data-view') === 'yearly') {
-      viewToggleReports.click();
+    if (typeof window.restoreExpenseToggleState === 'function') {
+      window.restoreExpenseToggleState();
     }
 
     if (window.MonthlyGrid && typeof MonthlyGrid.setMonthYear === 'function') {

@@ -2062,19 +2062,6 @@ if (window.CacheManager) {
     document.addEventListener('click', handleDocumentClick);
     document.addEventListener('touchend', handleTouchEnd);
     
-    // Add click-to-edit functionality for month/year display
-    const monthYearDisplay = document.getElementById('monthYearDisplay');
-    if (monthYearDisplay) {
-      monthYearDisplay.removeEventListener('click', monthYearDisplay._editHandler);
-      
-      monthYearDisplay._editHandler = function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        showMonthYearEditor('monthYearDisplay');
-      };
-      
-      monthYearDisplay.addEventListener('click', monthYearDisplay._editHandler);
-    }
   }
   
   /**
@@ -2239,12 +2226,15 @@ function getNextMonth(month, year) {
           .toLocaleString('default', { month: 'long' });
       }
       
-      // Update the display with translated month
+      // The header chip now acts as the monthly/yearly mode switch.
       monthYearDisplay.textContent = `${translatedMonth} ${_currentYear}`;
       
       // Add data attributes for future translations
       monthYearDisplay.setAttribute('data-translate-month', monthKey);
       monthYearDisplay.setAttribute('data-year', _currentYear);
+      monthYearDisplay.setAttribute('data-view-mode', 'monthly');
+      monthYearDisplay.setAttribute('aria-label', 'Switch to yearly view');
+      monthYearDisplay.setAttribute('title', 'Switch to yearly view');
     }
   }
   
