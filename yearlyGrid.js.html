@@ -1832,25 +1832,54 @@ function getNextMonth(month, year) {
   totalHeader.title = 'Daily Total';
   totalHeader.setAttribute('data-translate-title', 'Daily Total');
   
-  // Calculate monthly grand total
-  const grandTotal = getMonthGrandTotal();
-  
   const totalHeaderContent = document.createElement('div');
   totalHeaderContent.className = 'category-header-content';
   
-  // Create header label
-  const headerLabel = document.createElement('div');
   const isDarkMode = document.body.classList.contains('dark-mode');
   const yearlySpent = getYearlySpent();
-  headerLabel.style.color = isDarkMode ? '#ffffff' : '#000000';
-  headerLabel.style.fontSize = '12px';
-  headerLabel.style.lineHeight = '1.2';
-  headerLabel.style.fontWeight = '600';
-  headerLabel.style.textAlign = 'center';
-  headerLabel.innerHTML = `Spent:<br>${formatCurrency(yearlySpent)}`;
-  headerLabel.title = 'Monthly spent totals with yearly total context';
-  
-  totalHeaderContent.appendChild(headerLabel);
+  const yearlyIncome = getYearlyIncome();
+  const yearlySaved = yearlyIncome - yearlySpent;
+  const yearlySavedArrow = yearlySaved >= 0 ? '▲' : '▼';
+
+  const totalEmoji = document.createElement('div');
+  totalEmoji.className = 'category-emoji';
+  totalEmoji.textContent = '';
+
+  const totalName = document.createElement('div');
+  totalName.className = 'category-name total-label';
+  totalName.textContent = 'Spent:';
+  totalName.style.fontSize = '12px';
+  totalName.style.fontWeight = 'normal';
+  totalName.style.marginBottom = '2px';
+
+  const totalValue = document.createElement('div');
+  totalValue.className = 'category-total';
+
+  const spentAmount = document.createElement('div');
+  spentAmount.className = 'spent-amount';
+  spentAmount.textContent = formatCurrency(yearlySpent);
+  spentAmount.style.fontSize = '14px';
+  spentAmount.style.fontWeight = '600';
+  spentAmount.style.lineHeight = '1.2';
+  spentAmount.style.textAlign = 'center';
+
+  const yearlySavings = document.createElement('div');
+  yearlySavings.className = 'remaining-budget';
+  yearlySavings.textContent = `${formatCurrency(Math.abs(yearlySaved))} ${yearlySavedArrow}`;
+  yearlySavings.style.fontSize = '12px';
+  yearlySavings.style.fontWeight = 'normal';
+  yearlySavings.style.lineHeight = '1.2';
+  yearlySavings.style.marginTop = '2px';
+  yearlySavings.style.textAlign = 'center';
+  yearlySavings.style.color = yearlySaved >= 0 ? '#2e7d32' : '#d32f2f';
+
+  totalValue.textContent = '';
+  totalValue.appendChild(spentAmount);
+  totalValue.appendChild(yearlySavings);
+
+  totalHeaderContent.appendChild(totalEmoji);
+  totalHeaderContent.appendChild(totalName);
+  totalHeaderContent.appendChild(totalValue);
   totalHeader.appendChild(totalHeaderContent);
   
   // Note: Financial dashboard now accessed via Analytics button in banner
@@ -4253,18 +4282,42 @@ function getMonthlySpendingByCategory(month, year) {
   text-align: center;
 }
 
+.category-header-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
 
+.category-emoji {
+  font-size: 18px;
+  line-height: 1;
+  margin: 0;
+  padding: 2px 0;
+  text-align: center;
+}
 
-/* Category header content layout */
+.category-name {
+  font-size: 10px;
+  text-align: center;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  margin: 0;
+  padding-top: 2px;
+  font-weight: 600;
+  font-family: "SF Pro Text", "SF Pro Display", "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif;
+}
 
-
-/* Emoji styling - centered on top */
-
-
-/* Category name styling - below emoji, centered */
-
-
-/* Category total styling */
+.category-total {
+  font-size: 13px;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1;
+}
 
 
 
@@ -4713,7 +4766,25 @@ body:has(.yearly-transaction-modal.visible) #mobileSidebarToggle {
     color: #1f2a39;
   }
   
-  
+  .category-name {
+    display: none !important;
+  }
+
+  .category-emoji {
+    font-size: 16px;
+    padding: 2px 0;
+  }
+
+  .category-header {
+    min-width: 35px !important;
+    width: 35px !important;
+    padding: 2px 1px !important;
+  }
+
+  .total-header {
+    width: 45px !important;
+  }
+
   
   /* MOBILE: Hide transaction count */
   
