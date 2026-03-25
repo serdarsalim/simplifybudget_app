@@ -2687,7 +2687,7 @@ function restoreNextPaymentColumn() {
         const tooltip = chart.tooltip;
         if (!tooltip || !tooltip.dataPoints || tooltip.dataPoints.length === 0) return;
         const hoveredMonthIndex = tooltip.dataPoints[0].dataIndex;
-        tooltip.xAlign = hoveredMonthIndex < 6 ? 'right' : 'left';
+        tooltip.xAlign = hoveredMonthIndex < 6 ? 'left' : 'right';
         tooltip.yAlign = 'center';
       }
     };
