@@ -32,6 +32,8 @@ var NetWorthManager = (function() {
   let _selectedYear = new Date().getFullYear(); // For performance chart year selection
   let _assetNameColors = {}; 
   const VALID_CHART_MODES = ['performance', 'timeline', 'allocation'];
+  const VALID_ALLOCATION_VIEWS = ['overview', 'breakdown'];
+  let _allocationView = normalizeAllocationView(localStorage.getItem('nwAllocationView') || 'overview');
   
   // Remove mode toggle
   let _removeMode = false;
@@ -100,6 +102,10 @@ var NetWorthManager = (function() {
 
   function normalizeChartMode(mode) {
     return VALID_CHART_MODES.includes(mode) ? mode : 'allocation';
+  }
+
+  function normalizeAllocationView(view) {
+    return VALID_ALLOCATION_VIEWS.includes(view) ? view : 'overview';
   }
 
   function getDefaultChartMode() {
@@ -1606,7 +1612,12 @@ function init(containerId, cachedData) {
       </div>
       <div class="nw-chart-content" id="nwChartContent" style="display: ${_chartCollapsed ? 'none' : 'block'};">
         <div class="nw-chart-wrapper">
-          <canvas id="netWorthChart" width="800" height="400"></canvas>
+          <div class="nw-chart-layout">
+            <div class="nw-chart-canvas-shell">
+              <canvas id="netWorthChart" width="800" height="400"></canvas>
+            </div>
+            <div class="nw-allocation-legend ${_chartMode === 'allocation' ? '' : 'hidden'}" id="nwAllocationLegend"></div>
+          </div>
         </div>
         <div class="nw-chart-controls-bar">
           <div class="nw-chart-controls">
@@ -1620,6 +1631,11 @@ function init(containerId, cachedData) {
               <button class="nw-mode-btn ${_chartMode === 'allocation' ? 'active' : ''}" id="allocationBtn" title="Allocation">
                 <i class="material-icons">pie_chart</i>
               </button>
+            </div>
+
+            <div class="nw-timespan-controls nw-allocation-controls ${_chartMode === 'allocation' ? '' : 'hidden'}" id="allocationViewControls">
+              <button class="nw-timespan-btn ${_allocationView === 'overview' ? 'active' : ''}" data-allocation-view="overview">Overview</button>
+              <button class="nw-timespan-btn ${_allocationView === 'breakdown' ? 'active' : ''}" data-allocation-view="breakdown">Breakdown</button>
             </div>
 
             <div class="nw-timespan-controls ${_chartMode === 'performance' ? '' : 'hidden'}" id="performanceYearControls">
@@ -1779,6 +1795,8 @@ function init(containerId, cachedData) {
     // Update timespan controls visibility
     const performanceYearControls = document.getElementById('performanceYearControls');
     const timelineTimespanControls = document.getElementById('timelineTimespanControls');
+    const allocationViewControls = document.getElementById('allocationViewControls');
+    const allocationLegend = document.getElementById('nwAllocationLegend');
 
     if (performanceYearControls) {
       performanceYearControls.classList.toggle('hidden', _chartMode !== 'performance');
@@ -1788,9 +1806,22 @@ function init(containerId, cachedData) {
       timelineTimespanControls.classList.toggle('hidden', _chartMode !== 'timeline');
     }
 
+    if (allocationViewControls) {
+      allocationViewControls.classList.toggle('hidden', _chartMode !== 'allocation');
+      allocationViewControls.querySelectorAll('.nw-timespan-btn[data-allocation-view]').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-allocation-view') === _allocationView);
+      });
+    }
+
+    if (allocationLegend) {
+      allocationLegend.classList.toggle('hidden', _chartMode !== 'allocation');
+    }
+
     const chartContainer = document.querySelector('.nw-chart-container');
     if (chartContainer) {
       chartContainer.classList.toggle('allocation-mode', _chartMode === 'allocation');
+      chartContainer.classList.toggle('allocation-overview', _chartMode === 'allocation' && _allocationView === 'overview');
+      chartContainer.classList.toggle('allocation-breakdown', _chartMode === 'allocation' && _allocationView === 'breakdown');
     }
   }
 
@@ -2056,9 +2087,11 @@ function init(containerId, cachedData) {
           }
         },
         tooltip: {
-          backgroundColor: 'rgba(0,0,0,0.8)',
+          backgroundColor: '#111827',
           titleColor: '#fff',
           bodyColor: '#fff',
+          borderColor: 'rgba(255,255,255,0.12)',
+          borderWidth: 1,
           titleFont: {
             size: 13,
             weight: 'bold'
@@ -2232,7 +2265,11 @@ function init(containerId, cachedData) {
           },
           tooltip: {
             enabled: true,
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            backgroundColor: '#111827',
+            titleColor: '#fff',
+            bodyColor: '#fff',
+            borderColor: 'rgba(255,255,255,0.12)',
+            borderWidth: 1,
             padding: 12,
             titleFont: {
               size: 13,
@@ -2356,60 +2393,114 @@ function init(containerId, cachedData) {
     });
   }
 
-  function initializeAllocationChart() {
-  const canvas = document.getElementById('netWorthChart');
-  if (!canvas) return;
-
-  const ctx = canvas.getContext('2d');
-
-  // Destroy existing chart
-  if (_chart) {
-    _chart.destroy();
+  function getAllocationEntries() {
+    return getCurrentMonthEntries().filter(entry => {
+      const category = ASSET_CATEGORIES[entry.asset];
+      const amount = parseFloat(entry.amount) || 0;
+      return category && !category.isDebt && amount > 0 && Math.abs(amount) >= 1;
+    });
   }
 
-  // Get current month entries only
-  const currentMonthEntries = getCurrentMonthEntries();
+  function getAllocationData(view) {
+    const entries = getAllocationEntries();
+    const totalAssets = entries.reduce((sum, entry) => sum + (parseFloat(entry.amount) || 0), 0);
 
-  // Group by asset name and calculate totals
-  const assetsByName = {};
-  let totalAssets = 0;
+    if (view === 'overview') {
+      const bucketConfig = [
+        { key: 'Liquid Assets', label: 'Liquid', color: ASSET_CATEGORIES['Liquid Assets'].color },
+        { key: 'Physical Assets', label: 'Physical', color: ASSET_CATEGORIES['Physical Assets'].color },
+        { key: 'Investments', label: 'Investments', color: ASSET_CATEGORIES['Investments'].color }
+      ];
 
-  currentMonthEntries.forEach(entry => {
-    const category = ASSET_CATEGORIES[entry.asset];
-    if (!category || !entry.name) return;
+      const items = bucketConfig.map(bucket => {
+        const amount = entries
+          .filter(entry => entry.asset === bucket.key)
+          .reduce((sum, entry) => sum + (parseFloat(entry.amount) || 0), 0);
 
-    const amount = parseFloat(entry.amount) || 0;
+        return {
+          key: bucket.key,
+          name: bucket.label,
+          amount: amount,
+          color: bucket.color
+        };
+      }).filter(item => item.amount > 0);
 
-    // Skip amounts less than 1 for allocation chart
-    if (Math.abs(amount) < 1) return;
+      return { items, totalAssets };
+    }
 
-    // Only include positive values (assets, not debts)
-    if (!category.isDebt && amount > 0) {
+    const assetsByName = {};
+    entries.forEach(entry => {
+      if (!entry.name) return;
       if (!assetsByName[entry.name]) {
         assetsByName[entry.name] = {
+          key: entry.name,
           name: entry.name,
           amount: 0,
           type: entry.type
         };
       }
-      assetsByName[entry.name].amount += amount;
-      totalAssets += amount;
+      assetsByName[entry.name].amount += parseFloat(entry.amount) || 0;
+    });
+
+    const items = Object.values(assetsByName).sort((a, b) => b.amount - a.amount);
+    assignColorsToAssetNames(items);
+    items.forEach(item => {
+      item.color = _assetNameColors[item.name];
+    });
+
+    return { items, totalAssets };
+  }
+
+  function renderAllocationLegend(items, totalAssets) {
+    const legend = document.getElementById('nwAllocationLegend');
+    if (!legend) return;
+
+    if (_chartMode !== 'allocation' || !items.length) {
+      legend.innerHTML = '';
+      legend.classList.add('hidden');
+      return;
     }
-  });
 
-    // Convert to array and sort by amount
-    const sortedAssets = Object.values(assetsByName)
-      .sort((a, b) => b.amount - a.amount);
+    legend.classList.remove('hidden');
+    legend.innerHTML = items.map(item => {
+      const percentage = totalAssets > 0 ? (item.amount / totalAssets) * 100 : 0;
+      return `
+        <div class="nw-allocation-legend-item">
+          <span class="nw-allocation-legend-swatch" style="background:${item.color}"></span>
+          <div class="nw-allocation-legend-copy">
+            <div class="nw-allocation-legend-top">
+              <span class="nw-allocation-legend-label">${item.name}</span>
+              <span class="nw-allocation-legend-percent">${percentage.toFixed(1)}%</span>
+            </div>
+            <div class="nw-allocation-legend-value">${formatCurrency(item.amount)}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
 
-    // Assign colors to asset names if not already assigned
-    assignColorsToAssetNames(sortedAssets);
+  function initializeAllocationChart() {
+    const canvas = document.getElementById('netWorthChart');
+    if (!canvas) return;
 
-    // Prepare data for donut chart
-    const labels = sortedAssets.map(asset => asset.name);
-    const data = sortedAssets.map(asset => (asset.amount / totalAssets) * 100);
-    const backgroundColors = sortedAssets.map(asset => _assetNameColors[asset.name]);
+    const ctx = canvas.getContext('2d');
 
+    if (_chart) {
+      _chart.destroy();
+    }
+
+    const { items, totalAssets } = getAllocationData(_allocationView);
+    renderAllocationLegend(items, totalAssets);
+
+    const labels = items.length ? items.map(item => item.name) : ['No assets'];
+    const data = items.length
+      ? items.map(item => totalAssets > 0 ? (item.amount / totalAssets) * 100 : 0)
+      : [100];
+    const backgroundColors = items.length
+      ? items.map(item => item.color)
+      : ['#e5e7eb'];
     const isMobile = window.innerWidth < 768;
+    const centerLabel = _allocationView === 'overview' ? 'Allocation' : 'Breakdown';
 
     _chart = new Chart(ctx, {
       type: 'doughnut',
@@ -2419,13 +2510,14 @@ function init(containerId, cachedData) {
           data: data,
           backgroundColor: backgroundColors,
           borderWidth: 2,
-          borderColor: '#fff'
+          borderColor: '#fff',
+          hoverOffset: 6
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        cutout: '60%', // Makes it a donut (vs pie)
+        cutout: _allocationView === 'overview' ? '68%' : '60%',
         layout: {
           padding: {
             top: 20,
@@ -2436,12 +2528,14 @@ function init(containerId, cachedData) {
         },
         plugins: {
           legend: {
-            display: false // Hide legend, we'll draw labels inside
+            display: false
           },
           tooltip: {
-            backgroundColor: 'rgba(0,0,0,0.8)',
+            backgroundColor: '#111827',
             titleColor: '#fff',
             bodyColor: '#fff',
+            borderColor: 'rgba(255,255,255,0.12)',
+            borderWidth: 1,
             titleFont: {
               size: 13,
               weight: 'bold',
@@ -2454,59 +2548,34 @@ function init(containerId, cachedData) {
             padding: 12,
             callbacks: {
               label: function(context) {
-                const asset = sortedAssets[context.dataIndex];
-                const percentageValue = data[context.dataIndex];
-                if (!asset || percentageValue == null) return null;
-                const percentage = percentageValue.toFixed(1);
-                return `${asset.name}: ${formatCurrency(asset.amount)} (${percentage}%)`;
+                if (!items.length) return 'No asset data';
+                const item = items[context.dataIndex];
+                const percentage = data[context.dataIndex];
+                return `${item.name}: ${formatCurrency(item.amount)} (${percentage.toFixed(1)}%)`;
               }
             }
           }
         }
       },
       plugins: [{
-        id: 'donutLabels',
+        id: 'allocationCenterLabel',
         afterDraw: function(chart) {
-          const ctx = chart.ctx;
           const chartArea = chart.chartArea;
+          if (!chartArea) return;
+
           const centerX = (chartArea.left + chartArea.right) / 2;
           const centerY = (chartArea.top + chartArea.bottom) / 2;
+          const drawCtx = chart.ctx;
 
-          ctx.save();
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-
-          chart.data.datasets[0].data.forEach((value, index) => {
-            const meta = chart.getDatasetMeta(0);
-            const arc = meta.data[index];
-
-            // Calculate position for label (between center and edge of donut)
-            const angle = (arc.startAngle + arc.endAngle) / 2;
-            const radius = (arc.innerRadius + arc.outerRadius) / 2;
-            const x = centerX + Math.cos(angle) * radius;
-            const y = centerY + Math.sin(angle) * radius;
-
-            // Only show label if segment is large enough
-            if (value > 5) {
-              const label = labels[index];
-              const percentage = `${Math.round(value)}%`;
-
-              // Draw asset name
-              ctx.font = `bold ${isMobile ? '10' : '12'}px Lato, sans-serif`;
-              ctx.fillStyle = '#fff';
-              ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-              ctx.lineWidth = 3;
-              ctx.strokeText(label, x, y - (isMobile ? 8 : 10));
-              ctx.fillText(label, x, y - (isMobile ? 8 : 10));
-
-              // Draw percentage
-              ctx.font = `${isMobile ? '9' : '11'}px Lato, sans-serif`;
-              ctx.strokeText(percentage, x, y + (isMobile ? 6 : 8));
-              ctx.fillText(percentage, x, y + (isMobile ? 6 : 8));
-            }
-          });
-
-          ctx.restore();
+          drawCtx.save();
+          drawCtx.textAlign = 'center';
+          drawCtx.textBaseline = 'middle';
+          drawCtx.fillStyle = document.body.classList.contains('dark-mode') ? '#e5e7eb' : '#334155';
+          drawCtx.font = `${isMobile ? '11' : '12'}px Lato, sans-serif`;
+          drawCtx.fillText(centerLabel, centerX, centerY - 10);
+          drawCtx.font = `700 ${isMobile ? '15' : '18'}px Lato, sans-serif`;
+          drawCtx.fillText(items.length ? formatCurrency(totalAssets) : 'No data', centerX, centerY + 12);
+          drawCtx.restore();
         }
       }]
     });
@@ -3010,6 +3079,23 @@ function init(containerId, cachedData) {
       }
     });
   }
+
+  document.querySelectorAll('#allocationViewControls .nw-timespan-btn[data-allocation-view]').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const nextView = normalizeAllocationView(this.getAttribute('data-allocation-view'));
+      if (nextView === _allocationView) return;
+
+      _allocationView = nextView;
+      localStorage.setItem('nwAllocationView', _allocationView);
+
+      document.querySelectorAll('#allocationViewControls .nw-timespan-btn').forEach(button => {
+        button.classList.toggle('active', button.getAttribute('data-allocation-view') === _allocationView);
+      });
+
+      updateChartModeUI();
+      setTimeout(() => initializeChart(), 10);
+    });
+  });
 
     // Timeline timespan controls
     document.querySelectorAll('#timelineTimespanControls .nw-timespan-btn').forEach(btn => {
@@ -5489,6 +5575,89 @@ body.dark-mode #netWorthView .networth-banner-summary {
   overflow: hidden;
 }
 
+.nw-chart-layout {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  width: 100%;
+  height: 100%;
+}
+
+.nw-chart-canvas-shell {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  position: relative;
+}
+
+.nw-allocation-controls.hidden,
+.nw-allocation-legend.hidden {
+  display: none !important;
+}
+
+.nw-allocation-legend {
+  flex: 0 0 250px;
+  max-width: 250px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 100%;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.nw-allocation-legend-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.96) 0%, rgba(241, 245, 249, 0.88) 100%);
+}
+
+.nw-allocation-legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  flex: 0 0 10px;
+  margin-top: 5px;
+}
+
+.nw-allocation-legend-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.nw-allocation-legend-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.nw-allocation-legend-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nw-allocation-legend-percent {
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+  flex: 0 0 auto;
+}
+
+.nw-allocation-legend-value {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #64748b;
+}
+
 #netWorthChart {
   width: 100% !important;
   height: 100% !important;
@@ -5503,6 +5672,23 @@ body.dark-mode #netWorthView .networth-banner-summary {
     min-height: 400px;
     overflow: hidden;
     clip-path: inset(0);
+  }
+
+  .nw-chart-layout {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .nw-chart-canvas-shell {
+    min-height: 240px;
+  }
+
+  .nw-allocation-legend {
+    flex: 0 0 auto;
+    max-width: none;
+    max-height: none;
+    overflow: visible;
   }
 
   .nw-chart-container {
@@ -6942,6 +7128,20 @@ body.dark-mode .nw-chart-controls-bar {
 
 body.dark-mode .nw-chart-content {
   background-color: var(--dark-surface, #1e1e1e);
+}
+
+body.dark-mode .nw-allocation-legend-item {
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.96) 0%, rgba(15, 23, 42, 0.9) 100%);
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+body.dark-mode .nw-allocation-legend-label,
+body.dark-mode .nw-allocation-legend-percent {
+  color: #e2e8f0;
+}
+
+body.dark-mode .nw-allocation-legend-value {
+  color: #94a3b8;
 }
 
 /* ======== DARK MODE BADGE STYLING ======== */
