@@ -784,7 +784,7 @@ async function calculateSummaryMetricsAsync() {
 
     // Get month name in current language if possible
     const currentMonthLabel = now.toLocaleDateString(_language || 'en-US', { month: 'short', year: 'numeric' });
-    const paymentCountLabel = `${metrics.monthPaymentCount} Payment${metrics.monthPaymentCount !== 1 ? 's' : ''} in`;
+    const paymentCountLabel = `${metrics.monthPaymentCount} Income${metrics.monthPaymentCount !== 1 ? 's' : ''} in`;
 
     container.innerHTML = `
     <div class="inc-content-column">
@@ -3164,7 +3164,7 @@ function saveEditedRecurringIncome(originalItem, overlay) {
     // Update synchronously from in-memory data
     const metrics = calculateSummaryMetrics();
     const monthName = new Date().toLocaleDateString(_language || 'en-US', { month: 'short', year: 'numeric' });
-    const paymentCountLabel = `${metrics.monthPaymentCount} Payment${metrics.monthPaymentCount !== 1 ? 's' : ''} in`;
+    const paymentCountLabel = `${metrics.monthPaymentCount} Income${metrics.monthPaymentCount !== 1 ? 's' : ''} in`;
 
     const paymentCountEl = getElement('incomePaymentCountLabel');
     if (paymentCountEl) paymentCountEl.textContent = paymentCountLabel;
@@ -3180,7 +3180,7 @@ function saveEditedRecurringIncome(originalItem, overlay) {
 
     const summaryLine = getElement('incomeSummaryLine');
     if (summaryLine) {
-      summaryLine.textContent = `${monthName}: ${metrics.monthPaymentCount} Payments | Total: ${formatCurrency(metrics.monthTotal)} | 12m avg: ${formatCurrency(metrics.monthlyAverage)}`;
+      summaryLine.textContent = `${monthName}: ${metrics.monthPaymentCount} Income${metrics.monthPaymentCount !== 1 ? 's' : ''} | Total: ${formatCurrency(metrics.monthTotal)} | 12m avg: ${formatCurrency(metrics.monthlyAverage)}`;
     }
 
   }

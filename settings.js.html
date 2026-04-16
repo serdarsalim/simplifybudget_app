@@ -1020,22 +1020,36 @@ function applySettingsToForm(settings) {
     const statusEl = document.getElementById('trialStatus');
     if (!statusEl) return;
 
-    // Clear existing classes
+    const PURCHASE_URL = 'https://ko-fi.com/s/4b62acb528';
+    const freeLabelEl = document.getElementById('freeLabel');
+    const supportCtaEl = document.getElementById('supportCta');
+    const supportLinkEl = document.getElementById('supportLink');
+
+    // Clear existing classes and make visible
     statusEl.className = 'license-badge';
+    statusEl.style.display = '';
+
+    if (supportLinkEl) supportLinkEl.style.visibility = '';
 
     if (result.status === 'paid') {
       statusEl.innerHTML = 'Licensed';
-    } else if (result.status === 'trial') {
+      // Keep support link as-is for paid users
+    } else if (result.status === 'trial' || result.status === 'new') {
+      const daysLeft = result.daysLeft !== undefined ? result.daysLeft : 30;
       statusEl.classList.add('trial');
-      statusEl.innerHTML = `Trial: ${result.daysLeft} days`;
+      statusEl.innerHTML = `Trial: ${daysLeft} day${daysLeft !== 1 ? 's' : ''} left`;
+      if (freeLabelEl) freeLabelEl.textContent = 'Get the full version';
+      if (supportCtaEl) supportCtaEl.textContent = 'Purchase License';
+      if (supportLinkEl) supportLinkEl.href = PURCHASE_URL;
     } else if (result.status === 'expired') {
       statusEl.classList.add('expired');
-      statusEl.innerHTML = 'Expired';
-    } else if (result.status === 'new') {
-      statusEl.classList.add('trial');
-      statusEl.innerHTML = 'Trial: 30 days';
+      statusEl.innerHTML = 'Trial Expired';
+      if (freeLabelEl) freeLabelEl.textContent = 'Your trial has ended';
+      if (supportCtaEl) supportCtaEl.textContent = 'Purchase License';
+      if (supportLinkEl) supportLinkEl.href = PURCHASE_URL;
     } else {
-      statusEl.innerHTML = 'Free';
+      // Error or unknown — keep badge hidden
+      statusEl.style.display = 'none';
     }
   }
 

@@ -1629,26 +1629,51 @@ function _renderWelcomeContent(container) {
         margin: 0 auto;
       "
     >
-      <h2 style="margin-bottom: 32px; font-weight: 600; font-size: 24px;">Welcome to Simplify Budget!</h2>
+      <h2 style="margin-bottom: 8px; font-weight: 600; font-size: 24px;">Welcome to Simplify Budget!</h2>
+      <p style="margin-bottom: 4px; font-size: 15px; color: #555;">A personal finance tracker built on Google Sheets.</p>
+      <p style="margin-bottom: 28px; font-size: 14px; color: #888;">Your data lives in your own Google Drive. We never touch it.</p>
 
-      <div style="display: flex; justify-content: center; gap: 24px; flex-wrap: wrap; margin-bottom: 32px;">
-        <div style="text-align: center; min-width: 100px;">
-          <div style="font-size: 28px; margin-bottom: 8px;">📊</div>
-          <div style="font-size: 14px; color: #555;">Calendar based<br>Expense Tracking</div>
+      <!-- Feature tiles -->
+      <div style="display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; margin-bottom: 32px;">
+        <div style="text-align: left; min-width: 180px; max-width: 220px; background: #f8f9fa; border-radius: 12px; padding: 18px 20px;">
+          <div style="font-size: 26px; margin-bottom: 10px;">📊</div>
+          <div style="font-size: 14px; font-weight: 600; color: #333; margin-bottom: 6px;">Expense Tracking</div>
+          <div style="font-size: 13px; color: #666; line-height: 1.5;">Log spending on a monthly calendar grid. Set a budget per category and see what's left.</div>
         </div>
-        <div style="text-align: center; min-width: 100px;">
-          <div style="font-size: 28px; margin-bottom: 8px;">🔁</div>
-          <div style="font-size: 14px; color: #555;">Automated Fixed<br>Payments</div>
+        <div style="text-align: left; min-width: 180px; max-width: 220px; background: #f8f9fa; border-radius: 12px; padding: 18px 20px;">
+          <div style="font-size: 26px; margin-bottom: 10px;">🔁</div>
+          <div style="font-size: 14px; font-weight: 600; color: #333; margin-bottom: 6px;">Fixed Payments</div>
+          <div style="font-size: 13px; color: #666; line-height: 1.5;">Add a recurring bill once and it shows up every month. Subscriptions, rent, anything that repeats.</div>
         </div>
-        <div style="text-align: center; min-width: 100px;">
-          <div style="font-size: 28px; margin-bottom: 8px;">📈</div>
-          <div style="font-size: 14px; color: #555;">Net Worth<br>Tracking</div>
+        <div style="text-align: left; min-width: 180px; max-width: 220px; background: #f8f9fa; border-radius: 12px; padding: 18px 20px;">
+          <div style="font-size: 26px; margin-bottom: 10px;">📈</div>
+          <div style="font-size: 14px; font-weight: 600; color: #333; margin-bottom: 6px;">Net Worth</div>
+          <div style="font-size: 13px; color: #666; line-height: 1.5;">Log your assets and debts each month. Your net worth chart builds itself.</div>
+        </div>
+      </div>
+
+      <!-- How it works -->
+      <div style="background: #f0f4ff; border-radius: 12px; padding: 20px 24px; margin-bottom: 28px; text-align: left; max-width: 520px; margin-left: auto; margin-right: auto;">
+        <div style="font-size: 13px; font-weight: 600; color: #444; margin-bottom: 14px; text-transform: uppercase; letter-spacing: 0.5px;">How it works</div>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <div style="display: flex; align-items: flex-start; gap: 12px; font-size: 14px; color: #444;">
+            <span style="background: #7c3aed; color: white; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; margin-top: 1px;">1</span>
+            <span>Hit the button below. A spreadsheet gets created in your Google Drive.</span>
+          </div>
+          <div style="display: flex; align-items: flex-start; gap: 12px; font-size: 14px; color: #444;">
+            <span style="background: #7c3aed; color: white; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; margin-top: 1px;">2</span>
+            <span>Add your expenses, income, and fixed payments through the app.</span>
+          </div>
+          <div style="display: flex; align-items: flex-start; gap: 12px; font-size: 14px; color: #444;">
+            <span style="background: #7c3aed; color: white; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; margin-top: 1px;">3</span>
+            <span>Your dashboard, charts, and net worth fill in as you go.</span>
+          </div>
         </div>
       </div>
 
       <div id="welcome-permission-slot"></div>
 
-      <div style="margin: 32px 0;">
+      <div style="margin: 28px 0 16px;">
         <button
           onclick="createNewBudgetSheet()"
           style="
@@ -1669,12 +1694,7 @@ function _renderWelcomeContent(container) {
           Create My Budget Sheet
         </button>
       </div>
-
-      <p style="margin-bottom: 0; font-size: 14px;">
-        📺 <a href="https://www.youtube.com/watch?v=Xu_jhx9h_-Q" target="_blank" rel="noopener" style="color: #1a73e8;">
-          How to use the app
-        </a>
-      </p>
+      <p style="font-size: 13px; color: #888; margin: 0;">Free for 30 days, no card needed. After that, <a href="https://ko-fi.com/s/4b62acb528" target="_blank" style="color: #7c3aed; text-decoration: none; font-weight: 500;">grab a license on Ko-fi</a>.</p>
     </div>
   `;
 }

@@ -1058,8 +1058,9 @@ function recordFirstUse(email) {
   try {
     const sheet = SpreadsheetApp.openById(TRIAL_TRACKING_SHEET).getActiveSheet();
     
-    // FAST: Read emails from A3:A100 in one go (98 rows max)
-    const emails = sheet.getRange('A3:A100').getValues().flat();
+    // Read all emails from column A starting at row 3
+    const lastRow = Math.max(sheet.getLastRow(), 3);
+    const emails = sheet.getRange('A3:A' + lastRow).getValues().flat();
     
     // Check if email already exists
     for (let i = 0; i < emails.length; i++) {
@@ -1096,13 +1097,15 @@ function recordFirstUse(email) {
     // New user - add to tracking sheet in next available row
     const startDate = new Date();
     const timestamp = new Date();
-    
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + 30);
+
     // Obfuscate email before storing
     const obfuscatedEmail = obfuscateEmail(email);
-    
+
     Logger.log('Recording first use for: ' + email + ' in row: ' + nextEmptyRow);
-    // Store start date; leave end date blank on first initialization
-    sheet.getRange(nextEmptyRow, 1, 1, 4).setValues([[obfuscatedEmail, startDate, '', timestamp]]);
+    // Store start date and 30-day trial end date
+    sheet.getRange(nextEmptyRow, 1, 1, 4).setValues([[obfuscatedEmail, startDate, endDate, timestamp]]);
     
     return { 
       status: 'trial', 
@@ -1127,8 +1130,9 @@ function checkTrialStatus(email) {
   try {
     const sheet = SpreadsheetApp.openById(TRIAL_TRACKING_SHEET).getActiveSheet();
     
-    // FAST: Read all data from A3:C100 in one go
-    const data = sheet.getRange('A3:C100').getValues();
+    // Read all data from A3:C(lastRow)
+    const lastRow = Math.max(sheet.getLastRow(), 3);
+    const data = sheet.getRange('A3:C' + lastRow).getValues();
     
     // Find user in tracking sheet
     for (let i = 0; i < data.length; i++) {
