@@ -1031,10 +1031,9 @@ function applySettingsToForm(settings) {
 
     if (result.status === 'paid') {
       statusEl.innerHTML = 'Licensed';
-      if (supportLinkEl) supportLinkEl.style.visibility = '';
-      if (freeLabelEl) freeLabelEl.textContent = 'Simplify Budget';
-      if (supportCtaEl) supportCtaEl.textContent = 'Support on Ko-fi ☕';
-      // Keep support link href as-is for paid users
+      if (freeLabelEl) freeLabelEl.textContent = 'Need help?';
+      if (supportCtaEl) supportCtaEl.textContent = 'Contact us';
+      if (supportLinkEl) { supportLinkEl.href = 'https://docs.google.com/forms/d/e/1FAIpQLSd04w5oDz6xazcHDLRLam3UputcFhwl5RzuG8UTgItuj_7cDQ/viewform'; supportLinkEl.style.visibility = ''; }
     } else if (result.status === 'trial' || result.status === 'new') {
       const daysLeft = result.daysLeft !== undefined ? result.daysLeft : 30;
       statusEl.classList.add('trial');
