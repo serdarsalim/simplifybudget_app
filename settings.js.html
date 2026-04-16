@@ -1029,24 +1029,25 @@ function applySettingsToForm(settings) {
     statusEl.className = 'license-badge';
     statusEl.style.display = '';
 
-    if (supportLinkEl) supportLinkEl.style.visibility = '';
-
     if (result.status === 'paid') {
       statusEl.innerHTML = 'Licensed';
-      // Keep support link as-is for paid users
+      if (supportLinkEl) supportLinkEl.style.visibility = '';
+      if (freeLabelEl) freeLabelEl.textContent = 'Simplify Budget';
+      if (supportCtaEl) supportCtaEl.textContent = 'Support on Ko-fi ☕';
+      // Keep support link href as-is for paid users
     } else if (result.status === 'trial' || result.status === 'new') {
       const daysLeft = result.daysLeft !== undefined ? result.daysLeft : 30;
       statusEl.classList.add('trial');
       statusEl.innerHTML = `Trial: ${daysLeft} day${daysLeft !== 1 ? 's' : ''} left`;
       if (freeLabelEl) freeLabelEl.textContent = 'Get the full version';
       if (supportCtaEl) supportCtaEl.textContent = 'Purchase License';
-      if (supportLinkEl) supportLinkEl.href = PURCHASE_URL;
+      if (supportLinkEl) { supportLinkEl.href = PURCHASE_URL; supportLinkEl.style.visibility = ''; }
     } else if (result.status === 'expired') {
       statusEl.classList.add('expired');
       statusEl.innerHTML = 'Trial Expired';
       if (freeLabelEl) freeLabelEl.textContent = 'Your trial has ended';
       if (supportCtaEl) supportCtaEl.textContent = 'Purchase License';
-      if (supportLinkEl) supportLinkEl.href = PURCHASE_URL;
+      if (supportLinkEl) { supportLinkEl.href = PURCHASE_URL; supportLinkEl.style.visibility = ''; }
     } else {
       // Error or unknown — keep badge hidden
       statusEl.style.display = 'none';
